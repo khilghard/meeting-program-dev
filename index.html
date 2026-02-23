@@ -7,10 +7,8 @@
   <title>Sacrament Meeting Program</title>
   <link rel="canonical" href="https://khilghard.github.io/meeting-program/" />
   <link rel="manifest" href="/meeting-program/manifest.webmanifest">
-  <link rel="stylesheet" href="css/styles.css?v=3">
-  <script type="module" src="js/main.js?v=3"></script>
-  <script src="js/qr.js?v=3"></script>
-  <script src="js/sanitize.js?v=3"></script>
+  <link rel="stylesheet" href="css/styles.css?v=4">
+  <script type="module" src="js/main.js?v=4"></script>
   <link rel="icon" type="image/png" sizes="32x32" href="img/favicon.png">
 </head>
 
@@ -69,6 +67,14 @@
       <div class="loading-text">Loading Program...</div>
     </div>
 
+    <!-- PROFILE SELECTOR (only visible if > 1 profile) -->
+    <div id="profile-selector-container" class="profile-selector-container hidden">
+      <select id="profile-selector" aria-label="Select Program">
+        <!-- Options populated dynamically -->
+      </select>
+      <button id="manage-profiles-btn" class="icon-btn" aria-label="Manage Programs">⚙️</button>
+    </div>
+
     <!-- QR ACTION BUTTON (dynamic text + behavior handled in main.js) -->
     <button id="qr-action-btn" class="qr-action-btn"></button>
     <button id="reload-btn" class="qr-action-btn hidden">Reload Program</button>
@@ -87,10 +93,36 @@
       <canvas id="qr-canvas" hidden></canvas>
       <div id="qr-output"></div>
     </section>
+
+    <!-- MANAGE PROFILES MODAL -->
+    <dialog id="manage-profiles-modal" class="modal">
+      <div class="modal-content">
+        <h3>Manage Programs</h3>
+        <ul id="profiles-list" class="profiles-list">
+          <!-- List items populated dynamically -->
+        </ul>
+        <div class="modal-actions">
+          <button id="add-new-program-btn" class="primary-btn">Scan New Program</button>
+          <button id="close-modal-btn" class="secondary-btn">Close</button>
+        </div>
+      </div>
+    </dialog>
+
+    <!-- CONFIRM NEW PROGRAM MODAL -->
+    <dialog id="confirm-program-modal" class="modal">
+      <div class="modal-content">
+        <h3>Add Program?</h3>
+        <p>Found: <strong id="new-program-name"></strong></p>
+        <div class="modal-actions">
+          <button id="confirm-add-btn" class="primary-btn">Add</button>
+          <button id="cancel-add-btn" class="secondary-btn">Cancel</button>
+        </div>
+      </div>
+    </dialog>
+
   </main>
 
   <!-- MODULES -->
-  <script type="module" src="js/main.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
 
   <!-- SERVICE WORKER -->
@@ -129,7 +161,7 @@
 
 <footer>
   <div class="footer-container">
-    <div id="app-version" class="app-version">v1.1.1</div>
+    <div id="app-version" class="app-version">v1.2.0</div>
     <div id="last-updated" class="last-updated hidden"></div>
   </div>
 </footer>

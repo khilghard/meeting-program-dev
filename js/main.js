@@ -1,6 +1,7 @@
 // main.js
 import { showScanner } from "./qr.js";
 import { sanitizeEntry, isSafeUrl } from "./sanitize.js";
+import * as Profiles from "./profiles.js";
 
 // ------------------------------------------------------------
 // 1. Fetch CSV from a dynamic Google Sheets URL
@@ -562,6 +563,9 @@ function debounce(func, wait) {
 // ------------------------------------------------------------
 // 7. Initialize
 // ------------------------------------------------------------
+// ------------------------------------------------------------
+// 7. Initialize
+// ------------------------------------------------------------
 async function init() {
   const main = document.getElementById("main-program");
   const pageContainer = document.getElementById("page-container");
@@ -571,61 +575,118 @@ async function init() {
   main.classList.add("loading");
 
   try {
+    // 1. Setup UI for Profiles
+    initProfileUI();
+
+    // 2. Determine URL to load
     const params = new URLSearchParams(window.location.search);
-    let sheetUrl = params.get("url") || localStorage.getItem("sheetUrl");
+    let sheetUrl = params.get("url");
+    let currentProfile = Profiles.getCurrentProfile();
 
-    // Sunday Auto-Update Logic
-    const now = new Date();
-    const isSunday = now.getDay() === 0;
-    const lastUpdateDate = localStorage.getItem("programLastUpdatedDate");
-    const todayKey = now.toISOString().split("T")[0];
-    const isStale = lastUpdateDate !== todayKey;
-
-    if (isSunday && isStale && sheetUrl) {
-      console.log("Sunday detected and cache is stale. Auto-updating...");
-      // We will proceed to fetch normally below
+    // Migration: If no profiles but legacy localStorage exists
+    if (!currentProfile && !sheetUrl) {
+      const legacyUrl = localStorage.getItem("sheetUrl");
+      if (legacyUrl) {
+        // Create a temporary profile for migration
+        // We don't have the name yet, so we'll fetch it, then save.
+        // For now, just use the URL.
+        sheetUrl = legacyUrl;
+      }
+    } else if (currentProfile && !sheetUrl) {
+      sheetUrl = currentProfile.url;
     }
 
+    // 3. Setup Buttons & Header state
     const actionBtn = document.getElementById("qr-action-btn");
     const header = document.getElementById("program-header");
     const reloadBtn = document.getElementById("reload-btn");
 
     if (!sheetUrl) {
+      // No program at all - Zero State
       actionBtn.textContent = "Scan Program QR Code";
       actionBtn.onclick = () => showScanner();
       header.classList.add("hidden");
       reloadBtn.classList.add("hidden");
+
+      // Hide main program area and clean up loading state
+      main.classList.add("hidden");
+      main.classList.remove("loading");
+      if (pageContainer) pageContainer.classList.remove("loading");
       return;
     }
 
+    // We have a URL
     actionBtn.textContent = "Use New QR Code";
     actionBtn.onclick = () => showScanner();
     header.classList.remove("hidden");
     reloadBtn.classList.remove("hidden");
-    reloadBtn.onclick = () => init();
+    reloadBtn.onclick = () => location.reload();
 
-    localStorage.setItem("sheetUrl", sheetUrl);
+    // Ensure main program area is visible
+    main.classList.remove("hidden");
 
+    // 4. Update Selector State
+    if (currentProfile) {
+      const selector = document.getElementById("profile-selector");
+      if (selector) selector.value = currentProfile.id;
+    }
+
+    // 5. Fetch & Render
     try {
-      const csv = await fetchWithTimeout(sheetUrl, 4000);
+      // Sunday Auto-Update Logic (simplified)
+      // We always fetch for now.
+
+      const csv = await fetchWithTimeout(sheetUrl, 8000);
       const rows = parseCSV(csv);
 
-      localStorage.setItem("programCache", JSON.stringify(rows));
+      // Identify Unit/Stake from fresh data
+      const unitName = rows.find(r => r.key === "unitName")?.value || "Unknown Unit";
+      const stakeName = rows.find(r => r.key === "stakeName")?.value || "";
 
+      // UPDATE METADATA for current profile
+      if (currentProfile) {
+        // This updates the existing profile object in storage
+        Profiles.addProfile(currentProfile.url, unitName, stakeName);
+        // Re-render selector to show new names immediately
+        initProfileUI();
+      }
+
+      // If we are migrating (legacy URL exists but no profile), assume this is the one
+      if (!currentProfile && !params.get("url")) {
+        // Migrate!
+        Profiles.addProfile(sheetUrl, unitName, stakeName);
+        localStorage.removeItem("sheetUrl"); // Clear legacy
+        initProfileUI(); // Re-render selector
+      }
+
+      localStorage.setItem("programCache", JSON.stringify(rows));
       main.innerHTML = "";
       renderProgram(rows);
       updateTimestamp();
     } catch (err) {
       console.warn("Failed to fetch sheet:", err);
+      console.warn("Sheet URL was:", sheetUrl);
+
+      // If this was a migration attempt that failed, clear the bad legacy data
+      if (localStorage.getItem("sheetUrl") === sheetUrl) {
+        console.warn("Clearing invalid legacy sheet URL.");
+        localStorage.removeItem("sheetUrl");
+      }
 
       const cached = localStorage.getItem("programCache");
+      // Check if the cached version matches our current URL? 
+      // Ideally we'd store cache per profile, but for now global cache acts as "last viewed"
+
       if (cached) {
         main.innerHTML = "";
         renderProgram(JSON.parse(cached));
         updateTimestamp();
         showOfflineBanner();
       } else {
-        main.textContent = "Unable to load program and no cached version is available.";
+        main.innerHTML = `<div style="text-align:center; padding: 20px;">
+           <p>Unable to load program.</p>
+           <button onclick="location.reload()" class="qr-action-btn">Retry</button>
+         </div>`;
       }
     }
   } finally {
@@ -636,6 +697,181 @@ async function init() {
 
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
+
+// ------------------------------------------------------------
+// 8. Profile Management UI
+// ------------------------------------------------------------
+
+function initProfileUI() {
+  const container = document.getElementById("profile-selector-container");
+  const selector = document.getElementById("profile-selector");
+  const manageBtn = document.getElementById("manage-profiles-btn");
+
+  if (!container || !selector) return;
+
+  const profiles = Profiles.getProfiles();
+
+  // Hide if 0 or 1 profile? Or always show if 1? 
+  // Requirement: "way to select between codes"
+  if (profiles.length === 0) {
+    container.classList.add("hidden");
+  } else {
+    container.classList.remove("hidden");
+
+    // Populate
+    selector.innerHTML = "";
+    profiles.forEach(p => {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      opt.textContent = `${p.unitName} ${p.stakeName ? `(${p.stakeName})` : ""}`;
+      selector.appendChild(opt);
+    });
+
+    selector.value = Profiles.getSelectedProfileId();
+
+    // Event listeners
+    selector.onchange = (e) => {
+      const newId = e.target.value;
+      Profiles.selectProfile(newId);
+      location.reload();
+    };
+  }
+
+  // Manage Button
+  if (manageBtn) {
+    manageBtn.onclick = openManageModal;
+  }
+}
+
+function openManageModal() {
+  const modal = document.getElementById("manage-profiles-modal");
+  const list = document.getElementById("profiles-list");
+  const closeBtn = document.getElementById("close-modal-btn");
+  const addBtn = document.getElementById("add-new-program-btn");
+
+  if (!modal) return;
+
+  // Render list
+  renderManageList();
+
+  modal.showModal();
+
+  closeBtn.onclick = () => modal.close();
+  addBtn.onclick = () => {
+    modal.close();
+    showScanner();
+  };
+}
+
+function renderManageList() {
+  const list = document.getElementById("profiles-list");
+  if (!list) return;
+
+  const profiles = Profiles.getProfiles();
+  list.innerHTML = "";
+
+  if (profiles.length === 0) {
+    list.innerHTML = `<li style="justify-content:center; opacity:0.6;">No saved programs</li>`;
+    return;
+  }
+
+  profiles.forEach(p => {
+    const li = document.createElement("li");
+
+    const info = document.createElement("div");
+    info.className = "profile-info";
+
+    const unit = document.createElement("span");
+    unit.className = "profile-unit";
+    unit.textContent = p.unitName;
+
+    const stake = document.createElement("span");
+    stake.className = "profile-stake";
+    stake.textContent = p.stakeName || "";
+
+    info.appendChild(unit);
+    info.appendChild(stake);
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "delete-btn";
+    delBtn.textContent = "Delete";
+    delBtn.onclick = () => {
+      if (confirm(`Remove ${p.unitName}?`)) {
+        const currentProfile = Profiles.getCurrentProfile();
+        const wasActive = currentProfile && currentProfile.id === p.id;
+
+        Profiles.removeProfile(p.id);
+
+        if (wasActive) {
+          // If we deleted the active program, we must reload to reset state
+          // or switch to the new active one.
+          location.reload();
+        } else {
+          renderManageList(); // Just re-render list if background program is untouched
+        }
+      }
+    };
+
+    li.appendChild(info);
+    li.appendChild(delBtn);
+    list.appendChild(li);
+  });
+}
+
+// Global listener for QR Scanned
+window.addEventListener("qr-scanned", async (e) => {
+  const url = e.detail.url;
+  if (!url) return;
+
+  // 1. Fetch metadata
+  const main = document.getElementById("main-program");
+  // main.innerHTML = ... (loading)
+
+  try {
+    const csv = await fetchWithTimeout(url, 5000);
+    const rows = parseCSV(csv);
+
+    const unitName = rows.find(r => r.key === "unitName")?.value || "Unknown Unit";
+    const stakeName = rows.find(r => r.key === "stakeName")?.value || "";
+
+    // 2. Show Confirm Modal
+    const modal = document.getElementById("confirm-program-modal");
+    const nameEl = document.getElementById("new-program-name");
+    const addBtn = document.getElementById("confirm-add-btn");
+    const cancelBtn = document.getElementById("cancel-add-btn");
+
+    if (modal) {
+      console.log('[MAIN] Modal found, showing...');
+      nameEl.textContent = `${unitName} ${stakeName ? `(${stakeName})` : ""}`;
+      // ... setup buttons
+      addBtn.onclick = () => {
+        Profiles.addProfile(url, unitName, stakeName);
+        modal.close();
+        location.reload();
+      };
+      cancelBtn.onclick = () => {
+        modal.close();
+        location.reload();
+      };
+
+      modal.showModal();
+      console.log('[MAIN] modal.showModal() called');
+    } else {
+      // Fallback ...
+      if (confirm(`Add Program: ${unitName}?`)) {
+        Profiles.addProfile(url, unitName, stakeName);
+        location.reload();
+      } else {
+        location.reload();
+      }
+    }
+
+  } catch (err) {
+    console.error("QR Scan Fetch Failed:", err);
+    alert("Could not load program from that QR code. Please try again.");
+    location.reload();
+  }
+});
 
 if (typeof window !== "undefined" && !window.__VITEST__) {
   const debouncedHandleVisibility = debounce(handleVersionVisibility, 100);

@@ -221,7 +221,12 @@ describe("QR Module", () => {
 
             expect(global.jsQR).toHaveBeenCalled();
             expect(stopSpy).toHaveBeenCalled(); // Should stop scanner on success
-            expect(window.location.reload).toHaveBeenCalled();
+
+            // Should dispatch event now, not reload
+            // expect(window.location.reload).toHaveBeenCalled(); 
+            // We can't easily spy on window.dispatchEvent in this setup without more mocking,
+            // but we can verify it DID NOT reload.
+            expect(window.location.reload).not.toHaveBeenCalled();
         });
 
         test("handles invalid QR code and continues scanning", async () => {

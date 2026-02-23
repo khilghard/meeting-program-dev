@@ -7,11 +7,11 @@
     --bg-color: #ffffff;
     --text-color: #333333;
     --card-bg: #fafafa;
-    --header-bg: #127eba;
+    --header-bg: #0d659e;
     --header-text: #ffffff;
     --accent-hover: #004a9c;
     --dots-color: #444444;
-    --accent-color: #127eba;
+    --accent-color: #0d659e;
     /* Even darker for better contrast */
     --offline-bg: #f8d7da;
     --offline-text: #7a1f24;
@@ -457,7 +457,8 @@ footer {
     font-size: 14px;
 
     opacity: 0;
-    transform: translateY(8px); /* subtle slide */
+    /* subtle slide */
+    transform: translateY(8px);
     transition:
         opacity 0.4s ease,
         transform 0.4s ease;
@@ -522,4 +523,159 @@ footer {
     #update-section {
         display: none !important;
     }
+}
+
+/* =========================================================
+   11. PROFILES & MODALS
+   ========================================================= */
+
+.profile-selector-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    margin: 20px auto;
+    max-width: var(--max-width);
+}
+
+#profile-selector {
+    padding: 8px 12px;
+    font-size: 1rem;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    background: var(--bg-color);
+    color: var(--text-color);
+    max-width: 80%;
+    flex-grow: 1;
+}
+
+.icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.5rem;
+    padding: 4px;
+    filter: grayscale(100%);
+    transition: filter 0.2s;
+    line-height: 1;
+}
+
+.icon-btn:hover {
+    filter: grayscale(0%);
+    transform: scale(1.1);
+}
+
+/* Modal Overlay */
+.modal {
+    border: none;
+    border-radius: 12px;
+    padding: 0;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    max-width: 90%;
+    width: 400px;
+    background: var(--card-bg);
+    color: var(--text-color);
+}
+
+.modal::backdrop {
+    background: rgba(0, 0, 0, 0.6);
+}
+
+.modal-content {
+    padding: 20px;
+}
+
+.modal-content h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    text-align: center;
+    font-size: 1.4rem;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.primary-btn {
+    background: var(--accent-color);
+    color: var(--accent-text);
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+.secondary-btn {
+    background: transparent;
+    border: 1px solid #777;
+    color: var(--text-color);
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+.profiles-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.03);
+}
+
+[data-theme='dark'] .profiles-list {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.profiles-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='dark'] .profiles-list li {
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.profiles-list li:last-child {
+    border-bottom: none;
+}
+
+.profile-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.profile-unit {
+    font-weight: bold;
+}
+
+.profile-stake {
+    font-size: 0.85rem;
+    opacity: 0.8;
+}
+
+.delete-btn {
+    background: #d32f2f;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 10px;
+    margin-left: 10px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.delete-btn:hover {
+    background: #b71c1c;
 }

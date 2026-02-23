@@ -30,9 +30,6 @@ export async function mockQRCodeScan(page, qrCodeData) {
         });
     };
 
-    // For future navigations/reloads
-    await page.addInitScript(mockScript, qrCodeData);
-
     // For current page state (already loaded by fixture)
     await page.evaluate(mockScript, qrCodeData);
 }

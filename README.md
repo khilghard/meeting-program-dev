@@ -204,6 +204,8 @@ https://docs.google.com/spreadsheets/d/ABC123XYZ/gviz/tq?tqx=out:csv
 
 This is the link your PWA loads.
 
+**NOTE: Turn the google sheets link into your QR code. This is the QR code that you scan after the website loads. You click on the `Scan QR Code` button and point your camera at the Google Sheet QR code to load the program data.**
+
 ---
 
 ## 🧩 Keys & Values Reference
@@ -610,6 +612,7 @@ This guarantees that the program members see on Sunday matches what you intended
 | key                     | value                                                                                                                                                     |
 |-------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
 | unitName                | Unit Name                                                                                                                                                 |
+| stakeName               | Stake Name                                                                                                                                                 |
 | unitAddress             | 123 Actual Ave~ City US 123245                                                                                                                            |
 | link                    | Homepage \| <OfficialHomePageLink>                                                                                                                        |
 | date                    | January 1~ 2026                                                                                                                                            |

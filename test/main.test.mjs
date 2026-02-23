@@ -14,11 +14,22 @@ vi.mock("../js/sanitize.js", () => ({
 
 // Mock qr.js
 vi.mock("../js/qr.js", () => ({
-    showScanner: vi.fn()
+    showScanner: vi.fn(),
+    stopQRScanner: vi.fn()
+}));
+
+// Mock profiles.js
+vi.mock("../js/profiles.js", () => ({
+    getProfiles: vi.fn(() => []),
+    getCurrentProfile: vi.fn(() => null),
+    addProfile: vi.fn(),
+    selectProfile: vi.fn(),
+    removeProfile: vi.fn()
 }));
 
 // Import main.js AFTER mocks
 import * as Main from "../js/main.js";
+import * as Profiles from "../js/profiles.js";
 
 const {
     splitHymn,
@@ -351,7 +362,7 @@ describe("Networking & Errors", () => {
     });
 
     describe("init()", () => {
-        test("loads from sheetUrl if present in localStorage", async () => {
+        test("loads from sheetUrl if present in localStorage (legacy migration)", async () => {
             const url = "https://docs.google.com/spreadsheets/d/test";
             localStorage.setItem("sheetUrl", url);
             global.fetch.mockResolvedValue({
@@ -363,6 +374,24 @@ describe("Networking & Errors", () => {
 
             expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining("test"), expect.anything());
             expect(document.querySelector("#speaker")).not.toBeNull();
+
+            // Should have migrated
+            expect(Profiles.addProfile).toHaveBeenCalled();
+            expect(localStorage.getItem("sheetUrl")).toBeNull();
+        });
+
+        test("loads from current profile", async () => {
+            const profile = { id: "123", url: "https://profile.com", unitName: "U", stakeName: "S" };
+            Profiles.getCurrentProfile.mockReturnValue(profile);
+
+            global.fetch.mockResolvedValue({
+                ok: true,
+                text: () => Promise.resolve("key,value\nspeaker,Bob")
+            });
+
+            await init();
+
+            expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining("profile.com"), expect.anything());
         });
 
         test("falls back to cache if fetch fails", async () => {

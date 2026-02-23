@@ -180,10 +180,9 @@ export function scanFrame(timestamp) {
 // ------------------------------------------------------------
 export function handleScannedUrl(url) {
   output.textContent = "Scanned URL: " + url;
+  stopQRScanner();
 
-  // Persist until next scan
-  localStorage.setItem("sheetUrl", url);
-
-  // Reload app to load the program
-  location.reload();
+  // Dispatch event for main.js to handle
+  const event = new CustomEvent("qr-scanned", { detail: { url } });
+  window.dispatchEvent(event);
 }

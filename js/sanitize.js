@@ -23,6 +23,7 @@ export const ALLOWED_KEYS = new Set([
   "generalStatementWithLink",
   "generalStatement",
   "linkWithSpace",
+  "stakeName",
 ]);
 
 // Permissive: allow most Unicode letters, digits, punctuation, spaces,
@@ -89,6 +90,11 @@ export function sanitizeEntry(rawKey, rawValue) {
   if (!ALLOWED_KEYS.has(key)) {
     console.warn("Blocked unknown key:", key);
     return null;
+  }
+
+  // Allow stakeName to pass through
+  if (key === "stakeName") {
+    return { key, value: sanitizeValue(rawValue) };
   }
 
   const value = sanitizeValue(rawValue);
