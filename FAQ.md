@@ -30,11 +30,13 @@
 If you see a "Camera permission denied" error, you need to enable camera access:
 
 #### On iPhone/iPad (Safari):
+
 1. Go to **Settings** → **Safari** → **Camera**
 2. Select **"Allow"**
 3. Return to the app and try scanning again
 
 #### On Android (Chrome):
+
 1. Tap the **three dots menu** (⋮) in your browser
 2. Go to **Settings** → **Site settings** → **Camera**
 3. Find the meeting-program site and select **"Allow"**
@@ -47,6 +49,7 @@ If you see a "Camera permission denied" error, you need to enable camera access:
 Installing the app gives you quick access from your home screen, just like a native app!
 
 #### On Android:
+
 1. Open the app in **Chrome**
 2. Tap the **three dots menu** (⋮) in the top right
 3. Select **"Add to Home screen"** or **"Install app"**
@@ -54,6 +57,7 @@ Installing the app gives you quick access from your home screen, just like a nat
 5. The app icon will appear on your home screen
 
 #### On iPhone/iPad:
+
 1. Open the app in **Safari**
 2. Tap the **Share button** (square with arrow pointing up)
 3. Scroll down and tap **"Add to Home Screen"**
@@ -113,6 +117,35 @@ Your preference is saved automatically.
 
 ---
 
+### How do I change the language?
+
+Tap the language dropdown (next to the dark mode toggle) and select your preferred language:
+
+- English
+- Español (Spanish)
+- Français (French)
+- Kiswahili (Swahili)
+
+Your language preference is saved automatically for future visits.
+
+---
+
+### Can I have a program in Spanish, French, or Swahili?
+
+Yes! The app supports multi-language programs. You can provide program content in all four languages using the extended CSV format:
+
+```csv
+key,en,es,fr,swa
+openingHymn,#1001 Come Thou Fount,#1001 Ven Ti Fount,#1001 Venez Source,#1001 Yesu Ni
+speaker1,John Smith,Juan Garcia,Jean Dupont,Yohana Mto
+```
+
+If a cell is empty for the selected language, the English value is used as fallback.
+
+See the [README.md](README.md#-example-multi-language-google-sheets-structure) for a complete example.
+
+---
+
 ## Troubleshooting
 
 ### The program won't load. What should I do?
@@ -147,6 +180,7 @@ Please open an issue on our GitHub repository:
 https://github.com/khilghard/meeting-program/issues
 
 Include:
+
 - What you were trying to do
 - What happened instead
 - Your device and browser (e.g., "iPhone 12, Safari")
@@ -161,7 +195,8 @@ Include:
 See the detailed guide in the [README.md](README.md#-google-sheets-setup-for-normal-users).
 
 Quick summary:
-1. Create a Google Sheet with two columns: `key` and `value`
+
+1. Create a Google Sheet with columns: `key` (and optionally `en`, `es`, `fr`, `swa` for multi-language)
 2. Fill in your program data (see example in README)
 3. Share the sheet as "Anyone with the link can view"
 4. Convert the sheet URL to a CSV export link
@@ -202,6 +237,7 @@ The Google Sheet is only accessible to people who have the QR code link.
 ### What data does the app collect?
 
 The app does not collect any personal data. It only stores:
+
 - Google Sheet URLs (on your device only)
 - Program names (on your device only)
 - Theme preference (on your device only)
@@ -211,7 +247,7 @@ The app does not collect any personal data. It only stores:
 ## Still Have Questions?
 
 If your question isn't answered here, please:
+
 1. Check the [README.md](README.md) for detailed documentation
 2. Open an issue on [GitHub](https://github.com/khilghard/meeting-program/issues)
 3. Contact the project maintainer
-

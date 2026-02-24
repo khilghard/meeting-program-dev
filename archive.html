@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Archives - Sacrament Meeting Program</title>
+    <script type="module">
+      import { VERSION } from "./js/version.js";
+      window.APP_VERSION = VERSION;
+      document.getElementById("styles-link").href = `css/styles.css?v=${VERSION}`;
+      const mainScript = document.createElement("script");
+      mainScript.type = "module";
+      mainScript.src = `js/archive.js?v=${VERSION}`;
+      document.head.appendChild(mainScript);
+    </script>
+    <link rel="canonical" href="https://khilghard.github.io/meeting-program/" />
+    <link rel="manifest" href="/meeting-program/manifest.webmanifest" />
+    <link id="styles-link" rel="stylesheet" href="" />
+    <link rel="icon" type="image/png" sizes="32x32" href="img/favicon.png" />
+  </head>
+
+  <body>
+    <button id="back-to-home-btn" class="archive-back-btn">← Back to Home</button>
+
+    <div class="archive-container">
+      <div id="archive-list-view">
+        <h2 id="archive-title">Program Archives</h2>
+        <div id="archive-unit-name" class="archive-unit-name"></div>
+
+        <div id="storage-info" class="storage-info hidden">
+          <div id="storage-warning" class="storage-warning hidden">
+            ⚠️ Storage warning: Approaching size limit
+          </div>
+          <div id="storage-summary" class="storage-summary"></div>
+        </div>
+
+        <ul id="archives-list" class="archives-list">
+          <!-- Populated dynamically with archive dates -->
+        </ul>
+
+        <div id="no-archives" class="no-archives hidden">
+          <p>No archives found for this profile.</p>
+          <p>Archives are created automatically when program changes are detected.</p>
+        </div>
+      </div>
+
+      <div id="archive-program-view" class="archive-program-view hidden">
+        <button id="back-to-list-btn" class="back-to-list-btn">← Back to Archive List</button>
+        <div class="archive-header">
+          <h2 id="unitname"></h2>
+          <h6 id="unitaddress"></h6>
+          <p id="date"></p>
+        </div>
+        <div id="main-program"></div>
+      </div>
+    </div>
+  </body>
+</html>

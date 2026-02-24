@@ -1,169 +1,305 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sacrament Meeting Program</title>
+    <script type="module">
+      import { VERSION } from "./js/version.js";
+      window.APP_VERSION = VERSION;
+      document.getElementById("styles-link").href = `css/styles.css?v=${VERSION}`;
+      const mainScript = document.createElement("script");
+      mainScript.type = "module";
+      mainScript.src = `js/main.js?v=${VERSION}`;
+      document.head.appendChild(mainScript);
+    </script>
+    <link rel="canonical" href="https://khilghard.github.io/meeting-program/" />
+    <link rel="manifest" href="/meeting-program/manifest.webmanifest" />
+    <link id="styles-link" rel="stylesheet" href="" />
+    <link rel="icon" type="image/png" sizes="32x32" href="img/favicon.png" />
+  </head>
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sacrament Meeting Program</title>
-  <link rel="canonical" href="https://khilghard.github.io/meeting-program/" />
-  <link rel="manifest" href="/meeting-program/manifest.webmanifest">
-  <link rel="stylesheet" href="css/styles.css?v=4">
-  <script type="module" src="js/main.js?v=4"></script>
-  <link rel="icon" type="image/png" sizes="32x32" href="img/favicon.png">
-</head>
+  <body>
+    <!-- MAIN APP ROOT -->
+    <div id="app"></div>
 
-<body>
-
-  <!-- MAIN APP ROOT -->
-  <div id="app"></div>
-
-  <!-- HEADER SECTION -->
-  <header id="program-header" class="hidden">
-
-    <!-- Church Name (full bleed) -->
-    <div class="header-section full-bleed">
-      <svg xmlns="http://www.w3.org/2000/svg" width="800" height="160" viewBox="0 0 800 160" role="img"
-        aria-labelledby="title desc" class="church-name-header">
-        <title id="title">The Church of Jesus Christ of Latter-day Saints</title>
-        <desc id="desc">Dignified text rendering of the Church name.</desc>
-
-        <rect width="100%" height="100%" class="church-svg-bg" />
-        <text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle"
-          font-family="Georgia, 'Times New Roman', Times, serif" font-size="60" class="church-svg-text">
-          <tspan x="50%" dy="-0.6em">The Church of Jesus Christ</tspan>
-          <tspan x="50%" dy="1.2em">of Latter-day Saints</tspan>
-        </text>
-      </svg>
-    </div>
-
-    <!-- Welcome Bar (full bleed) -->
-    <div class="header-section full-bleed welcome-bar">
-      Welcome to
-      <button id="theme-toggle" class="theme-toggle" aria-label="Toggle Dark Mode">🌓</button>
-    </div>
-
-    <!-- Offline Banner (normal width) -->
-    <div id="offline-banner" class="offline-banner">
-      Showing last available program (offline mode) &nbsp;
-      <a href="#" id="retry-offline" style="color: inherit; text-decoration: underline;">Try Now</a>
-    </div>
-
-    <!-- Sacrament Header (normal width, toggle anchored here) -->
-    <div class="sacrament-unit-header">
-      <h1>Sacrament Services</h1>
-      <h2 class="sacrament-unit-header-h2"><span id="unitname"></span></h2>
-      <h3 class="sacrament-unit-header-h6"><span id="unitaddress"></span></h3>
-      <p id="date" style="padding-top: 15px;"></p>
-    </div>
-
-  </header>
-
-  <main id="page-container">
-    <!-- PROGRAM CONTENT -->
-    <div id="main-program"></div>
-
-    <div class="loading-container">
-      <div class="spinner"></div>
-      <div class="loading-text">Loading Program...</div>
-    </div>
-
-    <!-- PROFILE SELECTOR (only visible if > 1 profile) -->
-    <div id="profile-selector-container" class="profile-selector-container hidden">
-      <select id="profile-selector" aria-label="Select Program">
-        <!-- Options populated dynamically -->
-      </select>
-      <button id="manage-profiles-btn" class="icon-btn" aria-label="Manage Programs">⚙️</button>
-    </div>
-
-    <!-- QR ACTION BUTTON (dynamic text + behavior handled in main.js) -->
-    <button id="qr-action-btn" class="qr-action-btn"></button>
-    <button id="reload-btn" class="qr-action-btn hidden">Reload Program</button>
-
-    <!-- UPDATE NOTIFICATION -->
-    <section id="update-section">
-      <div id="update-notification" hidden>
-        A new version is available.
-        <button onclick="refreshPage()">Update</button>
-      </div>
-    </section>
-
-    <!-- QR SCANNER UI -->
-    <section id="qr-scanner" hidden>
-      <video id="qr-video" autoplay playsinline aria-label="QR Scanner Camera Feed"></video>
-      <canvas id="qr-canvas" hidden></canvas>
-      <div id="qr-output"></div>
-    </section>
-
-    <!-- MANAGE PROFILES MODAL -->
-    <dialog id="manage-profiles-modal" class="modal">
-      <div class="modal-content">
-        <h3>Manage Programs</h3>
-        <ul id="profiles-list" class="profiles-list">
-          <!-- List items populated dynamically -->
-        </ul>
-        <div class="modal-actions">
-          <button id="add-new-program-btn" class="primary-btn">Scan New Program</button>
-          <button id="close-modal-btn" class="secondary-btn">Close</button>
+    <!-- HEADER SECTION -->
+    <header id="program-header" class="hidden">
+      <div class="header-section church-name-container">
+        <div class="church-name-text" id="church-name-display">
+          The Church of Jesus Christ <br />
+          of Latter-day Saints
         </div>
       </div>
-    </dialog>
 
-    <!-- CONFIRM NEW PROGRAM MODAL -->
-    <dialog id="confirm-program-modal" class="modal">
-      <div class="modal-content">
-        <h3>Add Program?</h3>
-        <p>Found: <strong id="new-program-name"></strong></p>
-        <div class="modal-actions">
-          <button id="confirm-add-btn" class="primary-btn">Add</button>
-          <button id="cancel-add-btn" class="secondary-btn">Cancel</button>
+      <div class="header-section welcome-bar">
+        <div class="welcome-controls">
+          <button id="help-btn" class="icon-btn help-btn" aria-label="Help">❓</button>
+          <div
+            id="language-selector-btn"
+            class="language-selector-wrapper"
+            role="button"
+            aria-haspopup="dialog"
+            aria-label="Select Language"
+          >
+            <span class="globe-icon">🌐</span>
+            <span id="current-language-text">English</span>
+          </div>
+          <button id="share-btn" class="icon-btn share-btn" aria-label="Share Program">📤</button>
+          <button
+            id="theme-toggle"
+            class="theme-toggle hidden-on-start"
+            aria-label="Toggle Dark Mode"
+          >
+            🌓
+          </button>
         </div>
+        <span id="welcome-to-text" class="hidden-on-start">Welcome to</span>
       </div>
-    </dialog>
 
-  </main>
+      <div id="offline-banner" class="offline-banner">
+        Showing last available program (offline mode) &nbsp;
+        <a href="#" id="retry-offline" style="color: inherit; text-decoration: underline"
+          >Try Now</a
+        >
+      </div>
 
-  <!-- MODULES -->
-  <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
+      <div class="sacrament-unit-header">
+        <h1 id="sacrament-services-title">Sacrament Services</h1>
+        <h2 class="sacrament-unit-header-h2"><span id="unitname"></span></h2>
+        <h3 class="sacrament-unit-header-h6"><span id="unitaddress"></span></h3>
+        <p id="date" style="padding-top: 15px"></p>
+      </div>
+    </header>
 
-  <!-- SERVICE WORKER -->
-  <script src="service-worker.js"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('service-worker.js')
-        .then(registration => {
-          registration.onupdatefound = () => {
-            const installingWorker = registration.installing;
-            installingWorker.onstatechange = () => {
-              if (installingWorker.state === 'installed') {
-                if (navigator.serviceWorker.controller) {
-                  showUpdateNotification();
+    <main id="page-container">
+      <!-- PROGRAM CONTENT -->
+      <div id="main-program"></div>
+
+      <div class="loading-container">
+        <div class="spinner"></div>
+        <div class="loading-text">Loading Program...</div>
+      </div>
+
+      <!-- PROFILE SELECTOR (only visible if > 1 profile) -->
+      <div id="profile-selector-container" class="profile-selector-container hidden">
+        <select id="profile-selector" aria-label="Select Program">
+          <!-- Options populated dynamically -->
+        </select>
+        <button id="manage-profiles-btn" class="icon-btn" aria-label="Manage Programs">⚙️</button>
+        <button id="view-archives-btn" class="icon-btn" aria-label="View Archives">📦</button>
+        <button id="update-btn" class="icon-btn" aria-label="Check for Updates">🔄</button>
+      </div>
+
+      <!-- QR ACTION BUTTON (dynamic text + behavior handled in main.js) -->
+      <button id="qr-action-btn" class="qr-action-btn"></button>
+      <button id="reload-btn" class="qr-action-btn hidden">Reload Program</button>
+      <button id="back-to-home-btn" class="qr-action-btn hidden">← Back to Home</button>
+
+      <!-- UPDATE NOTIFICATION -->
+      <section id="update-section">
+        <div id="update-notification" hidden>
+          A new version is available.
+          <button onclick="refreshPage()">Update</button>
+        </div>
+      </section>
+
+      <!-- QR SCANNER UI -->
+      <section id="qr-scanner" hidden>
+        <video id="qr-video" autoplay playsinline aria-label="QR Scanner Camera Feed"></video>
+        <canvas id="qr-canvas" hidden></canvas>
+        <div id="qr-output"></div>
+        <button id="manual-url-btn" class="qr-action-btn hidden" hidden></button>
+        <div id="manual-url-container" class="hidden">
+          <input type="text" id="manual-url-input" class="manual-url-input" placeholder="" />
+          <button id="manual-url-submit" class="qr-action-btn"></button>
+        </div>
+      </section>
+
+      <!-- MANAGE PROFILES MODAL -->
+      <dialog id="manage-profiles-modal" class="modal">
+        <div class="modal-content">
+          <h3 id="manage-profiles-title">Manage Programs</h3>
+          <ul id="profiles-list" class="profiles-list">
+            <!-- List items populated dynamically -->
+          </ul>
+          <div id="archived-section" class="hidden">
+            <hr class="modal-divider" />
+            <h4 id="archived-title">Archived Programs</h4>
+            <ul id="archived-list" class="profiles-list">
+              <!-- Archived items populated dynamically -->
+            </ul>
+          </div>
+          <div class="modal-actions">
+            <button id="add-new-program-btn" class="primary-btn">Scan New Program</button>
+            <button id="close-modal-btn" class="secondary-btn">Close</button>
+          </div>
+        </div>
+      </dialog>
+
+      <!-- CONFIRM NEW PROGRAM MODAL -->
+      <dialog id="confirm-program-modal" class="modal">
+        <div class="modal-content">
+          <h3 id="confirm-program-title">Add Program?</h3>
+          <p><span id="found-label">Found:</span> <strong id="new-program-name"></strong></p>
+          <div class="modal-actions">
+            <button id="confirm-add-btn" class="primary-btn">Add</button>
+            <button id="cancel-add-btn" class="secondary-btn">Cancel</button>
+          </div>
+        </div>
+      </dialog>
+
+      <!-- VIEW ARCHIVES MODAL -->
+      <dialog id="view-archives-modal" class="modal">
+        <div class="modal-content">
+          <h3>Archived Programs</h3>
+          <ul id="archived-programs-list" class="profiles-list">
+            <!-- Populated dynamically -->
+          </ul>
+          <div class="modal-actions">
+            <button id="close-archives-modal-btn" class="secondary-btn">Close</button>
+          </div>
+        </div>
+      </dialog>
+
+      <!-- LANGUAGE SELECTOR MODAL -->
+      <dialog id="language-modal" class="modal">
+        <div class="modal-content">
+          <h3 id="language-modal-title">Select Language</h3>
+          <ul id="language-list" class="language-list">
+            <!-- Populated dynamically -->
+          </ul>
+          <div class="modal-actions">
+            <button id="close-language-modal-btn" class="secondary-btn">Close</button>
+          </div>
+        </div>
+      </dialog>
+
+      <!-- PROGRAM HISTORY MODAL -->
+      <dialog id="history-modal" class="modal">
+        <div class="modal-content">
+          <h3 id="history-modal-title">Program History</h3>
+          <ul id="history-list" class="history-list">
+            <!-- Populated dynamically -->
+          </ul>
+          <div class="modal-actions">
+            <button id="close-history-modal-btn" class="secondary-btn">Close</button>
+          </div>
+        </div>
+      </dialog>
+
+      <!-- SHARE MODAL -->
+      <dialog id="share-modal" class="modal">
+        <div class="modal-content">
+          <h3 id="share-modal-title">Share Program</h3>
+          <p id="share-instructions">Scan this QR code to load the program on another device</p>
+          <div id="share-qr-container" class="qr-container"></div>
+          <p id="share-url-display" class="share-url"></p>
+          <div class="modal-actions">
+            <button id="close-share-modal-btn" class="secondary-btn">Close</button>
+          </div>
+        </div>
+      </dialog>
+
+      <!-- HELP MODAL -->
+      <dialog id="help-modal" class="modal">
+        <div class="modal-content help-content">
+          <h3 id="help-modal-title">Help & FAQ</h3>
+          <div class="help-sections">
+            <div class="help-section">
+              <h4>How to Add to Home Screen</h4>
+              <div class="help-ios">
+                <h5>iPhone (Safari)</h5>
+                <ol>
+                  <li>Tap the <strong>Share</strong> button</li>
+                  <li>Scroll down and tap <strong>Add to Home Screen</strong></li>
+                  <li>Tap <strong>Add</strong></li>
+                </ol>
+              </div>
+              <div class="help-android">
+                <h5>Android (Chrome)</h5>
+                <ol>
+                  <li>Tap the <strong>Menu</strong> (three dots)</li>
+                  <li>Tap <strong>Install App</strong> or <strong>Add to Home Screen</strong></li>
+                  <li>Tap <strong>Install</strong></li>
+                </ol>
+              </div>
+            </div>
+            <div class="help-section">
+              <h4>Camera Not Working?</h4>
+              <ul>
+                <li>
+                  <strong>Check permissions:</strong> Go to Settings → Camera → Allow for your
+                  browser
+                </li>
+                <li><strong>Try another browser:</strong> Use Safari (iOS) or Chrome (Android)</li>
+                <li>
+                  <strong>Use manual entry:</strong> Tap "Enter URL manually" below the camera
+                </li>
+              </ul>
+            </div>
+            <div class="help-section">
+              <h4>Need a New Program?</h4>
+              <ul>
+                <li>Tap <strong>Use New QR Code</strong> to scan a new program</li>
+                <li>Or ask your clerk for the latest QR code</li>
+              </ul>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button id="close-help-modal-btn" class="secondary-btn">Close</button>
+          </div>
+        </div>
+      </dialog>
+    </main>
+
+    <!-- MODULES -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+
+    <!-- SERVICE WORKER -->
+    <script>
+      if ("serviceWorker" in navigator) {
+        const swUrl = `service-worker.js?v=${window.APP_VERSION}`;
+        navigator.serviceWorker
+          .register(swUrl)
+          .then((registration) => {
+            registration.onupdatefound = () => {
+              const installingWorker = registration.installing;
+              installingWorker.onstatechange = () => {
+                if (installingWorker.state === "installed") {
+                  if (navigator.serviceWorker.controller) {
+                    showUpdateNotification();
+                  }
                 }
-              }
+              };
             };
-          };
-        })
-        .catch(error => console.log('Service Worker registration failed:', error));
-    }
-
-    function refreshPage() {
-      if (navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({ action: 'skipWaiting' });
-        reloadBtn.onclick = () => init();
+          })
+          .catch((error) => console.log("Service Worker registration failed:", error));
       }
-    }
 
-    function showUpdateNotification() {
-      document.getElementById("last-notification").hidden = false;
-    }
-  </script>
+      function refreshPage() {
+        if (navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({ action: "skipWaiting" });
+          reloadBtn.onclick = () => init();
+        }
+      }
 
-</body>
+      function showUpdateNotification() {
+        const el = document.getElementById("update-notification");
+        if (el) el.hidden = false;
+      }
+    </script>
+  </body>
 
-<footer>
-  <div class="footer-container">
-    <div id="app-version" class="app-version">v1.2.0</div>
-    <div id="last-updated" class="last-updated hidden"></div>
-  </div>
-</footer>
-
+  <footer>
+    <div class="footer-container">
+      <div id="app-version" class="app-version"></div>
+      <script type="module">
+        import { VERSION } from "./js/version.js";
+        document.getElementById("app-version").textContent = "v" + VERSION;
+      </script>
+      <div id="last-updated" class="last-updated hidden"></div>
+    </div>
+  </footer>
 </html>

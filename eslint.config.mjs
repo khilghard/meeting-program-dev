@@ -1,9 +1,8 @@
-const js = require("@eslint/js");
-const importPlugin = require("eslint-plugin-import");
-const prettierConfig = require("eslint-config-prettier");
+import js from "@eslint/js";
+import importPlugin from "eslint-plugin-import";
+import prettierConfig from "eslint-config-prettier";
 
-module.exports = [
-
+export default [
   // ------------------------------------------------------------
   // Browser JS (main.js, qr.js, app.js)
   // ------------------------------------------------------------
@@ -26,7 +25,10 @@ module.exports = [
         console: "readonly",
         requestAnimationFrame: "readonly",
         setTimeout: "readonly",
-        jsQR: "readonly"
+        clearTimeout: "readonly",
+        jsQR: "readonly",
+        AbortController: "readonly",
+        confirm: "readonly"
       }
     },
     plugins: {
