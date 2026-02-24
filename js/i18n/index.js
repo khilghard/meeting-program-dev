@@ -70,7 +70,18 @@ const translationsData = {
     historyRetainedUntil: "Retained until",
     shareProgram: "Share Program",
     shareInstructions: "Scan this QR code to load the program on another device",
-    helpTitle: "Help & FAQ"
+    helpTitle: "Help & FAQ",
+    programArchives: "Program Archives",
+    backToHome: "Back to Home",
+    viewArchive: "View",
+    noArchives: "No archives found for this profile.",
+    archivesCreatedAutomatically:
+      "Archives are created automatically when program changes are detected.",
+    noProfileSelected: "No profile selected.",
+    goToHome: "Go to Home",
+    backToArchiveList: "Back to Archive List",
+    storageWarning: "Storage warning: Approaching size limit",
+    storageUsage: "Storage: {used}MB / {max}MB ({count} archives)"
   },
   es: {
     churchName: "La Iglesia de Jesucristo <br> de los Santos de los Últimos Días",
@@ -136,7 +147,18 @@ const translationsData = {
     historyRetainedUntil: "Conservado hasta",
     shareProgram: "Compartir Programa",
     shareInstructions: "Escanee este código QR para cargar el programa en otro dispositivo",
-    helpTitle: "Ayuda y Preguntas Frecuentes"
+    helpTitle: "Ayuda y Preguntas Frecuentes",
+    programArchives: "Archivos de Programas",
+    backToHome: "Volver al Inicio",
+    viewArchive: "Ver",
+    noArchives: "No se encontraron archivos para este perfil.",
+    archivesCreatedAutomatically:
+      "Los archivos se crean automáticamente cuando se detectan cambios en el programa.",
+    noProfileSelected: "Ningún perfil seleccionado.",
+    goToHome: "Ir al Inicio",
+    backToArchiveList: "Volver a la Lista de Archivos",
+    storageWarning: "Advertencia de almacenamiento: Acercándose al límite",
+    storageUsage: "Almacenamiento: {used}MB / {max}MB ({count} archivos)"
   },
   fr: {
     churchName: "L'Église de Jésus-Christ <br> des Saints des Derniers Jours",
@@ -202,7 +224,18 @@ const translationsData = {
     historyRetainedUntil: "Conservé jusqu'au",
     shareProgram: "Partager le Programme",
     shareInstructions: "Scannez ce code QR pour charger le programme sur un autre appareil",
-    helpTitle: "Aide et FAQ"
+    helpTitle: "Aide et FAQ",
+    programArchives: "Archives des Programmes",
+    backToHome: "Retour à l'Accueil",
+    viewArchive: "Voir",
+    noArchives: "Aucune archive trouvée pour ce profil.",
+    archivesCreatedAutomatically:
+      "Les archives sont créées automatiquement lorsque des modifications sont détectées.",
+    noProfileSelected: "Aucun profil sélectionné.",
+    goToHome: "Aller à l'Accueil",
+    backToArchiveList: "Retour à la Liste des Archives",
+    storageWarning: "Avertissement stockage: Approche de la limite",
+    storageUsage: "Stockage: {used}MB / {max}MB ({count} archives)"
   },
   swa: {
     churchName: "Kanisa La Yesu Kristo <br> La Watakatifu wa Siku za Mwisho",
@@ -268,7 +301,18 @@ const translationsData = {
     historyRetainedUntil: "Hifadhiwa mpaka",
     shareProgram: "Shiriki Programu",
     shareInstructions: "Skani QR hii ili kupakia programu kwenye kigogo kingine",
-    helpTitle: "Msaada na Maswali"
+    helpTitle: "Msaada na Maswali",
+    programArchives: "Vyandika vya Programu",
+    backToHome: "Rudi Nyumbani",
+    viewArchive: "Tazama",
+    noArchives: "Hakuna vyandika vilivyopatikana kwa wasifu huu.",
+    archivesCreatedAutomatically:
+      "Vyandika huundwa kiotomatiki inapogunduliwa mabadiliko ya programu.",
+    noProfileSelected: "Hakuna wasifu uliochaguliwa.",
+    goToHome: "Nenda Nyumbani",
+    backToArchiveList: "Rudi kwenye Orodha ya Vyandika",
+    storageWarning: "Onyo la hifadhi: Inakaribia kiwango cha juu",
+    storageUsage: "Hifadhi: {used}MB / {max}MB ({count} vyandika)"
   }
 };
 
@@ -361,4 +405,4 @@ export function getSupportedLanguages() {
   return [...SUPPORTED_LANGUAGES];
 }
 
-export { SUPPORTED_LANGUAGES, DEFAULT_LANGUAGE };
+export { SUPPORTED_LANGUAGES, DEFAULT_LANGUAGE, updateHtmlLangAttribute };

@@ -2,15 +2,50 @@ import * as Profiles from "./profiles.js";
 import { getProfileArchives, getStorageInfo } from "./auto-archive.js";
 import { parseCSV } from "./utils/csv.js";
 import { renderProgram } from "./utils/renderers.js";
+import { t, getLanguage, initI18n, setLanguage } from "./i18n/index.js";
 
 let currentProfile = null;
 let archives = [];
 
+const langNames = {
+  en: "English",
+  es: "Español",
+  fr: "Français",
+  swa: "Kiswahili"
+};
+
+// Theme Logic
+function initTheme() {
+  const savedTheme = localStorage.getItem("theme");
+  const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+  const applyTheme = (theme) => {
+    document.documentElement.setAttribute("data-theme", theme);
+  };
+
+  let theme = savedTheme;
+  if (!theme) {
+    theme = mediaQuery.matches ? "dark" : "light";
+  }
+  applyTheme(theme);
+
+  mediaQuery.addEventListener("change", (e) => {
+    if (!localStorage.getItem("theme")) {
+      applyTheme(e.matches ? "dark" : "light");
+    }
+  });
+}
+
 function init() {
+  initI18n();
+  initTheme();
+
   const backToHomeBtn = document.getElementById("back-to-home-btn");
   const backToListBtn = document.getElementById("back-to-list-btn");
+  const langBtn = document.getElementById("language-selector-btn");
 
   // Back to Home button - goes back to index.html
+  backToHomeBtn.textContent = t("backToHome");
   backToHomeBtn.onclick = () => {
     window.location.href = "./index.html";
   };
@@ -18,15 +53,19 @@ function init() {
   // Back to List button - shows the archive list
   backToListBtn.onclick = showArchiveList;
 
+  // Language selector
+  langBtn.onclick = openLanguageModal;
+  updateLanguageButton();
+
   // Get current profile
   currentProfile = Profiles.getCurrentProfile();
 
   if (!currentProfile) {
-    document.getElementById("archive-title").textContent = "No Profile Selected";
+    document.getElementById("archive-title").textContent = t("noProfileSelected");
     document.getElementById("no-archives").classList.remove("hidden");
     document.getElementById("no-archives").innerHTML = `
-      <p>No profile selected.</p>
-      <button onclick="window.location.href='./index.html'" class="qr-action-btn">Go to Home</button>
+      <p>${t("noProfileSelected")}</p>
+      <button onclick="window.location.href='./index.html'" class="qr-action-btn">${t("goToHome")}</button>
     `;
     return;
   }
@@ -44,6 +83,70 @@ function init() {
   showArchiveList();
 }
 
+function updateLanguageButton() {
+  const currentLang = getLanguage();
+  const textEl = document.getElementById("current-language-text");
+  if (textEl) {
+    textEl.textContent = langNames[currentLang] || currentLang;
+  }
+}
+
+function openLanguageModal() {
+  const modal = document.getElementById("language-modal");
+  const closeBtn = document.getElementById("close-language-modal-btn");
+
+  if (!modal) return;
+
+  renderLanguageList();
+  modal.showModal();
+
+  if (closeBtn) {
+    closeBtn.onclick = () => modal.close();
+  }
+}
+
+function renderLanguageList() {
+  const list = document.getElementById("language-list");
+  if (!list) return;
+
+  const languages = [
+    { code: "en", name: "English" },
+    { code: "es", name: "Español" },
+    { code: "fr", name: "Français" },
+    { code: "swa", name: "Kiswahili" }
+  ];
+
+  const currentLang = getLanguage();
+  list.innerHTML = "";
+
+  languages.forEach((lang) => {
+    const li = document.createElement("li");
+    li.className = "language-item";
+    li.onclick = () => {
+      setLanguage(lang.code).then(() => {
+        setTimeout(() => {
+          location.reload();
+        }, 50);
+      });
+    };
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "language-name";
+    nameSpan.textContent = lang.name;
+
+    li.appendChild(nameSpan);
+
+    if (lang.code === currentLang) {
+      const check = document.createElement("span");
+      check.className = "selected-check";
+      check.textContent = "✓";
+      li.appendChild(check);
+    }
+
+    list.appendChild(li);
+  });
+}
+
 function showStorageInfo() {
   const storageInfo = document.getElementById("storage-info");
   const warningEl = document.getElementById("storage-warning");
@@ -51,9 +154,13 @@ function showStorageInfo() {
 
   const info = getStorageInfo();
 
-  summaryEl.textContent = `Storage: ${info.totalSizeMB}MB / ${info.maxSizeMB}MB (${info.totalEntries} archives)`;
+  summaryEl.textContent = t("storageUsage")
+    .replace("{used}", info.totalSizeMB)
+    .replace("{max}", info.maxSizeMB)
+    .replace("{count}", info.totalEntries);
 
   if (info.warning) {
+    warningEl.textContent = "⚠️ " + t("storageWarning");
     warningEl.classList.remove("hidden");
   }
 
@@ -73,7 +180,14 @@ function showArchiveList() {
   // Clear existing list
   listEl.innerHTML = "";
 
+  // Update title with translation
+  document.getElementById("archive-title").textContent = t("programArchives");
+
   if (archives.length === 0) {
+    noArchivesEl.innerHTML = `
+      <p>${t("noArchives")}</p>
+      <p>${t("archivesCreatedAutomatically")}</p>
+    `;
     noArchivesEl.classList.remove("hidden");
     return;
   }
@@ -94,7 +208,7 @@ function showArchiveList() {
 
     const loadBtn = document.createElement("button");
     loadBtn.className = "primary-btn";
-    loadBtn.textContent = "View";
+    loadBtn.textContent = t("viewArchive");
     loadBtn.onclick = () => loadArchive(index);
 
     actionsEl.appendChild(loadBtn);
@@ -122,7 +236,10 @@ function loadArchive(index) {
   listView.classList.add("hidden");
   programView.classList.remove("hidden");
 
-  // Render the program
+  // Update back button text
+  document.getElementById("back-to-list-btn").textContent = "← " + t("backToArchiveList");
+
+  // Render the program (will use correct language via t())
   const main = document.getElementById("main-program");
   main.innerHTML = "";
   renderProgram(rows);

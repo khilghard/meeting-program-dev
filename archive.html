@@ -8,6 +8,8 @@
       import { VERSION } from "./js/version.js";
       window.APP_VERSION = VERSION;
       document.getElementById("styles-link").href = `css/styles.css?v=${VERSION}`;
+
+      // Load archive.js which handles i18n initialization
       const mainScript = document.createElement("script");
       mainScript.type = "module";
       mainScript.src = `js/archive.js?v=${VERSION}`;
@@ -15,14 +17,28 @@
     </script>
     <link rel="canonical" href="https://khilghard.github.io/meeting-program/" />
     <link rel="manifest" href="/meeting-program/manifest.webmanifest" />
+    <link rel="stylesheet" href="css/styles.css" />
     <link id="styles-link" rel="stylesheet" href="" />
     <link rel="icon" type="image/png" sizes="32x32" href="img/favicon.png" />
   </head>
 
-  <body>
+  <body class="portrait-page">
     <button id="back-to-home-btn" class="archive-back-btn">← Back to Home</button>
 
     <div class="archive-container">
+      <div class="archive-header-controls">
+        <div
+          id="language-selector-btn"
+          class="language-selector-wrapper"
+          role="button"
+          aria-haspopup="dialog"
+          aria-label="Select Language"
+        >
+          <span class="globe-icon">🌐</span>
+          <span id="current-language-text">English</span>
+        </div>
+      </div>
+
       <div id="archive-list-view">
         <h2 id="archive-title">Program Archives</h2>
         <div id="archive-unit-name" class="archive-unit-name"></div>
@@ -54,5 +70,18 @@
         <div id="main-program"></div>
       </div>
     </div>
+
+    <!-- LANGUAGE SELECTOR MODAL -->
+    <dialog id="language-modal" class="modal">
+      <div class="modal-content">
+        <h3 id="language-modal-title">Select Language</h3>
+        <ul id="language-list" class="language-list">
+          <!-- Populated dynamically -->
+        </ul>
+        <div class="modal-actions">
+          <button id="close-language-modal-btn" class="secondary-btn">Close</button>
+        </div>
+      </div>
+    </dialog>
   </body>
 </html>

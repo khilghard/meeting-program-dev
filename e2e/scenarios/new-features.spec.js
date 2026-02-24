@@ -396,3 +396,95 @@ test.describe("Feature: Force Update & No-Cache", () => {
     expect(url).not.toContain("nocache");
   });
 });
+
+test.describe("Feature: Archive Page i18n", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("archive.html");
+    await page.evaluate(() => {
+      localStorage.clear();
+    });
+
+    // Set up a profile with archives for testing
+    await page.evaluate(() => {
+      const profiles = [
+        {
+          id: "ward-a",
+          url: "https://docs.google.com/spreadsheets/d/ward-a/gviz/tq?tqx=out:csv",
+          unitName: "Alpha Ward",
+          stakeName: "Alpha Stake",
+          lastUsed: Date.now()
+        }
+      ];
+      localStorage.setItem("meeting_program_profiles", JSON.stringify(profiles));
+      localStorage.setItem("meeting_program_selected_id", "ward-a");
+
+      // Add archive data with presiding and speaker
+      const archives = {
+        "ward-a": [
+          {
+            programDate: "March 1 2026",
+            csvData: [
+              { key: "date", value: "March 1 2026" },
+              { key: "unitName", value: "Alpha Ward" },
+              { key: "presiding", value: "Bishop Smith" },
+              { key: "speaker", value: "John Smith" }
+            ],
+            cachedAt: Date.now()
+          }
+        ]
+      };
+      localStorage.setItem("meeting_program_archives", JSON.stringify(archives));
+    });
+  });
+
+  test("should switch language and show correct labels in archive program", async ({ page }) => {
+    // Set language to English initially
+    await page.evaluate(() => {
+      localStorage.setItem("meeting_program_language", "en");
+    });
+    await page.reload();
+    await page.waitForTimeout(1000);
+
+    // Click View to see archive
+    await page.click(".archive-item .primary-btn");
+    await page.waitForTimeout(500);
+
+    // Check English labels
+    let presidingLabel = page.locator("#presiding .label");
+    await expect(presidingLabel).toHaveText("Presiding");
+
+    // Go back to list
+    await page.click("#back-to-list-btn");
+    await page.waitForTimeout(500);
+
+    // Change language to Spanish
+    await page.click("#language-selector-btn");
+    await page.click(".language-item:has-text('Español')");
+    await page.waitForTimeout(1500);
+
+    // View archive again
+    await page.click(".archive-item .primary-btn");
+    await page.waitForTimeout(500);
+
+    // Check Spanish labels
+    presidingLabel = page.locator("#presiding .label");
+    await expect(presidingLabel).toHaveText("Presidiendo");
+
+    // Go back to list
+    await page.click("#back-to-list-btn");
+    await page.waitForTimeout(500);
+
+    // Change language back to English
+    await page.click("#language-selector-btn");
+    await page.click(".language-item:has-text('English')");
+    await page.waitForTimeout(1500);
+
+    // View archive again
+    await page.click(".archive-item .primary-btn");
+    await page.waitForTimeout(500);
+
+    // Check English labels again
+    presidingLabel = page.locator("#presiding .label");
+    await expect(presidingLabel).toHaveText("Presiding");
+  });
+});
