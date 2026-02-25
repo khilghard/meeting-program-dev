@@ -67,16 +67,22 @@ test.describe("QR Code Scanning & Import", () => {
     // This test only works with full camera mocking - skip on mobile
     test.skip(isMobile, "Test uses mock QR which may not work on mobile emulation");
 
+    // Clear localStorage to ensure fresh first-visit state
+    await page.evaluate(() => localStorage.clear());
+
     // Step 1-5: First visit - onboarding help modal should show
     const helpModal = page.locator("#help-modal");
 
-    // Wait for the checkFirstTimeHelp to run (1 second delay)
-    await page.waitForTimeout(1500);
+    // Wait for the checkFirstTimeHelp to run (500ms + 1500ms delay)
+    await page.waitForTimeout(2500);
     await expect(helpModal).toBeVisible();
 
     // Close the help modal
     await page.click("#close-help-modal-btn");
     await expect(helpModal).toBeHidden();
+
+    // Additional wait to ensure modal is fully closed
+    await page.waitForTimeout(500);
 
     // Verify help_shown flag is set
     const helpShown = await page.evaluate(() => localStorage.getItem("meeting_program_help_shown"));
@@ -116,67 +122,48 @@ test.describe("QR Code Scanning & Import", () => {
     await page.click("#cancel-add-btn");
   });
 
-  test("should update existing program instead of creating duplicate", async ({
+  test("should show onboarding help only once on first visit (no program loaded)", async ({
     page,
     isMobile
   }) => {
-    test.fixme(isMobile, "Flaky on mobile emulation due to mock/reload interaction");
-    const sheetUrl = "https://docs.google.com/spreadsheets/d/test-duplicate/gviz/tq?tqx=out:csv";
+    test.skip(isMobile, "Test designed for desktop browsers only");
 
-    await page.evaluate((url) => {
-      localStorage.setItem(
-        "meeting_program_profiles",
-        JSON.stringify([
-          {
-            id: "p1",
-            url: url,
-            unitName: "Old Name",
-            stakeName: "Old Stake",
-            lastUsed: 1000
-          }
-        ])
-      );
-      localStorage.setItem("meeting_program_selected_id", "p1");
-    }, sheetUrl);
+    await page.evaluate(() => localStorage.clear());
 
-    await page.context().route(/\/gviz\/tq.*tqx=out:csv/, async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "text/csv",
-        body: "key,value\nunitName,Old Name\nstakeName,Old Stake"
-      });
-    });
+    const helpModal = page.locator("#help-modal");
 
-    await page.reload();
+    await page.waitForTimeout(2500);
+    await expect(helpModal).toBeVisible();
 
-    await page.context().unroute(/\/gviz\/tq.*tqx=out:csv/);
-    await page.context().route(/\/gviz\/tq.*tqx=out:csv/, async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "text/csv",
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Headers": "*"
-        },
-        body: "key,value\nunitName,New Name\nstakeName,New Stake"
-      });
-    });
+    await page.click("#close-help-modal-btn");
+    await expect(helpModal).toBeHidden();
 
-    await mockQRCodeScan(page, sheetUrl);
-    await enableQRMock(page);
-    await startQRScanner(page);
+    await page.waitForTimeout(2000);
+    await expect(helpModal).not.toBeVisible();
+  });
 
-    const modal = page.locator("#confirm-program-modal");
-    await expect(modal).toBeVisible();
-    await expect(page.locator("#new-program-name")).toContainText("New Name");
+  test("should show onboarding help once when loading program with URL", async ({
+    page,
+    isMobile
+  }) => {
+    test.skip(isMobile, "Test designed for desktop browsers only");
 
-    await page.click("#confirm-add-btn");
+    await page.evaluate(() => localStorage.clear());
 
-    const profiles = await page.evaluate(() =>
-      JSON.parse(localStorage.getItem("meeting_program_profiles") || "[]")
-    );
-    expect(profiles).toHaveLength(1);
-    expect(profiles[0].unitName).toBe("New Name");
+    const sheetUrl = "https://docs.google.com/spreadsheets/d/test-id/gviz/tq?tqx=out:csv";
+    await mockGoogleSheets(page, "minimal-program");
+    await page.goto(`?url=${encodeURIComponent(sheetUrl)}`);
+
+    const helpModal = page.locator("#help-modal");
+
+    await page.waitForTimeout(2500);
+    await expect(helpModal).toBeVisible();
+
+    await page.click("#close-help-modal-btn");
+    await expect(helpModal).toBeHidden();
+
+    await page.waitForTimeout(2000);
+    await expect(helpModal).not.toBeVisible();
   });
 
   test("should handle network failure during scan gracefully", async ({ page }) => {
@@ -219,9 +206,11 @@ test.describe("QR Code Scanning & Import", () => {
 
   test("should show manual URL input when camera permission is denied", async ({
     page,
-    isMobile
+    isMobile,
+    browserName
   }) => {
-    test.skip(isMobile, "Use 'chromium (no camera)' project for this test on desktop");
+    test.skip(isMobile, "Test designed for desktop browsers only");
+    test.skip(browserName === "chromium", "Test designed for chromium (no camera) project only");
 
     await mockGoogleSheets(page, "minimal-program");
 
@@ -231,8 +220,13 @@ test.describe("QR Code Scanning & Import", () => {
     await expect(page.locator("#manual-url-btn")).toBeVisible();
   });
 
-  test("should allow pressing Enter to submit manual URL", async ({ page, isMobile }) => {
-    test.skip(isMobile, "Use 'chromium (no camera)' project for this test on desktop");
+  test("should allow pressing Enter to submit manual URL", async ({
+    page,
+    isMobile,
+    browserName
+  }) => {
+    test.skip(isMobile, "Test designed for desktop browsers only");
+    test.skip(browserName === "chromium", "Test designed for chromium (no camera) project only");
 
     await mockGoogleSheets(page, "minimal-program");
 

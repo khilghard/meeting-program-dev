@@ -3,11 +3,25 @@ import { t } from "./i18n/index.js";
 
 const HELP_SHOWN_KEY = "meeting_program_help_shown";
 const INSTALL_PROMPT_KEY = "meeting_program_install_prompted";
+let helpTimeoutId = null;
 
-export function initShareUI() {
-  initShareButton();
-  initHelpButton();
-  checkFirstTimeHelp();
+function checkFirstTimeHelp() {
+  if (helpTimeoutId) {
+    return;
+  }
+
+  setTimeout(() => {
+    const hasSeenHelp = localStorage.getItem(HELP_SHOWN_KEY);
+    if (!hasSeenHelp) {
+      helpTimeoutId = setTimeout(() => {
+        const stillNoHelp = !localStorage.getItem(HELP_SHOWN_KEY);
+        if (stillNoHelp) {
+          openHelpModal();
+        }
+        helpTimeoutId = null;
+      }, 1500);
+    }
+  }, 500);
 }
 
 function initShareButton() {
@@ -22,6 +36,12 @@ function initHelpButton() {
   if (!helpBtn) return;
 
   helpBtn.onclick = openHelpModal;
+}
+
+export function initShareUI() {
+  initShareButton();
+  initHelpButton();
+  checkFirstTimeHelp();
 }
 
 export function openShareModal() {
@@ -106,7 +126,14 @@ function openHelpModal() {
   const modal = document.getElementById("help-modal");
   const closeBtn = document.getElementById("close-help-modal-btn");
 
-  if (!modal) return;
+  if (!modal) {
+    return;
+  }
+
+  // Don't try to open if already open
+  if (modal.hasAttribute("open")) {
+    return;
+  }
 
   updateHelpStrings();
 
@@ -119,26 +146,10 @@ function openHelpModal() {
   localStorage.setItem(HELP_SHOWN_KEY, "true");
 }
 
-function checkFirstTimeHelp() {
-  const hasSeenHelp = localStorage.getItem(HELP_SHOWN_KEY);
-  if (!hasSeenHelp) {
-    setTimeout(() => {
-      openHelpModal();
-    }, 1000);
-  }
-}
-
 export function promptPWAInstall() {
-  const hasBeenPrompted = localStorage.getItem(INSTALL_PROMPT_KEY);
-  if (hasBeenPrompted) return;
-
-  const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
-  if (isStandalone) return;
-
-  setTimeout(() => {
-    openHelpModal();
-    localStorage.setItem(INSTALL_PROMPT_KEY, "true");
-  }, 3000);
+  // PWA installation prompts are handled by the browser
+  // This function can be used for custom PWA install logic if needed
+  // Currently disabled to avoid interfering with help modal
 }
 
 function updateShareStrings() {
