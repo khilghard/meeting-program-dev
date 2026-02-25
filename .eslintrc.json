@@ -1,7 +1,8 @@
 {
   "env": {
     "browser": true,
-    "es2021": true
+    "es2021": true,
+    "node": true
   },
   "extends": [
     "eslint:recommended",
@@ -18,5 +19,18 @@
     "quotes": ["error", "double"],
     "no-unused-vars": ["warn"],
     "no-undef": ["error"]
-  }
+  },
+  "globals": {
+    "QRCode": "writable",
+    "jsQR": "writable"
+  },
+  "overrides": [
+    {
+      "files": ["js/qr.js", "js/share.js"],
+      "rules": {
+        "no-undef": "off"
+      }
+    }
+  ]
+}
 }

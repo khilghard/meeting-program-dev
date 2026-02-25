@@ -5,6 +5,8 @@ describe("Profiles Module", () => {
     beforeEach(() => {
         localStorage.clear();
         vi.clearAllMocks();
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date(2026, 1, 21));
     });
 
     test("starts empty", () => {
