@@ -20,6 +20,13 @@
   </head>
 
   <body>
+    <!-- NETWORK STATUS INDICATOR -->
+    <div id="network-status" class="network-status hidden" role="status" aria-live="polite">
+      <span class="status-icon"></span>
+      <span class="status-text"></span>
+      <span class="last-sync"></span>
+    </div>
+
     <!-- MAIN APP ROOT -->
     <div id="app"></div>
 
@@ -39,6 +46,7 @@
             <span id="current-language-text">English</span>
           </div>
           <button id="share-btn" class="icon-btn share-btn" aria-label="Share Program">📤</button>
+          <button id="print-btn" class="icon-btn print-btn" aria-label="Print Program">🖨️</button>
           <button
             id="theme-toggle"
             class="theme-toggle hidden-on-start"
@@ -101,9 +109,11 @@
 
       <!-- UPDATE NOTIFICATION -->
       <section id="update-section">
-        <div id="update-notification" hidden>
-          A new version is available.
-          <button onclick="refreshPage()">Update</button>
+        <div id="update-notification" class="update-banner hidden">
+          <span class="update-icon">🔄</span>
+          <span class="update-message">A new version is available.</span>
+          <button id="update-now-btn" class="update-btn">Update Now</button>
+          <button id="update-close-btn" class="update-close-btn">✕</button>
         </div>
       </section>
 

@@ -28,7 +28,12 @@ export default [
         clearTimeout: "readonly",
         jsQR: "readonly",
         AbortController: "readonly",
-        confirm: "readonly"
+        confirm: "readonly",
+        indexedDB: "readonly",
+        globalThis: "readonly",
+        crypto: "readonly",
+        TextEncoder: "readonly",
+        Blob: "readonly"
       }
     },
     plugins: {

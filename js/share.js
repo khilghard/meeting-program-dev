@@ -1,5 +1,6 @@
 /* eslint-disable no-undef */
 import { t } from "./i18n/index.js";
+import * as Profiles from "./profiles.js";
 
 const HELP_SHOWN_KEY = "meeting_program_help_shown";
 const INSTALL_PROMPT_KEY = "meeting_program_install_prompted";
@@ -93,13 +94,7 @@ function getCurrentProgramUrl() {
 }
 
 function getCurrentProfile() {
-  try {
-    const profiles = JSON.parse(localStorage.getItem("meeting_program_profiles") || "[]");
-    const selectedId = localStorage.getItem("meeting_program_selected_id");
-    return profiles.find((p) => p.id === selectedId) || null;
-  } catch {
-    return null;
-  }
+  return Profiles.getCurrentProfile();
 }
 
 function generateQRCode(url, container) {

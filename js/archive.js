@@ -1,5 +1,8 @@
-import * as Profiles from "./profiles.js";
-import { getProfileArchives, getStorageInfo } from "./auto-archive.js";
+import { getCurrentProfile } from "./data/ProfileManager.js";
+import {
+  getProfileArchives as getProfileArchivesData,
+  getStorageInfo
+} from "./data/ArchiveManager.js";
 import { parseCSV } from "./utils/csv.js";
 import { renderProgram } from "./utils/renderers.js";
 import { t, getLanguage, initI18n, setLanguage } from "./i18n/index.js";
@@ -36,7 +39,7 @@ function initTheme() {
   });
 }
 
-function init() {
+async function init() {
   initI18n();
   initTheme();
 
@@ -58,7 +61,7 @@ function init() {
   updateLanguageButton();
 
   // Get current profile
-  currentProfile = Profiles.getCurrentProfile();
+  currentProfile = await getCurrentProfile();
 
   if (!currentProfile) {
     document.getElementById("archive-title").textContent = t("noProfileSelected");
@@ -71,7 +74,7 @@ function init() {
   }
 
   // Get archives for current profile
-  archives = getProfileArchives(currentProfile.id);
+  archives = await getProfileArchivesData(currentProfile.id);
 
   // Update UI with profile name
   document.getElementById("archive-unit-name").textContent = currentProfile.unitName;
@@ -147,12 +150,12 @@ function renderLanguageList() {
   });
 }
 
-function showStorageInfo() {
+async function showStorageInfo() {
   const storageInfo = document.getElementById("storage-info");
   const warningEl = document.getElementById("storage-warning");
   const summaryEl = document.getElementById("storage-summary");
 
-  const info = getStorageInfo();
+  const info = await getStorageInfo();
 
   summaryEl.textContent = t("storageUsage")
     .replace("{used}", info.totalSizeMB)

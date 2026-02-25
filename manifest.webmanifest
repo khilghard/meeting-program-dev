@@ -1,17 +1,25 @@
 {
   "name": "Sacrament Meeting Program",
   "short_name": "SMP",
+  "version": "1.5.1",
   "description": "Displays information related to this weeks sacrament meeting",
   "scope": "/meeting-program/",
   "start_url": "/meeting-program/",
   "background_color": "#ffffff",
-  "theme_color": "#ffffff",
+  "theme_color": "#2d5ba8",
   "display": "standalone",
   "icons": [
     {
       "src": "img/icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "img/icon.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }
