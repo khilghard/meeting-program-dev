@@ -206,11 +206,13 @@ test.describe("QR Code Scanning & Import", () => {
 
   test("should show manual URL input when camera permission is denied", async ({
     page,
-    isMobile,
-    browserName
-  }) => {
+    isMobile
+  }, testInfo) => {
     test.skip(isMobile, "Test designed for desktop browsers only");
-    test.skip(browserName === "chromium", "Test designed for chromium (no camera) project only");
+    test.skip(
+      testInfo.project.name === "chromium",
+      "Test designed for chromium (no camera) project only"
+    );
 
     await mockGoogleSheets(page, "minimal-program");
 
@@ -220,13 +222,12 @@ test.describe("QR Code Scanning & Import", () => {
     await expect(page.locator("#manual-url-btn")).toBeVisible();
   });
 
-  test("should allow pressing Enter to submit manual URL", async ({
-    page,
-    isMobile,
-    browserName
-  }) => {
+  test("should allow pressing Enter to submit manual URL", async ({ page, isMobile }, testInfo) => {
     test.skip(isMobile, "Test designed for desktop browsers only");
-    test.skip(browserName === "chromium", "Test designed for chromium (no camera) project only");
+    test.skip(
+      testInfo.project.name === "chromium",
+      "Test designed for chromium (no camera) project only"
+    );
 
     await mockGoogleSheets(page, "minimal-program");
 
@@ -249,11 +250,10 @@ test.describe("QR Code Scanning & Import", () => {
 
   test("should auto-archive previous program when adding new program", async ({
     page,
-    isMobile,
-    browserName
-  }) => {
+    isMobile
+  }, testInfo) => {
     test.skip(
-      isMobile || browserName !== "chromium",
+      isMobile || testInfo.project.name !== "chromium",
       "Test uses mock QR which may not work on mobile or non-chromium browsers"
     );
 
