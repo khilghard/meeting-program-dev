@@ -281,15 +281,8 @@ async function init() {
         initProfileUI();
       }
 
-      // Handle Migration Save
-      if (!currentProfile && !params.get("url")) {
-        // Auto-archive any existing profile before adding new one
-        const existingProfiles = Profiles.getProfiles();
-        if (existingProfiles.length > 0) {
-          existingProfiles.forEach((p) => {
-            if (!p.archived) Profiles.archiveProfile(p.id);
-          });
-        }
+      // Handle Profile Creation from URL param or legacy localStorage
+      if (!currentProfile && sheetUrl) {
         Profiles.addProfile(sheetUrl, unitName, stakeName);
         localStorage.removeItem("sheetUrl");
         initProfileUI();
@@ -758,12 +751,6 @@ window.addEventListener("qr-scanned", async (e) => {
       nameEl.textContent = `${unitName} ${stakeName ? `(${stakeName})` : ""}`;
       // ... setup buttons
       addBtn.onclick = () => {
-        // Auto-archive the current profile before adding new one
-        const currentProfile = Profiles.getCurrentProfile();
-        if (currentProfile && !currentProfile.archived) {
-          Profiles.archiveProfile(currentProfile.id);
-        }
-
         Profiles.addProfile(url, unitName, stakeName);
         modal.close();
         location.reload();
