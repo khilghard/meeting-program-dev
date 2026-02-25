@@ -4,7 +4,7 @@
 // ------------------------------------------------------------
 const MPPATH = "/meeting-program";
 const APP_PREFIX = "smpwa";
-const VERSION = "1.5.0"; // bump this every deploy - also update js/version.js
+const VERSION = "1.5.1"; // bump this every deploy - also update js/version.js
 const CACHE_NAME = `${APP_PREFIX}-${VERSION}`;
 
 // Files to precache
