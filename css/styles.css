@@ -809,7 +809,7 @@ footer {
 .profile-card.add-profile-card .profile-card-name {
   color: var(--accent-color);
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 1.4rem;
 }
 
 .profile-card.add-profile-card .profile-card-details {
@@ -873,7 +873,7 @@ footer {
   padding: 10px 16px;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 1.65rem;
 }
 
 .secondary-btn {
@@ -959,7 +959,7 @@ footer {
 }
 
 .profile-card-name {
-  font-size: 0.95rem;
+  font-size: 1.75rem;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -968,7 +968,7 @@ footer {
 }
 
 .profile-card-details {
-  font-size: 0.8rem;
+  font-size: 1.45rem;
   opacity: 0.65;
   white-space: nowrap;
   overflow: hidden;
@@ -976,10 +976,8 @@ footer {
 }
 
 .profile-card-meta {
-  font-size: 0.7rem;
+  font-size: 1.25rem;
   opacity: 0.4;
-}
-  opacity: 0.5;
   margin-top: 4px;
 }
 
@@ -1473,6 +1471,10 @@ footer {
 
 .archive-header-controls .globe-icon {
   font-size: 1.1rem;
+}
+
+#archive-title {
+  text-align: center;
 }
 
 /* Archive Page Header */

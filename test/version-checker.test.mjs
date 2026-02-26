@@ -136,26 +136,26 @@ describe("checkForUpdates", () => {
   it("returns needsUpdate true when remote version is newer", async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ version: "2.0.0" })
+      json: () => Promise.resolve({ version: "3.0.0" })
     });
 
     const result = await checkForUpdates();
 
     expect(result.needsUpdate).toBe(true);
     expect(result.localVersion).toBeDefined();
-    expect(result.remoteVersion).toBe("2.0.0");
+    expect(result.remoteVersion).toBe("3.0.0");
   });
 
   it("returns needsUpdate false when versions are equal", async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ version: "2.0.0" })
+      json: () => Promise.resolve({ version: "1.5.1" })
     });
 
     const result = await checkForUpdates();
 
     expect(result.needsUpdate).toBe(false);
-    expect(result.remoteVersion).toBe("2.0.0");
+    expect(result.remoteVersion).toBe("1.5.1");
   });
 
   it("returns needsUpdate false when remote is older", async () => {

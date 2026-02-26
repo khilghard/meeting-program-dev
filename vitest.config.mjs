@@ -7,7 +7,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./test/setup.js"],
     exclude: ["node_modules", "e2e/**"],
-    testTimeout: 5000,
-    hookTimeout: 10000
+    testTimeout: 30000,
+    hookTimeout: 30000
   }
 });

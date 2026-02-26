@@ -39,7 +39,7 @@ describe("Update System Integration Tests", () => {
     it("shows update banner when new version available", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({ version: "2.0.0" })
+        json: () => Promise.resolve({ version: "3.0.0" })
       });
 
       const { checkForUpdates } = await import("../js/update-manager.js");
@@ -52,14 +52,14 @@ describe("Update System Integration Tests", () => {
     it("displays correct version info in banner", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({ version: "2.0.0" })
+        json: () => Promise.resolve({ version: "3.0.0" })
       });
 
       const { checkForUpdates } = await import("../js/update-manager.js");
       await checkForUpdates(true);
 
       const message = document.querySelector(".update-message");
-      expect(message.textContent).toContain("2.0.0");
+      expect(message.textContent).toContain("3.0.0");
     });
   });
 
@@ -67,7 +67,7 @@ describe("Update System Integration Tests", () => {
     it("hides banner when up to date", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({ version: "2.0.0" })
+        json: () => Promise.resolve({ version: "1.5.1" })
       });
 
       const banner = document.getElementById("update-notification");
@@ -126,7 +126,7 @@ describe("Update System Integration Tests", () => {
     it("hides banner on close button click", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({ version: "2.0.0" })
+        json: () => Promise.resolve({ version: "3.0.0" })
       });
 
       const { checkForUpdates, resetSessionCheck } = await import("../js/update-manager.js");
@@ -145,7 +145,7 @@ describe("Update System Integration Tests", () => {
     it("only checks once per session without force", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({ version: "2.0.0" })
+        json: () => Promise.resolve({ version: "3.0.0" })
       });
 
       const { checkForUpdates } = await import("../js/update-manager.js");
@@ -166,7 +166,7 @@ describe("Update System Integration Tests", () => {
       // With force=true, should check again
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({ version: "2.0.0" })
+        json: () => Promise.resolve({ version: "3.0.0" })
       });
       await checkForUpdates(true);
       banner = document.getElementById("update-notification");

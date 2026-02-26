@@ -1,12 +1,12 @@
 self.onmessage = function (e) {
-  const { type, payload, id } = e.data;
+  const { type, payload, options = {}, id } = e.data;
 
   try {
     let result = null;
 
     switch (type) {
       case "parseCSV":
-        result = parseCSV(payload);
+        result = parseCSV(payload, options);
         break;
       case "calculateChecksum":
         result = calculateChecksum(payload);
@@ -31,7 +31,7 @@ self.onmessage = function (e) {
   }
 };
 
-function parseCSV(csv) {
+function parseCSV(csv, options = {}) {
   const rows = [];
   let currentRow = [];
   let currentField = "";
@@ -72,8 +72,9 @@ function parseCSV(csv) {
   const isMultiLang =
     headerRow.length > 2 && ["en", "es", "fr", "swa"].includes(headerRow[1]?.toLowerCase());
 
-  const currentLang = "en";
+  const currentLang = options.language || "en";
   const langIndex = ["en", "es", "fr", "swa"].indexOf(currentLang);
+  const safeLangIndex = langIndex >= 0 ? langIndex : 0;
 
   const result = [];
   rows.slice(1).forEach((row) => {
@@ -81,7 +82,7 @@ function parseCSV(csv) {
     let rawValue;
 
     if (isMultiLang) {
-      const langValue = row[langIndex + 1];
+      const langValue = row[safeLangIndex + 1];
       const enValue = row[1];
       rawValue = langValue && langValue.trim() !== "" ? langValue : enValue;
     } else {

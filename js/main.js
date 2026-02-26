@@ -352,7 +352,7 @@ async function init() {
     // 5. Fetch & Render Logic
     try {
       const csv = await fetchWithTimeout(sheetUrl, 8000);
-      const rows = await createWorker("parseCSV", csv);
+      const rows = await createWorker("parseCSV", csv, { language: getLanguage() });
 
       // Identify Unit/Stake from fresh data
       const unitName = rows.find((r) => r.key === "unitName")?.value || "Unknown Unit";
@@ -553,9 +553,20 @@ function initProfileUI() {
 
   const updateBtn = document.getElementById("update-btn");
   if (updateBtn) {
-    updateBtn.onclick = async () => {
-      const { checkForUpdates } = await import("./update-manager.js");
-      await checkForUpdates(true);
+    updateBtn.onclick = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      urlParams.delete("forceUpdate");
+      urlParams.delete("nocache");
+      urlParams.set("t", Date.now().toString());
+      const newUrl = window.location.pathname + "?" + urlParams.toString();
+      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ action: "skipWaiting" });
+        setTimeout(() => {
+          window.location.href = newUrl;
+        }, 1000);
+      } else {
+        window.location.href = newUrl;
+      }
     };
   }
 
@@ -599,9 +610,9 @@ function renderProfileCards() {
     container.appendChild(card);
   }
 
-  // Rest: Inactive profiles
-  const inactiveProfiles = profiles.filter((p) => p.inactive && p.id !== currentProfile?.id);
-  inactiveProfiles.forEach((p) => {
+  // Rest: All other profiles (not current) get gray bubble - they are not active
+  const otherProfiles = profiles.filter((p) => p.id !== currentProfile?.id);
+  otherProfiles.forEach((p) => {
     const card = createProfileCard(p, false, true);
     container.appendChild(card);
   });
@@ -821,41 +832,35 @@ function renderManageList() {
   if (!list) return;
 
   const profiles = Profiles.getProfiles();
-  const activeProfiles = profiles.filter((p) => !p.inactive);
-  const inactiveProfiles = profiles.filter((p) => p.inactive);
+  const currentProfile = Profiles.getCurrentProfile();
 
   list.innerHTML = "";
 
-  if (activeProfiles.length === 0) {
+  if (profiles.length === 0) {
     list.innerHTML = `<li style="justify-content:center; opacity:0.6;">${t("noSavedPrograms")}</li>`;
   } else {
-    const currentProfile = Profiles.getCurrentProfile();
+    // Show current profile first (no delete button - cannot delete active profile)
+    if (currentProfile) {
+      const li = createProfileListItem(currentProfile, currentProfile, false);
+      list.appendChild(li);
+    }
 
-    activeProfiles.forEach((p) => {
-      const li = createProfileListItem(p, currentProfile, profiles.length, false);
+    // Show all other profiles (can be deleted)
+    const otherProfiles = profiles.filter((p) => p.id !== currentProfile?.id);
+    otherProfiles.forEach((p) => {
+      const li = createProfileListItem(p, currentProfile, true);
       list.appendChild(li);
     });
   }
 
-  // Show inactive section if there are inactive profiles
-  if (archivedSection && archivedList) {
-    if (inactiveProfiles.length > 0) {
-      archivedSection.classList.remove("hidden");
-      archivedList.innerHTML = "";
-      const currentProfile = Profiles.getCurrentProfile();
-
-      inactiveProfiles.forEach((p) => {
-        const li = createProfileListItem(p, currentProfile, profiles.length, true);
-        archivedList.appendChild(li);
-      });
-    } else {
-      archivedSection.classList.add("hidden");
-      archivedList.innerHTML = "";
-    }
+  // Hide archived section - we no longer separate inactive profiles
+  if (archivedSection) {
+    archivedSection.classList.add("hidden");
+    if (archivedList) archivedList.innerHTML = "";
   }
 }
 
-function createProfileListItem(p, currentProfile, totalProfiles, isInactive) {
+function createProfileListItem(p, currentProfile, canDelete) {
   const li = document.createElement("li");
 
   const info = document.createElement("div");
@@ -874,71 +879,24 @@ function createProfileListItem(p, currentProfile, totalProfiles, isInactive) {
 
   const actionsDiv = document.createElement("div");
 
-  if (isInactive) {
-    const reactivateBtn = document.createElement("button");
-    reactivateBtn.className = "reactivate-btn";
-    reactivateBtn.textContent = t("reactivate") || "Reactivate";
-    reactivateBtn.onclick = async () => {
-      await Profiles.reactivateProfile(p.id);
-      renderManageList();
-      initProfileUI();
-    };
-    actionsDiv.appendChild(reactivateBtn);
-
+  if (canDelete) {
     const delBtn = document.createElement("button");
     delBtn.className = "delete-btn";
     delBtn.textContent = t("delete");
     delBtn.onclick = async () => {
-      if (confirm(`${t("remove")} ${p.unitName}?`)) {
+      if (
+        confirm(
+          `${t("remove")} ${p.unitName}? This will also delete all archived programs for this profile.`
+        )
+      ) {
         await Profiles.removeProfile(p.id);
-        renderManageList();
-      }
-    };
-    actionsDiv.appendChild(delBtn);
-  } else {
-    const deactivateBtn = document.createElement("button");
-    deactivateBtn.className = "deactivate-btn";
-    deactivateBtn.textContent = t("deactivate") || "Deactivate";
-    const isActive = currentProfile && currentProfile.id === p.id;
-    const isLastProgram = totalProfiles === 1;
-    if (isActive || isLastProgram) {
-      deactivateBtn.disabled = true;
-    }
-    deactivateBtn.onclick = async () => {
-      if (confirm(`Deactivate ${p.unitName}?`)) {
-        await Profiles.deactivateProfile(p.id);
         renderManageList();
         initProfileUI();
-        if (isActive) {
-          location.reload();
-        }
-      }
-    };
-    actionsDiv.appendChild(deactivateBtn);
-
-    const delBtn = document.createElement("button");
-    delBtn.className = "delete-btn";
-    delBtn.textContent = t("delete");
-    if (isActive && !isLastProgram) {
-      delBtn.disabled = true;
-    }
-    delBtn.onclick = async () => {
-      if (confirm(`${t("remove")} ${p.unitName}?`)) {
-        const currentProfile = Profiles.getCurrentProfile();
-        const wasActive = currentProfile && currentProfile.id === p.id;
-
-        await Profiles.removeProfile(p.id);
-
-        if (wasActive) {
-          location.reload();
-        } else {
-          renderManageList();
-          initProfileUI();
-        }
       }
     };
     actionsDiv.appendChild(delBtn);
   }
+  // Active profile: no delete button (cannot be deleted)
 
   li.appendChild(info);
   li.appendChild(actionsDiv);
@@ -955,7 +913,7 @@ window.addEventListener("qr-scanned", async (e) => {
 
   try {
     const csv = await fetchWithTimeout(url, 5000);
-    const rows = await createWorker("parseCSV", csv);
+    const rows = await createWorker("parseCSV", csv, { language: getLanguage() });
 
     const unitName = rows.find((r) => r.key === "unitName")?.value || "Unknown Unit";
     const stakeName = rows.find((r) => r.key === "stakeName")?.value || "";

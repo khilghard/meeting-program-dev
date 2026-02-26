@@ -15,9 +15,9 @@ function parseCSV(csv) {
     const char = str[i];
     const nextChar = str[i + 1];
 
-    if (char === "\"") {
-      if (inQuotes && nextChar === "\"") {
-        currentField += "\"";
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        currentField += '"';
         i++; // skip next quote
       } else {
         inQuotes = !inQuotes;
@@ -49,6 +49,7 @@ function parseCSV(csv) {
   // Get language column index (default to 1 for 'en')
   const currentLang = getLanguage() || "en";
   const langIndex = LANGUAGE_HEADERS.indexOf(currentLang);
+  const safeLangIndex = langIndex >= 0 ? langIndex : 0;
 
   const result = [];
   // assume first line is header
@@ -59,7 +60,7 @@ function parseCSV(csv) {
     if (isMultiLang) {
       // Multi-language format: key,en,es,fr,swa
       // Try current language first, then fall back to English
-      const langValue = row[langIndex + 1];
+      const langValue = row[safeLangIndex + 1];
       const enValue = row[1]; // English is always column 1
       rawValue = langValue && langValue.trim() !== "" ? langValue : enValue;
     } else {

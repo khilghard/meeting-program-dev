@@ -6,7 +6,7 @@
 import { VERSION } from "./version.js";
 import { isNewer } from "./version-parser.js";
 
-const REMOTE_URL = "https://khilghard.github.io/meeting-program/manifest.webmanifest";
+const REMOTE_URL = "https://khilghard.github.io/meeting-program/version.json";
 const CHECK_INTERVAL_MS = 3600000;
 const CACHE_BUST_PARAM = "t";
 const MAX_RETRIES = 3;

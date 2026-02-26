@@ -17,16 +17,17 @@ class MockIDBFactory {
   }
 
   open(name, version) {
-    const request = {
-      name,
-      version,
-      result: null,
-      onerror: null,
-      onsuccess: null,
-      onupgradeneeded: null
-    };
+    return new Promise((resolve) => {
+      const request = {
+        name,
+        version,
+        result: null,
+        onerror: null,
+        onsuccess: null,
+        onupgradeneeded: null
+      };
 
-    setImmediate(() => {
+      const storeInstances = {};
       const db = {
         name,
         version,
@@ -42,7 +43,7 @@ class MockIDBFactory {
         createObjectStore(storeName, options) {
           this.objectStoreNames.list.push(storeName);
           storageData[storeName] = new Map();
-          return {
+          const storeObj = {
             _data: storageData[storeName],
             _indexes: new Map(),
             get(key) {
@@ -80,59 +81,42 @@ class MockIDBFactory {
               return { result: undefined, onsuccess: null, onerror: null };
             },
             createIndex(name, keyPath, options) {
-              this._indexes.set(name, { keyPath, unique: options && options.unique });
-              return {};
+              this._indexes.set(name, {
+                keyPath,
+                unique: options && options.unique,
+                _data: this._data
+              });
+              return {
+                _data: this._data,
+                getAll() {
+                  const results = [];
+                  for (const v of this._data.values()) results.push(v);
+                  return { result: results, onsuccess: null, onerror: null };
+                }
+              };
             },
             index(name) {
-              return this._indexes.get(name);
+              const idx = this._indexes.get(name);
+              if (!idx) return null;
+              return {
+                _data: idx._data || this._data,
+                getAll() {
+                  const results = [];
+                  for (const v of this._data.values()) results.push(v);
+                  return { result: results, onsuccess: null, onerror: null };
+                }
+              };
             }
           };
+          storeInstances[storeName] = storeObj;
+          return storeObj;
         },
         transaction(storeNames, mode) {
           const stores = {};
-          const self = this;
           for (const storeName of storeNames) {
-            const data = storageData[storeName] || new Map();
-            stores[storeName] = {
-              _data: data,
-              _indexes: new Map(),
-              get(key) {
-                const result = this._data.get(key);
-                return { result, onsuccess: null, onerror: null };
-              },
-              getAll(key) {
-                const results = [];
-                if (key !== undefined) {
-                  for (const entry of this._data) {
-                    if (entry[1] && entry[1][key] !== undefined) results.push(entry[1]);
-                  }
-                } else {
-                  for (const v of this._data.values()) results.push(v);
-                }
-                return { result: results, onsuccess: null, onerror: null };
-              },
-              put(value) {
-                const key = value.id || Array.from(this._data.keys()).pop() + 1;
-                this._data.set(key, value);
-                storageData[storeName] = this._data;
-                return { result: key, onsuccess: null, onerror: null };
-              },
-              delete(key) {
-                this._data.delete(key);
-                storageData[storeName] = this._data;
-                return { result: undefined, onsuccess: null, onerror: null };
-              },
-              clear() {
-                this._data.clear();
-                storageData[storeName] = this._data;
-                return { result: undefined, onsuccess: null, onerror: null };
-              },
-              createIndex() {
-                return {};
-              },
-              index() {
-                return null;
-              }
+            stores[storeName] = storeInstances[storeName] || {
+              _data: storageData[storeName] || new Map(),
+              _indexes: new Map()
             };
           }
           return {
@@ -158,10 +142,12 @@ class MockIDBFactory {
       if (!storageData.migrations) storageData.migrations = new Map();
 
       request.result = db;
-      if (request.onsuccess) request.onsuccess();
-    });
 
-    return request;
+      setTimeout(() => {
+        if (request.onsuccess) request.onsuccess();
+        resolve(request);
+      }, 0);
+    });
   }
 
   deleteDatabase(name) {
