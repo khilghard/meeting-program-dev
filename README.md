@@ -693,7 +693,7 @@ This guarantees that the program members see on Sunday matches what you intended
 
 ## 📋 Example Google Sheets Structure
 
-| key              | en                                                                                                                                                                                                                         |
+| key              | en                                                                                                                                                                                                                            |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | unitName         | Unit Name                                                                                                                                                                                                                     |
 | stakeName        | Stake Name                                                                                                                                                                                                                    |
@@ -768,3 +768,55 @@ General Information,Información general,Informations générales,Habari za Juml
 - Language columns (`en`, `es`, `fr`, `swa`) are optional
 - If a language column is empty, the English (`en`) value is used as fallback
 - You can mix formats: some rows can have all languages, others can have only English
+
+---
+
+## 🆕 What's New in v2.0
+
+### Offline-First Architecture
+
+- **IndexedDB** replaces localStorage for reliable data persistence
+- **Service Worker** caches all assets for offline use
+- **Works without internet** - previous programs available offline
+- **Auto-sync** when network returns
+
+### Archive System
+
+- **2 years of history** or up to 10MB of storage
+- **Timeline view** - newest programs first
+- **Automatic cleanup** - oldest programs removed as needed
+- **Data integrity** - checksums verify archive content
+
+### Migration Guidance
+
+- **Automatic detection** when programs need updating
+- **Non-intrusive notifications** - doesn't interrupt service
+- **"Remind Me Later"** - defers until next Sunday
+- **Works offline** - migration checks run in background
+
+### Enhanced Profile Management
+
+- **Multiple wards** - switch between congregations easily
+- **Visual status** - green (active), yellow (needs update), gray (archived)
+- **Search/filter** - find profiles quickly
+- **Language flags** - see language at a glance
+
+### Print-Friendly
+
+- **One-click print** button
+- **Clean output** - no UI elements
+- **Optimized layout** - easy to read
+
+### Data Backup
+
+- **Export** all data as JSON
+- **Import** from backup file
+- **Transfer** between devices
+
+---
+
+## Migration from v1.x
+
+v2.0 automatically migrates your existing profiles from localStorage to IndexedDB. Your data is preserved and will be available after the update. No action required.
+
+If you encounter any issues, you can manually export your data from v1.x and import it into v2.0 using the new backup feature.

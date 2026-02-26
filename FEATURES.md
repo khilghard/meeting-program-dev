@@ -224,17 +224,118 @@ Meeting Program is a Progressive Web App (PWA) that displays sacrament meeting p
 
 ---
 
-## Version History
+## v2.0 Features (Planned)
 
-| Version | Date    | Features                                                |
-| ------- | ------- | ------------------------------------------------------- |
-| 1.0.0   | Initial | Basic program loading                                   |
-| 1.1.0   | -       | Theme toggle, cleanup                                   |
-| 1.2.0   | -       | Profile management                                      |
-| 1.3.0   | -       | Multi-language support (partial)                        |
-| 1.4.0   | -       | Multi-language support (full)                           |
-| 1.5.0   | Current | Program history, single QR code generator, translations |
-| 1.6.0   | -       | In-app share, help/FAQ, PWA installation guide          |
+### 1. IndexedDB Storage
+
+**Description:** Replace localStorage with IndexedDB for reliable data persistence
+
+**Features:**
+
+- All profile and archive data stored in IndexedDB
+- Transaction support for data integrity
+- Automatic storage management (10MB limit, 2-year retention)
+- Checksum validation for data integrity
+- Graceful degradation on storage errors
+
+**Implementation:** `js/data/IndexedDBManager.js`, `js/data/ProfileManager.js`
+
+### 2. Service Worker Enhancement
+
+**Description:** Advanced caching strategies for offline-first experience
+
+**Features:**
+
+- Cache-first for static assets
+- Network-first for Google Sheets URLs
+- Stale-while-revalidate for archive data
+- Custom offline page
+- Background sync for migration checks
+
+**Implementation:** `service-worker.js`
+
+### 3. Migration System
+
+**Description:** Notify users when programs need updating
+
+**Features:**
+
+- Detect `obsolete` and `migrationUrl` keys from Google Sheet
+- Validate migration URL before prompting
+- Non-intrusive banner notification
+- "Remind Me Later" option
+- Background sync when network available
+- Works completely offline
+
+**Implementation:** `js/data/ProfileManager.js`, `js/main.js`
+
+### 4. Archive Timeline UI
+
+**Description:** Visual timeline of past programs
+
+**Features:**
+
+- Timeline view with calendar dots
+- Newest programs displayed first
+- One-tap to load past programs
+- Storage usage indicator
+- Automatic cleanup warnings
+
+**Implementation:** `js/archive.js`
+
+### 5. Profile Cards
+
+**Description:** Enhanced profile selection interface
+
+**Features:**
+
+- Visual profile cards with status indicators
+- Green = active, Yellow = needs migration, Gray = archived
+- Search/filter profiles
+- Language flag icons
+- Accessible keyboard navigation
+
+**Implementation:** `js/main.js`, `css/styles.css`
+
+### 6. Print-Friendly Mode
+
+**Description:** Clean print output for physical programs
+
+**Features:**
+
+- One-click print button
+- Hides all UI elements
+- Optimized typography and spacing
+- Black text on white background
+- Works in all browsers
+
+**Implementation:** `css/styles.css`
+
+### 7. Offline Indicator
+
+**Description:** Clear network status feedback
+
+**Features:**
+
+- Subtle icon: 🌐 (online) or 📱 (offline)
+- "Working offline" message with last update time
+- Auto-detects network recovery
+- Non-intrusive placement
+
+**Implementation:** `js/main.js`
+
+### 8. Data Export/Import
+
+**Description:** Backup and restore functionality
+
+**Features:**
+
+- Export all profiles and archives as JSON
+- Import from JSON file
+- Includes checksums for integrity
+- Merge or replace options
+
+**Implementation:** `js/data/ProfileManager.js`
 
 ---
 

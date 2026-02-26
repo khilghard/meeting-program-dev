@@ -23,6 +23,10 @@ const translationsData = {
     offlineMode: "Showing last available program (offline mode)",
     tryNow: "Try Now",
     updateAvailable: "A new version is available.",
+    updateNow: "Update Now",
+    updating: "Updating...",
+    updateComplete: "Update complete!",
+    updateError: "Update failed. Please refresh the page.",
     update: "Update",
     reloadProgram: "Reload Program",
     addProgram: "Add Program?",
@@ -81,7 +85,13 @@ const translationsData = {
     goToHome: "Go to Home",
     backToArchiveList: "Back to Archive List",
     storageWarning: "Storage warning: Approaching size limit",
-    storageUsage: "Storage: {used}MB / {max}MB ({count} archives)"
+    storageUsage: "Storage: {used}MB / {max}MB ({count} archives)",
+    migrationAvailable: "This program is being updated. A new version is available.",
+    viewNewProgram: "View New Program",
+    remindMeLater: "Remind Me Later",
+    migrationLoading: "Loading new program...",
+    migrationSuccess: "New program loaded successfully!",
+    migrationError: "Failed to load new program. Please try again."
   },
   es: {
     churchName: "La Iglesia de Jesucristo <br> de los Santos de los Últimos Días",
@@ -100,6 +110,10 @@ const translationsData = {
     offlineMode: "Mostrando último programa disponible (modo sin conexión)",
     tryNow: "Intentar Ahora",
     updateAvailable: "Una nueva versión está disponible.",
+    updateNow: "Actualizar ahora",
+    updating: "Actualizando...",
+    updateComplete: "¡Actualización completa!",
+    updateError: "Actualización fallida. Por favor, actualice la página.",
     update: "Actualizar",
     reloadProgram: "Recargar Programa",
     addProgram: "¿Agregar Programa?",
@@ -158,7 +172,13 @@ const translationsData = {
     goToHome: "Ir al Inicio",
     backToArchiveList: "Volver a la Lista de Archivos",
     storageWarning: "Advertencia de almacenamiento: Acercándose al límite",
-    storageUsage: "Almacenamiento: {used}MB / {max}MB ({count} archivos)"
+    storageUsage: "Almacenamiento: {used}MB / {max}MB ({count} archivos)",
+    migrationAvailable: "Este programa está siendo actualizado. Hay una nueva versión disponible.",
+    viewNewProgram: "Ver Nuevo Programa",
+    remindMeLater: "Recordarme Después",
+    migrationLoading: "Cargando nuevo programa...",
+    migrationSuccess: "¡Nuevo programa cargado exitosamente!",
+    migrationError: "Error al cargar el nuevo programa. Por favor intente de nuevo."
   },
   fr: {
     churchName: "L'Église de Jésus-Christ <br> des Saints des Derniers Jours",
@@ -177,6 +197,10 @@ const translationsData = {
     offlineMode: "Affichage du dernier programme disponible (mode hors ligne)",
     tryNow: "Essayer Maintenant",
     updateAvailable: "Une nouvelle version est disponible.",
+    updateNow: "Mettre à jour maintenant",
+    updating: "Mise à jour...",
+    updateComplete: "Mise à jour terminée!",
+    updateError: "Échec de la mise à jour. Veuillez actualiser la page.",
     update: "Mettre à jour",
     reloadProgram: "Recharger le Programme",
     addProgram: "Ajouter un Programme?",
@@ -235,7 +259,14 @@ const translationsData = {
     goToHome: "Aller à l'Accueil",
     backToArchiveList: "Retour à la Liste des Archives",
     storageWarning: "Avertissement stockage: Approche de la limite",
-    storageUsage: "Stockage: {used}MB / {max}MB ({count} archives)"
+    storageUsage: "Stockage: {used}MB / {max}MB ({count} archives)",
+    migrationAvailable:
+      "Ce programme est en cours de mise à jour. Une nouvelle version est disponible.",
+    viewNewProgram: "Voir le Nouveau Programme",
+    remindMeLater: "Me Rappeler Plus Tard",
+    migrationLoading: "Chargement du nouveau programme...",
+    migrationSuccess: "Nouveau programme chargé avec succès!",
+    migrationError: "Échec du chargement du nouveau programme. Veuillez réessayer."
   },
   swa: {
     churchName: "Kanisa La Yesu Kristo <br> La Watakatifu wa Siku za Mwisho",
@@ -254,6 +285,10 @@ const translationsData = {
     offlineMode: "Inaonyesha mpango wa mwisho uliopo (hali ya nje ya mtandao)",
     tryNow: "Jaribu Sasa",
     updateAvailable: "Toleo jipya linapatikana.",
+    updateNow: "SASISHA SASA",
+    updating: "Kunasasisha...",
+    updateComplete: "Kusasisha kmekamilika!",
+    updateError: "Kusasisha kumeshindwa. Tafadhali onyesha upya ukurasa.",
     update: "Sasisha",
     reloadProgram: "Pakia Mpango Tena",
     addProgram: "Ongeza Mpango?",
@@ -312,7 +347,13 @@ const translationsData = {
     goToHome: "Nenda Nyumbani",
     backToArchiveList: "Rudi kwenye Orodha ya Vyandika",
     storageWarning: "Onyo la hifadhi: Inakaribia kiwango cha juu",
-    storageUsage: "Hifadhi: {used}MB / {max}MB ({count} vyandika)"
+    storageUsage: "Hifadhi: {used}MB / {max}MB ({count} vyandika)",
+    migrationAvailable: "Programu hii inasasishwa. Toleo jipya lipo.",
+    viewNewProgram: "Tazama Programu Mpya",
+    remindMeLater: "Nikumbushe Baadaye",
+    migrationLoading: "Inapakia programu mpya...",
+    migrationSuccess: "Programu mpya ilipakia kwa mafanikio!",
+    migrationError: "Imeshindwa kupakia programu mpya. Tafadhali jaribu tena."
   }
 };
 

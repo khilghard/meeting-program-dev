@@ -1,7 +1,10 @@
 import { showScanner } from "./qr.js";
 import * as Profiles from "./profiles.js";
+import { hasLegacyProfiles, migrateLegacyProfiles } from "./data/ProfileManager.js";
+import * as ArchiveManager from "./data/ArchiveManager.js";
 import { t, getLanguage, initI18n, setLanguage } from "./i18n/index.js";
 import { fetchSheet, parseCSV } from "./utils/csv.js";
+import { createWorker } from "./workers/workerInterface.js";
 import {
   renderers,
   renderProgram,
@@ -21,8 +24,9 @@ import {
   renderLinkWithSpace
 } from "./utils/renderers.js";
 import { saveProgramHistory, getProgramHistory, cleanupHistory } from "./history.js";
-import { autoArchive } from "./auto-archive.js";
 import { initShareUI, promptPWAInstall } from "./share.js";
+import { checkMigrationRequired } from "./data/MigrationSystem.js";
+import { showMigrationBanner, resetMigrationBannerSession } from "./data/MigrationBanner.js";
 
 // ------------------------------------------------------------
 // 4. Theme Logic
@@ -98,6 +102,70 @@ function showOfflineBanner() {
       init();
     };
   }
+}
+
+function initNetworkStatus() {
+  const statusEl = document.getElementById("network-status");
+  if (!statusEl) return;
+
+  const iconEl = statusEl.querySelector(".status-icon");
+  const textEl = statusEl.querySelector(".status-text");
+  const lastSyncEl = statusEl.querySelector(".last-sync");
+
+  const updateStatus = () => {
+    const isOnline = navigator.onLine;
+
+    if (isOnline) {
+      iconEl.textContent = "🌐";
+      textEl.textContent = "Online";
+      statusEl.classList.remove("offline");
+      statusEl.classList.add("online");
+      statusEl.classList.remove("hidden");
+
+      const lastUpdated = localStorage.getItem("programLastUpdatedDate");
+      if (lastUpdated) {
+        lastSyncEl.textContent = `Last sync: ${lastUpdated}`;
+      } else {
+        lastSyncEl.textContent = "";
+      }
+
+      setTimeout(() => {
+        statusEl.classList.add("hidden");
+      }, 3000);
+    } else {
+      iconEl.textContent = "📱";
+      textEl.textContent = "Working offline";
+      statusEl.classList.remove("online");
+      statusEl.classList.add("offline");
+      statusEl.classList.remove("hidden");
+
+      const lastUpdated = localStorage.getItem("programLastUpdatedDate");
+      if (lastUpdated) {
+        lastSyncEl.textContent = `Last updated: ${lastUpdated}`;
+      } else {
+        lastSyncEl.textContent = "";
+      }
+    }
+  };
+
+  window.addEventListener("online", () => {
+    updateStatus();
+  });
+
+  window.addEventListener("offline", () => {
+    updateStatus();
+  });
+
+  updateStatus();
+}
+
+function initPrintButton() {
+  const printBtn = document.getElementById("print-btn");
+  if (!printBtn) return;
+
+  printBtn.addEventListener("click", () => {
+    window.print();
+  });
 }
 
 function updateTimestamp() {
@@ -183,7 +251,22 @@ async function init() {
     // 0. Cleanup old history entries
     cleanupHistory();
 
-    // 1. Setup UI for Profiles (dropdown population)
+    // 0b. Migrate legacy localStorage profiles to IndexedDB
+    if (await hasLegacyProfiles()) {
+      console.log("[INIT] Found legacy profiles, migrating to IndexedDB...");
+      const result = await migrateLegacyProfiles();
+      if (result.success) {
+        console.log(`[INIT] Migrated ${result.migrated} profiles`);
+      } else {
+        console.warn("[INIT] Migration failed:", result.message);
+      }
+    }
+
+    // 1. Initialize profiles from IndexedDB (including migrated data)
+    await Profiles.initProfiles();
+    console.log("[INIT] Profiles loaded:", Profiles.getProfiles().length);
+
+    // 2. Setup UI for Profiles (dropdown population)
     initProfileUI();
 
     // 2. Determine URL to load
@@ -269,7 +352,7 @@ async function init() {
     // 5. Fetch & Render Logic
     try {
       const csv = await fetchWithTimeout(sheetUrl, 8000);
-      const rows = parseCSV(csv);
+      const rows = await createWorker("parseCSV", csv);
 
       // Identify Unit/Stake from fresh data
       const unitName = rows.find((r) => r.key === "unitName")?.value || "Unknown Unit";
@@ -277,13 +360,13 @@ async function init() {
 
       // UPDATE METADATA for current profile
       if (currentProfile) {
-        Profiles.addProfile(currentProfile.url, unitName, stakeName);
+        await Profiles.addProfile(currentProfile.url, unitName, stakeName);
         initProfileUI();
       }
 
       // Handle Profile Creation from URL param or legacy localStorage
       if (!currentProfile && sheetUrl) {
-        Profiles.addProfile(sheetUrl, unitName, stakeName);
+        await Profiles.addProfile(sheetUrl, unitName, stakeName);
         localStorage.removeItem("sheetUrl");
         initProfileUI();
       }
@@ -305,13 +388,21 @@ async function init() {
       let archiveResult = null;
       if (loadedProfile && programDate) {
         // Archive the program data
-        archiveResult = autoArchive(loadedProfile.id, programDate, rows);
+        archiveResult = await ArchiveManager.autoArchive(loadedProfile.id, programDate, rows);
         if (archiveResult.archived) {
           console.log(
             `Program auto-archived: ${programDate} (${archiveResult.updated ? "updated" : "new"})`
           );
         } else {
           console.log(`Program not archived: ${archiveResult.reason}`);
+        }
+      }
+
+      // Check for migration requirement
+      if (loadedProfile) {
+        const migrationCheck = await checkMigrationRequired(loadedProfile.id, rows);
+        if (migrationCheck.required && migrationCheck.url) {
+          showMigrationBanner(loadedProfile.id, migrationCheck.url);
         }
       }
 
@@ -349,7 +440,11 @@ async function init() {
         let cachedArchiveResult = null;
         if (cachedProfile && cachedDate) {
           // Auto-archive the cached program data
-          cachedArchiveResult = autoArchive(cachedProfile.id, cachedDate, cachedRows);
+          cachedArchiveResult = await ArchiveManager.autoArchive(
+            cachedProfile.id,
+            cachedDate,
+            cachedRows
+          );
           if (cachedArchiveResult.archived) {
             console.log(
               `Cached program auto-archived: ${cachedDate} (${cachedArchiveResult.updated ? "updated" : "new"})`
@@ -393,21 +488,17 @@ function initProfileUI() {
   const currentProfile = Profiles.getCurrentProfile();
   const isViewingArchive = currentProfile && currentProfile.archived;
 
-  // Show/hide back to home button based on archive view
   if (backToHomeBtn) {
     if (isViewingArchive) {
       backToHomeBtn.classList.remove("hidden");
-      backToHomeBtn.onclick = () => {
-        // Switch to most recent active profile
+      backToHomeBtn.onclick = async () => {
         const activeProfiles = Profiles.getActiveProfiles();
         if (activeProfiles.length > 0) {
           activeProfiles.sort((a, b) => b.lastUsed - a.lastUsed);
-          Profiles.selectProfile(activeProfiles[0].id);
+          await Profiles.selectProfile(activeProfiles[0].id);
           location.reload();
         } else {
-          // No active profiles - clear selection but keep archive
           localStorage.removeItem("meeting_program_selected_id");
-          // Clear URL params to go to zero state
           window.history.replaceState({}, document.title, window.location.pathname);
           location.reload();
         }
@@ -417,13 +508,11 @@ function initProfileUI() {
     }
   }
 
-  // Hide container if no active profiles
   if (profiles.length === 0 && !isViewingArchive) {
     container.classList.add("hidden");
   } else {
     container.classList.remove("hidden");
 
-    // Populate
     selector.innerHTML = "";
     profiles.forEach((p) => {
       const opt = document.createElement("option");
@@ -432,7 +521,6 @@ function initProfileUI() {
       selector.appendChild(opt);
     });
 
-    // If viewing archive, show the archived profile in selector
     if (isViewingArchive) {
       const opt = document.createElement("option");
       opt.value = currentProfile.id;
@@ -445,20 +533,17 @@ function initProfileUI() {
       selector.disabled = false;
     }
 
-    // Event listeners
-    selector.onchange = (e) => {
+    selector.onchange = async (e) => {
       const newId = e.target.value;
-      Profiles.selectProfile(newId);
+      await Profiles.selectProfile(newId);
       location.reload();
     };
   }
 
-  // Manage Button
   if (manageBtn) {
     manageBtn.onclick = openManageModal;
   }
 
-  // View Archives Button - navigate to archive.html
   const viewArchivesBtn = document.getElementById("view-archives-btn");
   if (viewArchivesBtn) {
     viewArchivesBtn.onclick = () => {
@@ -466,93 +551,239 @@ function initProfileUI() {
     };
   }
 
-  // Update Button - force refresh and update
   const updateBtn = document.getElementById("update-btn");
   if (updateBtn) {
-    updateBtn.onclick = () => {
-      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({ action: "skipWaiting" });
-        setTimeout(() => location.reload(), 500);
-      } else {
-        location.reload();
-      }
+    updateBtn.onclick = async () => {
+      const { checkForUpdates } = await import("./update-manager.js");
+      await checkForUpdates(true);
     };
   }
+
+  renderProfileCards();
 }
 
-function openArchivesModal() {
+function renderProfileCards() {
+  const container = document.getElementById("profile-cards-container");
+  if (!container) {
+    createProfileCardsContainer();
+    return;
+  }
+
+  const profiles = Profiles.getProfiles();
+  const currentProfile = Profiles.getCurrentProfile();
+
+  container.innerHTML = "";
+
+  // First card: Scan for New Program
+  const addCard = document.createElement("div");
+  addCard.className = "profile-card add-profile-card";
+  addCard.setAttribute("role", "button");
+  addCard.setAttribute("tabindex", "0");
+  addCard.innerHTML = `
+    <div class="profile-card-content" style="text-align: center;">
+      <div class="profile-card-name">+ Scan for New Program</div>
+    </div>
+  `;
+  addCard.addEventListener("click", () => showScanner());
+  addCard.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      showScanner();
+    }
+  });
+  container.appendChild(addCard);
+
+  // Second card: Active profile (if exists)
+  if (currentProfile) {
+    const card = createProfileCard(currentProfile, true, false);
+    container.appendChild(card);
+  }
+
+  // Rest: Inactive profiles
+  const inactiveProfiles = profiles.filter((p) => p.inactive && p.id !== currentProfile?.id);
+  inactiveProfiles.forEach((p) => {
+    const card = createProfileCard(p, false, true);
+    container.appendChild(card);
+  });
+}
+
+function createProfileCardsContainer() {
+  const container = document.getElementById("profile-selector-container");
+  if (!container) return;
+
+  const cardsContainer = document.createElement("div");
+  cardsContainer.id = "profile-cards-container";
+  cardsContainer.className = "profile-cards-container";
+
+  container.appendChild(cardsContainer);
+
+  renderProfileCards();
+}
+
+function createProfileCard(profile, isSelected, isInactive) {
+  const card = document.createElement("div");
+  card.className = `profile-card${isSelected ? " selected" : ""}`;
+  card.setAttribute("role", "button");
+  card.setAttribute("tabindex", "0");
+  card.setAttribute("aria-pressed", isSelected);
+
+  const statusDot = document.createElement("div");
+  statusDot.className = "profile-status-dot";
+
+  if (profile.obsolete) {
+    statusDot.classList.add("migration");
+  } else if (isInactive) {
+    statusDot.classList.add("inactive");
+  } else {
+    statusDot.classList.add("active");
+  }
+
+  const content = document.createElement("div");
+  content.className = "profile-card-content";
+
+  const name = document.createElement("div");
+  name.className = "profile-card-name";
+  name.textContent = profile.unitName;
+
+  const details = document.createElement("div");
+  details.className = "profile-card-details";
+  if (profile.stakeName) {
+    details.textContent = profile.stakeName;
+  }
+
+  const meta = document.createElement("div");
+  meta.className = "profile-card-meta";
+  const lastUsedDate = new Date(profile.lastUsed);
+  meta.textContent = `Last used: ${lastUsedDate.toLocaleDateString()}`;
+
+  content.appendChild(name);
+  if (profile.stakeName) {
+    content.appendChild(details);
+  }
+  content.appendChild(meta);
+
+  card.appendChild(statusDot);
+  card.appendChild(content);
+
+  card.addEventListener("click", async () => {
+    await Profiles.selectProfile(profile.id);
+    location.reload();
+  });
+
+  card.addEventListener("keydown", async (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      await Profiles.selectProfile(profile.id);
+      location.reload();
+    }
+  });
+
+  return card;
+}
+
+function filterProfiles(query) {
+  const container = document.getElementById("profile-cards-container");
+  if (!container) return;
+
+  const cards = container.querySelectorAll(".profile-card");
+  const lowerQuery = query.toLowerCase();
+
+  cards.forEach((card) => {
+    const name = card.querySelector(".profile-card-name")?.textContent?.toLowerCase() || "";
+    const details = card.querySelector(".profile-card-details")?.textContent?.toLowerCase() || "";
+
+    if (name.includes(lowerQuery) || details.includes(lowerQuery)) {
+      card.style.display = "flex";
+    } else {
+      card.style.display = "none";
+    }
+  });
+}
+
+async function openArchivesModal() {
   const modal = document.getElementById("view-archives-modal");
   const closeBtn = document.getElementById("close-archives-modal-btn");
   const list = document.getElementById("archived-programs-list");
 
   if (!modal || !list) return;
 
-  const archivedProfiles = Profiles.getArchivedProfiles();
-  const currentProfile = Profiles.getCurrentProfile();
+  const archivedPrograms = ArchiveManager.getProfileArchives(currentProfile.id);
 
   list.innerHTML = "";
 
-  // If there's an active (non-archived) profile, show option to archive it
-  if (currentProfile && !currentProfile.archived) {
-    const archiveCurrentLi = document.createElement("li");
-    archiveCurrentLi.style.flexDirection = "column";
-    archiveCurrentLi.style.alignItems = "flex-start";
-    archiveCurrentLi.style.padding = "16px";
+  // If there's an active profile, show option to deactivate it
+  if (currentProfile && !currentProfile.inactive) {
+    const deactivateCurrentLi = document.createElement("li");
+    deactivateCurrentLi.style.flexDirection = "column";
+    deactivateCurrentLi.style.alignItems = "flex-start";
+    deactivateCurrentLi.style.padding = "16px";
 
-    const archiveLabel = document.createElement("span");
-    archiveLabel.style.fontWeight = "bold";
-    archiveLabel.textContent = `Archive: ${currentProfile.unitName}`;
+    const deactivateLabel = document.createElement("span");
+    deactivateLabel.style.fontWeight = "bold";
+    deactivateLabel.textContent = `Deactivate: ${currentProfile.unitName}`;
 
-    const archiveBtn = document.createElement("button");
-    archiveBtn.className = "archive-btn";
-    archiveBtn.style.marginTop = "8px";
-    archiveBtn.textContent = "Archive This Program";
-    archiveBtn.onclick = () => {
-      if (confirm(`Archive ${currentProfile.unitName}?`)) {
-        Profiles.archiveProfile(currentProfile.id);
+    const deactivateBtn = document.createElement("button");
+    deactivateBtn.className = "deactivate-btn";
+    deactivateBtn.style.marginTop = "8px";
+    deactivateBtn.textContent = "Deactivate Profile";
+    deactivateBtn.onclick = async () => {
+      if (confirm(`Deactivate ${currentProfile.unitName}?`)) {
+        await Profiles.deactivateProfile(currentProfile.id);
         openArchivesModal(); // Refresh the modal
       }
     };
 
-    archiveCurrentLi.appendChild(archiveLabel);
-    archiveCurrentLi.appendChild(archiveBtn);
-    list.appendChild(archiveCurrentLi);
+    deactivateCurrentLi.appendChild(deactivateLabel);
+    deactivateCurrentLi.appendChild(deactivateBtn);
+    list.appendChild(deactivateCurrentLi);
   }
 
-  if (archivedProfiles.length === 0 && !currentProfile) {
+  if (!archivedPrograms || archivedPrograms.length === 0) {
     list.innerHTML += "<li style='justify-content:center;opacity:0.6;'>No archived programs</li>";
   } else {
-    archivedProfiles.forEach((p) => {
+    archivedPrograms.forEach((p) => {
       const li = document.createElement("li");
+      li.className = "archive-item";
 
       const info = document.createElement("div");
-      info.className = "profile-info";
+      info.className = "archive-info";
 
-      const unit = document.createElement("span");
-      unit.className = "profile-unit";
-      unit.textContent = p.unitName;
+      const date = document.createElement("span");
+      date.className = "archive-date";
+      date.textContent = p.programDate || "Unknown Date";
 
-      const stake = document.createElement("span");
-      stake.className = "profile-stake";
-      stake.textContent = p.stakeName || "";
+      info.appendChild(date);
 
-      info.appendChild(unit);
-      info.appendChild(stake);
+      const actions = document.createElement("div");
+      actions.className = "archive-actions";
 
       const loadBtn = document.createElement("button");
       loadBtn.className = "primary-btn";
       loadBtn.style.padding = "6px 12px";
       loadBtn.style.fontSize = "0.85rem";
-      loadBtn.textContent = "Load";
+      loadBtn.textContent = "View";
       loadBtn.onclick = () => {
-        // Select and load this archived profile
-        Profiles.selectProfile(p.id);
-        modal.close();
-        location.reload();
+        const archiveUrl = `archive.html?profileId=${currentProfile.id}&date=${encodeURIComponent(p.programDate)}`;
+        window.location.href = archiveUrl;
       };
 
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "secondary-btn";
+      deleteBtn.style.padding = "6px 12px";
+      deleteBtn.style.fontSize = "0.85rem";
+      deleteBtn.textContent = "Delete";
+      deleteBtn.onclick = async () => {
+        if (confirm(`Delete archive for ${p.programDate}?`)) {
+          await ArchiveManager.deleteArchive(currentProfile.id, p.programDate);
+          openArchivesModal(); // Refresh
+        }
+      };
+
+      actions.appendChild(loadBtn);
+      actions.appendChild(deleteBtn);
+
       li.appendChild(info);
-      li.appendChild(loadBtn);
+      li.appendChild(actions);
       list.appendChild(li);
     });
   }
@@ -590,8 +821,8 @@ function renderManageList() {
   if (!list) return;
 
   const profiles = Profiles.getProfiles();
-  const activeProfiles = profiles.filter((p) => !p.archived);
-  const archivedProfiles = profiles.filter((p) => p.archived);
+  const activeProfiles = profiles.filter((p) => !p.inactive);
+  const inactiveProfiles = profiles.filter((p) => p.inactive);
 
   list.innerHTML = "";
 
@@ -606,14 +837,14 @@ function renderManageList() {
     });
   }
 
-  // Show archived section if there are archived profiles
+  // Show inactive section if there are inactive profiles
   if (archivedSection && archivedList) {
-    if (archivedProfiles.length > 0) {
+    if (inactiveProfiles.length > 0) {
       archivedSection.classList.remove("hidden");
       archivedList.innerHTML = "";
       const currentProfile = Profiles.getCurrentProfile();
 
-      archivedProfiles.forEach((p) => {
+      inactiveProfiles.forEach((p) => {
         const li = createProfileListItem(p, currentProfile, profiles.length, true);
         archivedList.appendChild(li);
       });
@@ -624,7 +855,7 @@ function renderManageList() {
   }
 }
 
-function createProfileListItem(p, currentProfile, totalProfiles, isArchived) {
+function createProfileListItem(p, currentProfile, totalProfiles, isInactive) {
   const li = document.createElement("li");
 
   const info = document.createElement("div");
@@ -643,39 +874,39 @@ function createProfileListItem(p, currentProfile, totalProfiles, isArchived) {
 
   const actionsDiv = document.createElement("div");
 
-  if (isArchived) {
-    const restoreBtn = document.createElement("button");
-    restoreBtn.className = "restore-btn";
-    restoreBtn.textContent = t("restore") || "Restore";
-    restoreBtn.onclick = () => {
-      Profiles.restoreProfile(p.id);
+  if (isInactive) {
+    const reactivateBtn = document.createElement("button");
+    reactivateBtn.className = "reactivate-btn";
+    reactivateBtn.textContent = t("reactivate") || "Reactivate";
+    reactivateBtn.onclick = async () => {
+      await Profiles.reactivateProfile(p.id);
       renderManageList();
       initProfileUI();
     };
-    actionsDiv.appendChild(restoreBtn);
+    actionsDiv.appendChild(reactivateBtn);
 
     const delBtn = document.createElement("button");
     delBtn.className = "delete-btn";
     delBtn.textContent = t("delete");
-    delBtn.onclick = () => {
+    delBtn.onclick = async () => {
       if (confirm(`${t("remove")} ${p.unitName}?`)) {
-        Profiles.removeProfile(p.id);
+        await Profiles.removeProfile(p.id);
         renderManageList();
       }
     };
     actionsDiv.appendChild(delBtn);
   } else {
-    const archiveBtn = document.createElement("button");
-    archiveBtn.className = "archive-btn";
-    archiveBtn.textContent = t("archive") || "Archive";
+    const deactivateBtn = document.createElement("button");
+    deactivateBtn.className = "deactivate-btn";
+    deactivateBtn.textContent = t("deactivate") || "Deactivate";
     const isActive = currentProfile && currentProfile.id === p.id;
     const isLastProgram = totalProfiles === 1;
     if (isActive || isLastProgram) {
-      archiveBtn.disabled = true;
+      deactivateBtn.disabled = true;
     }
-    archiveBtn.onclick = () => {
-      if (confirm(`Archive ${p.unitName}?`)) {
-        Profiles.archiveProfile(p.id);
+    deactivateBtn.onclick = async () => {
+      if (confirm(`Deactivate ${p.unitName}?`)) {
+        await Profiles.deactivateProfile(p.id);
         renderManageList();
         initProfileUI();
         if (isActive) {
@@ -683,7 +914,7 @@ function createProfileListItem(p, currentProfile, totalProfiles, isArchived) {
         }
       }
     };
-    actionsDiv.appendChild(archiveBtn);
+    actionsDiv.appendChild(deactivateBtn);
 
     const delBtn = document.createElement("button");
     delBtn.className = "delete-btn";
@@ -691,12 +922,12 @@ function createProfileListItem(p, currentProfile, totalProfiles, isArchived) {
     if (isActive && !isLastProgram) {
       delBtn.disabled = true;
     }
-    delBtn.onclick = () => {
+    delBtn.onclick = async () => {
       if (confirm(`${t("remove")} ${p.unitName}?`)) {
         const currentProfile = Profiles.getCurrentProfile();
         const wasActive = currentProfile && currentProfile.id === p.id;
 
-        Profiles.removeProfile(p.id);
+        await Profiles.removeProfile(p.id);
 
         if (wasActive) {
           location.reload();
@@ -719,9 +950,12 @@ window.addEventListener("qr-scanned", async (e) => {
   const url = e.detail.url;
   if (!url) return;
 
+  // Ensure profiles are initialized before accessing
+  await Profiles.initProfiles();
+
   try {
     const csv = await fetchWithTimeout(url, 5000);
-    const rows = parseCSV(csv);
+    const rows = await createWorker("parseCSV", csv);
 
     const unitName = rows.find((r) => r.key === "unitName")?.value || "Unknown Unit";
     const stakeName = rows.find((r) => r.key === "stakeName")?.value || "";
@@ -735,7 +969,7 @@ window.addEventListener("qr-scanned", async (e) => {
 
     if (existingProfile) {
       // Profile exists - just switch to it without modal
-      Profiles.selectProfile(existingProfile.id);
+      await Profiles.selectProfile(existingProfile.id);
       location.reload();
       return;
     }
@@ -750,8 +984,8 @@ window.addEventListener("qr-scanned", async (e) => {
       console.log("[MAIN] Modal found, showing...");
       nameEl.textContent = `${unitName} ${stakeName ? `(${stakeName})` : ""}`;
       // ... setup buttons
-      addBtn.onclick = () => {
-        Profiles.addProfile(url, unitName, stakeName);
+      addBtn.onclick = async () => {
+        await Profiles.addProfile(url, unitName, stakeName);
         modal.close();
         location.reload();
       };
@@ -765,7 +999,7 @@ window.addEventListener("qr-scanned", async (e) => {
     } else {
       // Fallback ...
       if (confirm(`Add Program: ${unitName}?`)) {
-        Profiles.addProfile(url, unitName, stakeName);
+        await Profiles.addProfile(url, unitName, stakeName);
         location.reload();
       } else {
         location.reload();
@@ -1112,6 +1346,8 @@ if (typeof window !== "undefined" && !window.__VITEST__) {
     if (banner) {
       banner.classList.remove("visible");
     }
+    // Auto-refresh program when back online
+    init();
   });
 
   document.getElementById("main-program").classList.add("loading");
@@ -1124,6 +1360,8 @@ if (typeof window !== "undefined" && !window.__VITEST__) {
 
   initTheme();
   initI18n();
+  initNetworkStatus();
+  initPrintButton();
   updateStaticStrings();
   initLanguageSelector();
   initHistoryUI();

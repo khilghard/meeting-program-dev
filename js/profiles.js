@@ -1,10 +1,47 @@
 /**
  * profiles.js
  * Manages storage and retrieval of multiple program profiles.
+ * This is a wrapper around ProfileManager.js which uses IndexedDB.
+ * Provides both async and sync access patterns.
  */
 
-const STORAGE_KEY = "meeting_program_profiles";
-const SELECTED_PROFILE_KEY = "meeting_program_selected_id";
+import {
+  addProfile as pmAddProfile,
+  selectProfile as pmSelectProfile,
+  removeProfile as pmRemoveProfile,
+  deactivateProfile as pmDeactivateProfile,
+  reactivateProfile as pmReactivateProfile,
+  getProfiles as pmGetProfiles,
+  getInactiveProfiles as pmGetInactiveProfiles,
+  getActiveProfiles as pmGetActiveProfiles,
+  getSelectedProfileId as pmGetSelectedProfileId,
+  getCurrentProfile as pmGetCurrentProfile,
+  getProfileById as pmGetProfileById,
+  initProfileManager
+} from "./data/ProfileManager.js";
+
+let cache = {
+  profiles: [],
+  selectedId: null,
+  currentProfile: null,
+  initialized: false
+};
+
+async function ensureInitialized() {
+  if (!cache.initialized) {
+    await initProfileManager();
+    await refreshCache();
+    cache.initialized = true;
+  }
+}
+
+async function refreshCache() {
+  cache.profiles = await pmGetProfiles();
+  cache.selectedId = await pmGetSelectedProfileId();
+  cache.currentProfile = cache.selectedId
+    ? cache.profiles.find((p) => p.id === cache.selectedId) || null
+    : null;
+}
 
 /**
  * @typedef {Object} Profile
@@ -13,72 +50,45 @@ const SELECTED_PROFILE_KEY = "meeting_program_selected_id";
  * @property {string} unitName - Name of the Ward/Branch
  * @property {string} stakeName - Name of the Stake
  * @property {number} lastUsed - Timestamp of last usage
+ * @property {boolean} inactive - Whether profile is inactive
  */
 
 /**
- * Generates a simple unique ID
- * @returns {string}
- */
-function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2);
-}
-
-/**
- * Retrieves all saved profiles
+ * Retrieves all saved profiles (sync - uses cache)
  * @returns {Profile[]}
  */
 export function getProfiles() {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch (e) {
-    console.error("Failed to parse profiles:", e);
-    return [];
-  }
+  return cache.profiles;
 }
 
 /**
- * Saves the list of profiles
- * @param {Profile[]} profiles
+ * Gets all inactive profiles (sync - uses cache)
+ * @returns {Profile[]}
  */
-function saveProfiles(profiles) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
+export function getInactiveProfiles() {
+  return cache.profiles.filter((p) => p.inactive);
+}
+
+/**
+ * Gets all active profiles (sync - uses cache)
+ * @returns {Profile[]}
+ */
+export function getActiveProfiles() {
+  return cache.profiles.filter((p) => !p.inactive);
 }
 
 /**
  * Adds a new profile. If a profile with the same URL exists, updates it.
+ * If a different profile exists, deactivates it first.
  * @param {string} url
  * @param {string} unitName
  * @param {string} stakeName
- * @returns {Profile} The added or updated profile
+ * @returns {Promise<Profile>} The added or updated profile
  */
-export function addProfile(url, unitName, stakeName) {
-  const profiles = getProfiles();
-  const existingIndex = profiles.findIndex((p) => p.url === url);
-
-  const now = Date.now();
-  let profile;
-
-  if (existingIndex >= 0) {
-    // Update existing
-    profiles[existingIndex].unitName = unitName || profiles[existingIndex].unitName;
-    profiles[existingIndex].stakeName = stakeName || profiles[existingIndex].stakeName;
-    profiles[existingIndex].lastUsed = now;
-    profile = profiles[existingIndex];
-  } else {
-    // Create new
-    profile = {
-      id: generateId(),
-      url,
-      unitName: unitName || "Unknown Unit",
-      stakeName: stakeName || "Unknown Stake",
-      lastUsed: now
-    };
-    profiles.push(profile);
-  }
-
-  saveProfiles(profiles);
-  selectProfile(profile.id); // Auto-select on add
+export async function addProfile(url, unitName, stakeName) {
+  await ensureInitialized();
+  const profile = await pmAddProfile(url, unitName, stakeName);
+  await refreshCache();
   return profile;
 }
 
@@ -86,133 +96,71 @@ export function addProfile(url, unitName, stakeName) {
  * Removes a profile by ID
  * @param {string} id
  */
-export function removeProfile(id) {
-  let profiles = getProfiles();
-  profiles = profiles.filter((p) => p.id !== id);
-  saveProfiles(profiles);
-
-  // If we deleted the selected one, select the most recently used one remaining
-  if (getSelectedProfileId() === id) {
-    if (profiles.length > 0) {
-      // Sort by lastUsed desc
-      profiles.sort((a, b) => b.lastUsed - a.lastUsed);
-      selectProfile(profiles[0].id);
-    } else {
-      localStorage.removeItem(SELECTED_PROFILE_KEY);
-    }
-  }
+export async function removeProfile(id) {
+  await ensureInitialized();
+  await pmRemoveProfile(id);
+  await refreshCache();
 }
 
 /**
- * Archives a profile (soft delete - keeps data but hides from main list)
+ * Deactivates a profile (soft delete - keeps data but marks as inactive)
  * @param {string} id
  */
-export function archiveProfile(id) {
-  const profiles = getProfiles();
-  const profile = profiles.find((p) => p.id === id);
-  if (profile) {
-    profile.archived = true;
-    profile.archivedAt = Date.now();
-    saveProfiles(profiles);
-
-    // If archived the selected one, select the most recent non-archived
-    if (getSelectedProfileId() === id) {
-      const activeProfiles = profiles.filter((p) => !p.archived);
-      if (activeProfiles.length > 0) {
-        activeProfiles.sort((a, b) => b.lastUsed - a.lastUsed);
-        selectProfile(activeProfiles[0].id);
-      } else {
-        localStorage.removeItem(SELECTED_PROFILE_KEY);
-      }
-    }
-  }
+export async function deactivateProfile(id) {
+  await ensureInitialized();
+  await pmDeactivateProfile(id);
+  await refreshCache();
 }
 
 /**
- * Restores an archived profile
+ * Reactivates an inactive profile
  * @param {string} id
  */
-export function restoreProfile(id) {
-  const profiles = getProfiles();
-  const profile = profiles.find((p) => p.id === id);
-  if (profile) {
-    profile.archived = false;
-    delete profile.archivedAt;
-    saveProfiles(profiles);
-    selectProfile(id);
-  }
-}
-
-/**
- * Gets all archived profiles
- * @returns {Profile[]}
- */
-export function getArchivedProfiles() {
-  return getProfiles().filter((p) => p.archived);
-}
-
-/**
- * Gets all non-archived profiles
- * @returns {Profile[]}
- */
-export function getActiveProfiles() {
-  return getProfiles().filter((p) => !p.archived);
+export async function reactivateProfile(id) {
+  await ensureInitialized();
+  await pmReactivateProfile(id);
+  await refreshCache();
 }
 
 /**
  * Selects a profile to be the active one
  * @param {string} id
  */
-export function selectProfile(id) {
-  localStorage.setItem(SELECTED_PROFILE_KEY, id);
-
-  // Also update the legacy key for backward compatibility if needed,
-  // or just so main.js can use it easily if we want to keep that pattern.
-  // But strictly speaking, main.js should likely ask profiles.js for the current URL.
-  const profile = getProfileById(id);
-  if (profile) {
-    // Update the timestamp
-    updateProfileTimestamp(id);
-  }
+export async function selectProfile(id) {
+  await ensureInitialized();
+  await pmSelectProfile(id);
+  await refreshCache();
 }
 
 /**
- * Updates the lastUsed timestamp for a profile
- * @param {string} id
- */
-function updateProfileTimestamp(id) {
-  const profiles = getProfiles();
-  const profile = profiles.find((p) => p.id === id);
-  if (profile) {
-    profile.lastUsed = Date.now();
-    saveProfiles(profiles);
-  }
-}
-
-/**
- * Gets the ID of the currently selected profile
+ * Gets the ID of the currently selected profile (sync - uses cache)
  * @returns {string|null}
  */
 export function getSelectedProfileId() {
-  return localStorage.getItem(SELECTED_PROFILE_KEY);
+  return cache.selectedId;
 }
 
 /**
- * Gets a profile by ID
+ * Gets a profile by ID (sync - uses cache)
  * @param {string} id
  * @returns {Profile|undefined}
  */
 export function getProfileById(id) {
-  const profiles = getProfiles();
-  return profiles.find((p) => p.id === id);
+  return cache.profiles.find((p) => p.id === id);
 }
 
 /**
- * Gets the currently active profile object
+ * Gets the currently active profile object (sync - uses cache)
  * @returns {Profile|null}
  */
 export function getCurrentProfile() {
-  const id = getSelectedProfileId();
-  if (!id) return null;
-  return getProfileById(id) || null;
+  return cache.currentProfile;
+}
+
+/**
+ * Initialize and load profiles - call this on app startup
+ * @returns {Promise<void>}
+ */
+export async function initProfiles() {
+  await ensureInitialized();
 }

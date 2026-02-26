@@ -22,11 +22,28 @@
   },
   "globals": {
     "QRCode": "writable",
-    "jsQR": "writable"
+    "jsQR": "writable",
+    "MessageChannel": "writable",
+    "globalThis": "writable",
+    "crypto": "writable",
+    "TextEncoder": "writable",
+    "Blob": "writable"
   },
   "overrides": [
     {
       "files": ["js/qr.js", "js/share.js"],
+      "rules": {
+        "no-undef": "off"
+      }
+    },
+    {
+      "files": ["js/service-worker-manager.js"],
+      "rules": {
+        "no-undef": ["error", { "typeof": true }]
+      }
+    },
+    {
+      "files": ["js/data/IndexedDBManager.js"],
       "rules": {
         "no-undef": "off"
       }

@@ -240,7 +240,7 @@ function appendRowHymn(label, value, id) {
 
   const valueSpan = document.createElement("span");
   valueSpan.className = "value-on-right";
-  valueSpan.textContent = number;
+  valueSpan.textContent = number.includes("#") ? number.replace("#", "🎵 ") : `🎵 ${number}`;
 
   row.appendChild(labelSpan);
   row.appendChild(dotsSpan);
