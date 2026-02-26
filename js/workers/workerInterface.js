@@ -1,6 +1,6 @@
 const workerCache = new Map();
 
-export function createWorker(type, payload) {
+export function createWorker(type, payload, options = {}) {
   return new Promise((resolve, reject) => {
     const workerUrl = "./js/workers/data.worker.js";
     let worker = workerCache.get(workerUrl);
@@ -34,7 +34,7 @@ export function createWorker(type, payload) {
     worker.addEventListener("message", handleMessage);
     worker.addEventListener("error", handleError);
 
-    worker.postMessage({ type, payload, id });
+    worker.postMessage({ type, payload, options, id });
   });
 }
 

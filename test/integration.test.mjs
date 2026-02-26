@@ -3,6 +3,19 @@ import { describe, test, expect, beforeEach, vi } from "vitest";
 // Prevent init() from auto-running during tests
 window.__VITEST__ = true;
 
+// Mock workerInterface.js - needed for parseCSV in tests
+vi.mock("../js/workers/workerInterface.js", () => ({
+  createWorker: vi.fn((type, payload, options) => {
+    if (type === "parseCSV") {
+      // Direct import of parseCSV for synchronous parsing
+      return import("../js/utils/csv.js").then((module) => {
+        return module.parseCSV(payload);
+      });
+    }
+    return Promise.resolve(null);
+  })
+}));
+
 // Mock i18n.js
 vi.mock("../js/i18n/index.js", () => ({
   t: vi.fn((key) => key),
@@ -20,6 +33,7 @@ vi.mock("../js/qr.js", () => ({
 
 // Mock profiles.js
 vi.mock("../js/profiles.js", () => ({
+  initProfiles: vi.fn(() => Promise.resolve()),
   getProfiles: vi.fn(() => []),
   getActiveProfiles: vi.fn(() => []),
   getArchivedProfiles: vi.fn(() => []),

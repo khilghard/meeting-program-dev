@@ -4,12 +4,9 @@ import {
   selectProfile,
   getSelectedProfileId,
   getCurrentProfile,
-  archiveProfile,
-  restoreProfile,
   removeProfile,
   getProfiles,
   getActiveProfiles,
-  getArchivedProfiles,
   getProfileById,
   searchProfiles,
   migrateLegacyProfiles,
@@ -97,46 +94,6 @@ describe("ProfileManager", () => {
   });
 
   describe("Profile Modification", () => {
-    test("archives a profile", async () => {
-      const profile = await addProfile(
-        "https://docs.google.com/spreadsheets/d/test",
-        "Test Ward",
-        "Test Stake"
-      );
-      await archiveProfile(profile.id);
-
-      const archived = await getArchivedProfiles();
-      expect(archived).toHaveLength(1);
-      expect(archived[0].id).toBe(profile.id);
-
-      const active = await getActiveProfiles();
-      expect(active).toHaveLength(0);
-    });
-
-    test("archives selected profile and switches to another", async () => {
-      const p1 = await addProfile("https://docs.google.com/spreadsheets/d/a", "Ward A", "Stake A");
-      const p2 = await addProfile("https://docs.google.com/spreadsheets/d/b", "Ward B", "Stake B");
-
-      await archiveProfile(p2.id);
-
-      const current = await getCurrentProfile();
-      expect(current.id).toBe(p1.id);
-    });
-
-    test("restores an archived profile", async () => {
-      const profile = await addProfile(
-        "https://docs.google.com/spreadsheets/d/test",
-        "Test Ward",
-        "Test Stake"
-      );
-      await archiveProfile(profile.id);
-      await restoreProfile(profile.id);
-
-      const active = await getActiveProfiles();
-      expect(active).toHaveLength(1);
-      expect(active[0].id).toBe(profile.id);
-    });
-
     test("removes a profile", async () => {
       await addProfile("https://docs.google.com/spreadsheets/d/test", "Test Ward", "Test Stake");
       const profile = await addProfile(

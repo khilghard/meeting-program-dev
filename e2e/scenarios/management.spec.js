@@ -202,23 +202,20 @@ test.describe("Program Management", () => {
     await expect(page.locator("#profile-selector")).toBeHidden();
   });
 
-  test("should show profile cards with status indicators", async ({ page }) => {
+  test("should show profile cards with status indicators and delete buttons", async ({ page }) => {
     await addProfileToIndexedDB(page, {
       id: "p1",
       url: "https://docs.google.com/spreadsheets/d/sheet1",
       unitName: "Ward A",
       stakeName: "Stake A",
-      lastUsed: 1000,
-      archived: false
+      lastUsed: 1000
     });
     await addProfileToIndexedDB(page, {
       id: "p2",
       url: "https://docs.google.com/spreadsheets/d/sheet2",
       unitName: "Ward B",
       stakeName: "Stake B",
-      lastUsed: 2000,
-      archived: true,
-      archivedAt: Date.now()
+      lastUsed: 2000
     });
 
     await setSelectedProfileId(page, "p1");
@@ -228,11 +225,15 @@ test.describe("Program Management", () => {
 
     await page.click("#manage-profiles-btn");
 
+    // Active profile (Ward A - current) should have no delete button
     const activeItem = page.locator(".profiles-list li").filter({ hasText: "Ward A" });
     await expect(activeItem).toBeVisible();
+    await expect(activeItem.locator(".delete-btn")).toHaveCount(0);
 
-    const inactiveItem = page.locator(".profiles-list li").filter({ hasText: "Ward B" });
-    await expect(inactiveItem).toBeVisible();
+    // Other profile (Ward B - not current) should have delete button
+    const otherItem = page.locator(".profiles-list li").filter({ hasText: "Ward B" });
+    await expect(otherItem).toBeVisible();
+    await expect(otherItem.locator(".delete-btn")).toHaveCount(1);
 
     await page.click("#close-modal-btn");
   });
