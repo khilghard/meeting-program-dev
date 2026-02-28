@@ -228,10 +228,10 @@ function viewArchive(archive) {
   // Extract archive info for display
   const info = extractArchiveInfo(archive.csvData);
 
-  // Set unit information in header
-  if (elements.unitName) elements.unitName.textContent = info.unitName || "Unknown Unit";
-  if (elements.unitAddress) elements.unitAddress.textContent = info.unitAddress || "";
-  if (elements.date) elements.date.textContent = archive.programDate || "Unknown Date";
+  // Use renderers to properly format unit information
+  if (elements.unitName && info.unitName) renderers.unitName(info.unitName);
+  if (elements.unitAddress && info.unitAddress) renderers.unitAddress(info.unitAddress);
+  if (elements.date && archive.programDate) renderers.date(archive.programDate);
 
   // Render program data
   elements.mainProgram.innerHTML = "";
@@ -245,11 +245,28 @@ function viewArchive(archive) {
   document.body.classList.add("archive-view");
 }
 
+import { renderers } from "./utils/renderers.js";
+
 function renderProgram(rows) {
   if (!rows || !Array.isArray(rows)) {
     elements.mainProgram.innerHTML = "<p>" + t("noProgramDataAvailable") + "</p>";
     return;
   }
+
+  // Clear existing content
+  elements.mainProgram.innerHTML = "";
+
+  // Use the same rendering logic as the main application
+  rows.forEach(({ key, value }) => {
+    const isHorizontalLine = key.toLowerCase() === "horizontalline";
+    const isEmpty = !value || value.trim() === "";
+
+    if (isEmpty && !isHorizontalLine) return;
+
+    const renderer = renderers[key];
+    if (renderer) renderer(value || "");
+  });
+}
 
   // Clear existing content
   elements.mainProgram.innerHTML = "";
