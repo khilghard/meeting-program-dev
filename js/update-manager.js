@@ -30,8 +30,10 @@ const ERROR_MESSAGES = {
 const DEBUG = localStorage.getItem("update_debug") === "true";
 
 let checkedThisSession = false;
+let lastCheckTime = 0;
 let autoUpdateTimer = null;
 const AUTO_UPDATE_DELAY_MS = 300000;
+const SESSION_CHECK_TIMEOUT_MS = 3600000; // 1 hour
 
 function log(message, ...args) {
   if (DEBUG) {
@@ -75,12 +77,16 @@ export async function init() {
 }
 
 export async function checkForUpdates(force = false) {
-  if (checkedThisSession && !force) {
+  const now = Date.now();
+
+  // Check if session check has timed out (1 hour)
+  if (checkedThisSession && !force && now - lastCheckTime < SESSION_CHECK_TIMEOUT_MS) {
     log("Already checked this session");
     return;
   }
 
   checkedThisSession = true;
+  lastCheckTime = now;
   log("Checking for updates...");
 
   try {

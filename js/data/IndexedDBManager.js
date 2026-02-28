@@ -351,7 +351,7 @@ async function getArchiveWithValidation(profileId, programDate) {
   const calculatedChecksum = await calculateChecksum(archive.csvData);
 
   if (calculatedChecksum !== archive.checksum) {
-    return { valid: false, data: null, error: "Checksum mismatch - data may be corrupted" };
+    return { valid: false, data: archive, error: "Checksum mismatch - data may be corrupted" };
   }
 
   return { valid: true, data: archive, error: null };
@@ -377,7 +377,9 @@ async function getStorageIntegrity() {
       continue;
     }
 
-    const calculatedChecksum = await calculateChecksum(archive.csvData);
+    // Convert csvData to string for consistent checksum calculation
+    const csvDataString = JSON.stringify(archive.csvData);
+    const calculatedChecksum = await calculateChecksum(csvDataString);
     if (calculatedChecksum !== archive.checksum) {
       result.corrupted++;
       result.errors.push({

@@ -57,6 +57,9 @@ export async function triggerUpdate() {
   }
 
   try {
+    // Add a small delay to ensure service worker is ready
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
     registration.waiting.postMessage({ action: "skipWaiting" });
     return true;
   } catch (error) {

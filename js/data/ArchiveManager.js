@@ -75,13 +75,17 @@ export async function autoArchive(profileId, programDate, csvData, options = {})
     };
   }
 
+  // Calculate checksum before creating archive object
+  const checksum = await calculateChecksum(csvData);
+
   const newArchive = {
     id: generateArchiveId(profileId, programDate),
     profileId,
     programDate,
     csvData,
     profileUrl,
-    cachedAt: now
+    cachedAt: now,
+    checksum
   };
 
   await saveArchive(newArchive);

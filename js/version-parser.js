@@ -42,8 +42,26 @@ export function parseVersion(versionString) {
  * @returns {boolean} True if remote > local, false otherwise
  */
 export function isNewer(remoteVersion, localVersion) {
+  // Validate version strings before parsing
+  if (
+    !remoteVersion ||
+    !localVersion ||
+    typeof remoteVersion !== "string" ||
+    typeof localVersion !== "string"
+  ) {
+    return false;
+  }
+
   const remote = parseVersion(remoteVersion);
   const local = parseVersion(localVersion);
+
+  // If either version couldn't be parsed properly, don't consider it newer
+  if (remote[0] === 0 && remote[1] === 0 && remote[2] === 0) {
+    return false;
+  }
+  if (local[0] === 0 && local[1] === 0 && local[2] === 0) {
+    return true;
+  }
 
   if (remote[0] > local[0]) return true;
   if (remote[0] < local[0]) return false;
