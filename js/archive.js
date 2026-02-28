@@ -1,270 +1,406 @@
-import { getCurrentProfile } from "./data/ProfileManager.js";
-import {
-  getProfileArchives as getProfileArchivesData,
-  getStorageInfo
-} from "./data/ArchiveManager.js";
-import { parseCSV } from "./utils/csv.js";
-import { renderProgram } from "./utils/renderers.js";
-import { t, getLanguage, initI18n, setLanguage } from "./i18n/index.js";
+/**
+ * archive.js
+ * Archive page logic
+ * Handles viewing and managing archived programs
+ */
 
+console.log("[Archive] archive.js loaded");
+
+import * as ArchiveManager from "./data/ArchiveManager.js";
+import { t } from "./i18n/index.js";
+
+let initTheme, toggleTheme;
+let Profiles;
 let currentProfile = null;
-let archives = [];
+let currentArchive = null;
 
-const langNames = {
-  en: "English",
-  es: "Español",
-  fr: "Français",
-  swa: "Kiswahili"
+// DOM Elements
+const elements = {
+  archiveListView: null,
+  archiveProgramView: null,
+  archivesList: null,
+  noArchives: null,
+  unitName: null,
+  unitAddress: null,
+  date: null,
+  mainProgram: null,
+  archiveUnitName: null,
+  themeToggle: null
 };
 
-// Theme Logic
-function initTheme() {
-  const savedTheme = localStorage.getItem("theme");
-  const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-
-  const applyTheme = (theme) => {
-    document.documentElement.setAttribute("data-theme", theme);
-  };
-
-  let theme = savedTheme;
-  if (!theme) {
-    theme = mediaQuery.matches ? "dark" : "light";
-  }
-  applyTheme(theme);
-
-  mediaQuery.addEventListener("change", (e) => {
-    if (!localStorage.getItem("theme")) {
-      applyTheme(e.matches ? "dark" : "light");
-    }
-  });
+function initDOMElements() {
+  elements.archiveListView = document.getElementById("archive-list-view");
+  elements.archiveProgramView = document.getElementById("archive-program-view");
+  elements.archivesList = document.getElementById("archives-list");
+  elements.noArchives = document.getElementById("no-archives");
+  elements.unitName = document.getElementById("unitname");
+  elements.unitAddress = document.getElementById("unitaddress");
+  elements.date = document.getElementById("date");
+  elements.mainProgram = document.getElementById("main-program");
+  elements.archiveUnitName = document.getElementById("archive-unit-name");
+  elements.themeToggle = document.getElementById("theme-toggle");
 }
 
 async function init() {
-  initI18n();
-  initTheme();
+  console.log("[Archive] init called");
 
-  const backToHomeBtn = document.getElementById("back-to-home-btn");
-  const backToListBtn = document.getElementById("back-to-list-btn");
-  const langBtn = document.getElementById("language-selector-btn");
+  // Initialize i18n system first
+  // Import and initialize the i18n module
+  const i18nModule = await import("./i18n/index.js");
+  i18nModule.initI18n();
+  console.log("[Archive] i18n initialized");
 
-  // Back to Home button - goes back to index.html
-  backToHomeBtn.textContent = t("backToHome");
-  backToHomeBtn.onclick = () => {
-    window.location.href = "./index.html";
-  };
+  // Load theme module
+  const themeModule = await import("./theme.js");
+  initTheme = themeModule.initTheme;
+  toggleTheme = themeModule.toggleTheme;
+  console.log("[Archive] Theme module loaded");
 
-  // Back to List button - shows the archive list
-  backToListBtn.onclick = showArchiveList;
+  // Load profiles module
+  Profiles = await import("./data/ProfileManager.js");
+  console.log("[Archive] Profiles module loaded");
 
-  // Language selector
-  langBtn.onclick = openLanguageModal;
-  updateLanguageButton();
+  try {
+    initDOMElements();
+    console.log("[Archive] DOM elements:", {
+      archiveListView: !!elements.archiveListView,
+      archivesList: !!elements.archivesList,
+      noArchives: !!elements.noArchives
+    });
 
-  // Get current profile
-  currentProfile = await getCurrentProfile();
+    // Initialize profiles
+    await Profiles.initProfileManager();
+    console.log("[Archive] Profiles initialized");
+
+    // Setup event listeners
+    setupEventListeners();
+
+    // Load profile and archives
+    await loadProfileAndArchives();
+  } catch (err) {
+    console.error("[Archive] Error in init:", err);
+  } finally {
+    // Hide loading spinner
+    const loadingContainer = document.querySelector(".loading-container");
+    if (loadingContainer) {
+      loadingContainer.classList.add("hidden");
+    }
+  }
+}
+
+async function loadProfileAndArchives() {
+  console.log("[Archive] loadProfileAndArchives called");
+
+  // Ensure Profiles module is initialized
+  if (!Profiles || !Profiles.getCurrentProfile) {
+    console.warn("[Archive] Profiles module not initialized");
+    return;
+  }
+
+  currentProfile = await Profiles.getCurrentProfile();
+  console.log("[Archive] Current profile:", currentProfile);
+  console.log("[Archive] currentProfile variable type:", typeof currentProfile);
+  console.log("[Archive] currentProfile is defined:", typeof currentProfile !== "undefined");
+
+  // If no profile selected but there are profiles, select the first one
+  if (!currentProfile) {
+    const profiles = await Profiles.getActiveProfiles();
+    console.log("[Archive] Active profiles:", profiles);
+    if (profiles && profiles.length > 0) {
+      await Profiles.selectProfile(profiles[0].id);
+      currentProfile = await Profiles.getCurrentProfile();
+      console.log("[Archive] Auto-selected profile:", currentProfile);
+    }
+  }
 
   if (!currentProfile) {
-    document.getElementById("archive-title").textContent = t("noProfileSelected");
-    document.getElementById("no-archives").classList.remove("hidden");
-    document.getElementById("no-archives").innerHTML = `
-      <p>${t("noProfileSelected")}</p>
-      <button onclick="window.location.href='./index.html'" class="qr-action-btn">${t("goToHome")}</button>
-    `;
+    console.log("[Archive] No profile available");
+    showNoProfileMessage();
     return;
   }
 
-  // Get archives for current profile
-  archives = await getProfileArchivesData(currentProfile.id);
+  // Initialize archive manager
+  await ArchiveManager.initArchiveManager();
+  console.log("[Archive] Archive manager initialized");
 
-  // Update UI with profile name
-  document.getElementById("archive-unit-name").textContent = currentProfile.unitName;
-
-  // Show storage info
-  showStorageInfo();
-
-  // Show archive list
-  showArchiveList();
+  // Load archives for current profile
+  await loadArchives();
 }
 
-function updateLanguageButton() {
-  const currentLang = getLanguage();
-  const textEl = document.getElementById("current-language-text");
-  if (textEl) {
-    textEl.textContent = langNames[currentLang] || currentLang;
+function showNoProfileMessage() {
+  elements.archivesList.innerHTML = "";
+  elements.noArchives.textContent = "No profile selected";
+  elements.noArchives.classList.remove("hidden");
+  console.log("[Archive] showNoProfileMessage called");
+  console.log("[Archive] currentProfile in showNoProfileMessage:", currentProfile);
+  console.log("[Archive] currentProfile is defined:", typeof currentProfile !== "undefined");
+}
+
+function extractArchiveInfo(csvData) {
+  if (!csvData || !Array.isArray(csvData)) return {};
+
+  const info = {};
+  const speakers = [];
+
+  csvData.forEach((row) => {
+    if (row.key === "presiding" && row.value) info.presiding = row.value;
+    if (row.key === "conducting" && row.value) info.conducting = row.value;
+    if (row.key === "programDate" && row.value) info.programDate = row.value;
+    if (row.key === "date" && row.value) info.date = row.value;
+    if (row.key === "unitName" && row.value) info.unitName = row.value;
+    if (row.key === "unitAddress" && row.value) info.unitAddress = row.value;
+
+    // Extract speakers
+    if (row.key.startsWith("speaker") && row.key !== "speaker") {
+      const speakerNum = row.key.replace("speaker", "");
+      if (row.value) {
+        speakers.push(row.value);
+      }
+    }
+  });
+
+  if (speakers.length > 0) {
+    info.speakers = speakers;
   }
+
+  return info;
 }
 
-function openLanguageModal() {
-  const modal = document.getElementById("language-modal");
-  const closeBtn = document.getElementById("close-language-modal-btn");
-
-  if (!modal) return;
-
-  renderLanguageList();
-  modal.showModal();
-
-  if (closeBtn) {
-    closeBtn.onclick = () => modal.close();
+async function loadArchives() {
+  console.log("[Archive] loadArchives called, profile:", currentProfile?.id);
+  console.log("[Archive] currentProfile in loadArchives:", currentProfile);
+  console.log("[Archive] currentProfile is defined:", typeof currentProfile !== "undefined");
+  if (!currentProfile) {
+    console.log("[Archive] No profile, cannot load archives");
+    return;
   }
+
+  // Set the unit name display
+  if (elements.archiveUnitName && currentProfile.unitName) {
+    elements.archiveUnitName.textContent = currentProfile.unitName;
+    elements.archiveUnitName.classList.remove("hidden");
+  }
+
+  console.log("[Archive] Getting archives for profile:", currentProfile.id);
+  const archives = await ArchiveManager.getProfileArchives(currentProfile.id);
+  console.log("[Archive] Got archives:", archives?.length || 0, archives);
+
+  elements.archivesList.innerHTML = "";
+
+  if (!archives || archives.length === 0) {
+    elements.noArchives.textContent = "No archived programs";
+    elements.noArchives.classList.remove("hidden");
+    return;
+  }
+
+  elements.noArchives.classList.add("hidden");
+
+  archives.forEach((archive) => {
+    const info = extractArchiveInfo(archive.csvData);
+
+    const card = document.createElement("div");
+    card.className = "profile-card";
+
+    const date = archive.programDate || "Unknown Date";
+    const conducting = info.conducting || "";
+    const presiding = info.presiding || "";
+
+    card.innerHTML = `
+      <div class="profile-card-content">
+        <div class="profile-card-name">${date}</div>
+        <div class="profile-card-details">${conducting ? `Conducting: ${conducting}` : ""}</div>
+        <div class="profile-card-details">Speakers:</div>
+        ${info.speakers && info.speakers.length > 0 ? info.speakers.map((speaker) => `<div class="profile-card-details">${speaker}</div>`).join("") : '<div class="profile-card-details">No speakers</div>'}
+      </div>
+    `;
+
+    card.onclick = () => viewArchive(archive);
+
+    elements.archivesList.appendChild(card);
+  });
 }
 
-function renderLanguageList() {
-  const list = document.getElementById("language-list");
-  if (!list) return;
+function viewArchive(archive) {
+  console.log("[Archive] viewArchive called, currentProfile:", currentProfile);
+  console.log("[Archive] currentProfile is defined:", typeof currentProfile !== "undefined");
+  currentArchive = archive;
 
-  const languages = [
-    { code: "en", name: "English" },
-    { code: "es", name: "Español" },
-    { code: "fr", name: "Français" },
-    { code: "swa", name: "Kiswahili" }
+  // Extract archive info for display
+  const info = extractArchiveInfo(archive.csvData);
+
+  // Set unit information in header
+  if (elements.unitName) elements.unitName.textContent = info.unitName || "Unknown Unit";
+  if (elements.unitAddress) elements.unitAddress.textContent = info.unitAddress || "";
+  if (elements.date) elements.date.textContent = archive.programDate || "Unknown Date";
+
+  // Render program data
+  elements.mainProgram.innerHTML = "";
+  renderProgram(archive.csvData);
+
+  // Show program view, hide list view
+  elements.archiveListView.classList.add("hidden");
+  elements.archiveProgramView.classList.remove("hidden");
+
+  // Add archive-view class for styling
+  document.body.classList.add("archive-view");
+}
+
+function renderProgram(rows) {
+  if (!rows || !Array.isArray(rows)) {
+    elements.mainProgram.innerHTML = "<p>" + t("noProgramDataAvailable") + "</p>";
+    return;
+  }
+
+  // Clear existing content
+  elements.mainProgram.innerHTML = "";
+
+  // Define program sections in order
+  const programSections = [
+    { key: "presiding", label: "presiding" },
+    { key: "conducting", label: "conducting" },
+    { key: "openingHymn", label: "openingHymn" },
+    { key: "invocation", label: "invocation" },
+    { key: "sacramentHymn", label: "sacramentHymn" },
+    { key: "speaker1", label: "speaker1" },
+    { key: "speaker2", label: "speaker2" },
+    { key: "speaker3", label: "speaker3" },
+    { key: "intermediateHymn", label: "intermediateHymn" },
+    { key: "speaker4", label: "speaker4" },
+    { key: "speaker5", label: "speaker5" },
+    { key: "closingHymn", label: "closingHymn" },
+    { key: "benediction", label: "benediction" }
   ];
 
-  const currentLang = getLanguage();
-  list.innerHTML = "";
+  // Create program structure
+  let html = "";
 
-  languages.forEach((lang) => {
-    const li = document.createElement("li");
-    li.className = "language-item";
-    li.onclick = () => {
-      setLanguage(lang.code).then(() => {
-        setTimeout(() => {
-          location.reload();
-        }, 50);
-      });
-    };
+  // Add sections to the program
+  programSections.forEach((section) => {
+    const row = rows.find((r) => r.key === section.key);
+    if (row && row.value) {
+      html += `
+        <div class="program-section">
+          <div class="label">${t(section.label)}</div>
+          <div class="value">${row.value}</div>
+        </div>
+      `;
+    }
+  });
 
-    const nameSpan = document.createElement("span");
-    nameSpan.className = "language-name";
-    nameSpan.textContent = lang.name;
+  // Add any other rows that might be in the data (leaders, hymns, etc.)
+  rows.forEach((row) => {
+    // Skip rows we already handled
+    const handledKeys = programSections.map((s) => s.key);
+    if (handledKeys.includes(row.key)) return;
 
-    li.appendChild(nameSpan);
-
-    if (lang.code === currentLang) {
-      const check = document.createElement("span");
-      check.className = "selected-check";
-      check.textContent = "✓";
-      li.appendChild(check);
+    // Handle leader rows
+    if (row.key === "leader") {
+      html += `
+        <div class="program-section">
+          <div class="label">Leader</div>
+          <div class="value">${row.value}</div>
+        </div>
+      `;
     }
 
-    list.appendChild(li);
+    // Handle section breaks
+    if (row.key === "horizontalLine") {
+      html += `
+        <div class="hr-text" data-content="${row.value}"></div>
+      `;
+    }
+
+    // Handle link rows
+    if (row.key === "link" && row.value) {
+      html += `
+        <div class="general-link">
+          <a href="${row.value}">${row.value}</a>
+        </div>
+      `;
+    }
+
+    // Handle linkWithSpace rows
+    if (row.key === "linkWithSpace" && row.value) {
+      html += `
+        <div class="link-with-space">
+          <div class="link-with-space-inner">
+            ${row.value}
+          </div>
+        </div>
+      `;
+    }
+
+    // Handle general statements
+    if (row.key === "generalStatement" && row.value) {
+      html += `
+        <div class="general-statement">
+          ${row.value}
+        </div>
+      `;
+    }
+
+    // Handle general statements with links
+    if (row.key === "generalStatementWithLink" && row.value) {
+      html += `
+        <div class="general-statement">
+          ${row.value}
+        </div>
+      `;
+    }
   });
+
+  elements.mainProgram.innerHTML = html || "<p>" + t("noProgramDataAvailable") + "</p>";
 }
 
-async function showStorageInfo() {
-  const storageInfo = document.getElementById("storage-info");
-  const warningEl = document.getElementById("storage-warning");
-  const summaryEl = document.getElementById("storage-summary");
-
-  const info = await getStorageInfo();
-
-  summaryEl.textContent = t("storageUsage")
-    .replace("{used}", info.totalSizeMB)
-    .replace("{max}", info.maxSizeMB)
-    .replace("{count}", info.totalEntries);
-
-  if (info.warning) {
-    warningEl.textContent = "⚠️ " + t("storageWarning");
-    warningEl.classList.remove("hidden");
-  }
-
-  storageInfo.classList.remove("hidden");
-}
-
-function showArchiveList() {
-  const listView = document.getElementById("archive-list-view");
-  const programView = document.getElementById("archive-program-view");
-  const listEl = document.getElementById("archives-list");
-  const noArchivesEl = document.getElementById("no-archives");
-
-  // Show list view, hide program view
-  listView.classList.remove("hidden");
-  programView.classList.add("hidden");
-
-  // Clear existing list
-  listEl.innerHTML = "";
-
-  // Update title with translation
-  document.getElementById("archive-title").textContent = t("programArchives");
-
-  if (archives.length === 0) {
-    noArchivesEl.innerHTML = `
-      <p>${t("noArchives")}</p>
-      <p>${t("archivesCreatedAutomatically")}</p>
-    `;
-    noArchivesEl.classList.remove("hidden");
+async function deleteArchive(archive) {
+  if (!confirm(`Delete archive for ${archive.programDate}?`)) {
     return;
   }
 
-  noArchivesEl.classList.add("hidden");
+  await ArchiveManager.deleteArchive(currentProfile.id, archive.programDate);
+  await loadArchives();
+}
 
-  // Populate list
-  archives.forEach((archive, index) => {
-    const li = document.createElement("li");
-    li.className = "archive-item";
+function setupEventListeners() {
+  console.log("[Archive] Setting up event listeners");
 
-    const dateEl = document.createElement("div");
-    dateEl.className = "archive-date";
-    dateEl.textContent = archive.programDate;
+  // Return to home
+  const backToHomeBtn = document.getElementById("back-to-home-btn");
+  console.log("[Archive] Back to home button:", backToHomeBtn);
+  if (backToHomeBtn) {
+    backToHomeBtn.onclick = () => {
+      console.log("[Archive] Back to home clicked");
+      window.location.href = "index.html";
+    };
+  }
 
-    const actionsEl = document.createElement("div");
-    actionsEl.className = "archive-actions";
+  // Back to archives (from program view)
+  const backToListBtn = document.getElementById("back-to-list-btn");
+  if (backToListBtn) {
+    // Set the button text after i18n is initialized
+    backToListBtn.textContent = t("backToArchiveList");
+    backToListBtn.onclick = () => {
+      elements.archiveProgramView.classList.add("hidden");
+      elements.archiveListView.classList.remove("hidden");
+      document.body.classList.remove("archive-view");
+    };
+  }
 
-    const loadBtn = document.createElement("button");
-    loadBtn.className = "primary-btn";
-    loadBtn.textContent = t("viewArchive");
-    loadBtn.onclick = () => loadArchive(index);
+  // Theme toggle
+  if (elements.themeToggle) {
+    elements.themeToggle.onclick = toggleTheme;
+  }
+}
 
-    actionsEl.appendChild(loadBtn);
-    li.appendChild(dateEl);
-    li.appendChild(actionsEl);
-    listEl.appendChild(li);
+// Start the app
+function runInit() {
+  init().catch((err) => {
+    console.error("[Archive] Error during init:", err);
   });
 }
 
-function loadArchive(index) {
-  const archive = archives[index];
-  if (!archive) return;
-
-  // Parse the CSV data and render it
-  const rows = archive.csvData;
-  if (!rows || !Array.isArray(rows)) {
-    alert("Archive data is corrupted or missing");
-    return;
-  }
-
-  // Switch views
-  const listView = document.getElementById("archive-list-view");
-  const programView = document.getElementById("archive-program-view");
-
-  listView.classList.add("hidden");
-  programView.classList.remove("hidden");
-
-  // Update back button text
-  document.getElementById("back-to-list-btn").textContent = "← " + t("backToArchiveList");
-
-  // Render the program (will use correct language via t())
-  const main = document.getElementById("main-program");
-  main.innerHTML = "";
-  renderProgram(rows);
-
-  // Update header info
-  const unitNameEl = document.getElementById("unitname");
-  const unitAddressEl = document.getElementById("unitaddress");
-  const dateEl = document.getElementById("date");
-
-  if (unitNameEl) {
-    const unitNameRow = rows.find((r) => r.key === "unitName");
-    unitNameEl.textContent = unitNameRow ? unitNameRow.value : currentProfile.unitName;
-  }
-
-  if (unitAddressEl) {
-    const unitAddressRow = rows.find((r) => r.key === "unitAddress");
-    unitAddressEl.textContent = unitAddressRow ? unitAddressRow.value : "";
-  }
-
-  if (dateEl) {
-    dateEl.textContent = archive.programDate;
-  }
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", runInit);
+} else {
+  runInit();
 }
-
-init();
