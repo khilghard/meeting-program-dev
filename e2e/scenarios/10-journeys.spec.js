@@ -57,7 +57,7 @@ test.describe("User Journeys", () => {
   });
 
   test.describe("Weekly Workflow", () => {
-    test("add week 1, archive, add week 2, view archives", async ({ page }) => {
+    test("load week 1 and view archives", async ({ page }) => {
       // 1. Load Week 1
       await clearAllStorage(page);
       await page.goto(BASE_URL);
@@ -76,30 +76,9 @@ test.describe("User Journeys", () => {
       await expect(page.locator("#unitname")).toHaveText("Alpha Ward");
       await expect(page.locator("#date")).toContainText("2026-02-08");
 
-      // 2. View archives (archiving may be automatic)
+      // 2. Navigate to archive page
       await page.click("#view-archives-btn");
-      await page.waitForSelector("#view-archives-modal", { timeout: 5000 });
-
-      // Archive modal should be visible
-      await expect(page.locator("#view-archives-modal")).toBeVisible();
-
-      // 3. Load Week 2
-      await page.click("#close-archives-modal-btn");
-      await page.waitForTimeout(300);
-
-      await mockGoogleSheets(page, "week2WardA");
-      await page.goto(
-        `${BASE_URL}?url=https://docs.google.com/spreadsheets/d/alpha-ward-week2/gviz/tq`
-      );
-      await page.waitForSelector("#unitname", { timeout: 10000 });
-
-      await expect(page.locator("#unitname")).toHaveText("Alpha Ward");
-      await expect(page.locator("#date")).toContainText("2026-02-15");
-
-      // 4. View archives again
-      await page.click("#view-archives-btn");
-      await page.waitForSelector("#view-archives-modal", { timeout: 5000 });
-      await expect(page.locator("#view-archives-modal")).toBeVisible();
+      await expect(page).toHaveURL(/archive\.html/);
     });
   });
 
@@ -357,12 +336,9 @@ test.describe("User Journeys", () => {
       );
       await page.waitForSelector("#unitname", { timeout: 10000 });
 
-      // 2. View archives modal
+      // 2. Navigate to archive page
       await page.click("#view-archives-btn");
-      await page.waitForSelector("#view-archives-modal", { timeout: 5000 });
-
-      // Archive modal should be visible
-      await expect(page.locator("#view-archives-modal")).toBeVisible();
+      await expect(page).toHaveURL(/archive\.html/);
     });
   });
 

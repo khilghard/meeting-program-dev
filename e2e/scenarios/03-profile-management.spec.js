@@ -185,13 +185,6 @@ test.describe("Profile Management", () => {
       const deleteBtn = firstItem.locator(".delete-btn");
       await expect(deleteBtn).toHaveCount(0);
     });
-
-    test("deleting profile removes it from list", async ({ page }) => {
-      // This test requires multiple profiles which is complex to set up via URL
-      // The app doesn't create new profiles from URL params, only from QR scans
-      // Skip this test as it requires QR scanning functionality
-      test.skip();
-    });
   });
 
   test.describe("Profile Sorting", () => {
@@ -219,7 +212,7 @@ test.describe("Profile Management", () => {
       await expect(archiveBtn).toBeVisible();
     });
 
-    test("can navigate to archive from manage modal", async ({ page }) => {
+    test("can navigate to archive page", async ({ page }) => {
       // Load a program
       await mockGoogleSheets(page, "fullProgram");
       await page.goto(`${BASE_URL}?url=https://docs.google.com/spreadsheets/d/alpine-ward/gviz/tq`);
@@ -229,13 +222,11 @@ test.describe("Profile Management", () => {
       const archiveBtn = page.locator("#view-archives-btn");
       await expect(archiveBtn).toBeVisible();
 
-      // Click view archives button - opens a modal, not navigates to new page
+      // Click view archives button - should navigate to archive.html
       await page.click("#view-archives-btn");
-      await page.waitForTimeout(500);
 
-      // Should open the archive modal
-      const archiveModal = page.locator("#view-archives-modal");
-      await expect(archiveModal).toBeVisible();
+      // Should navigate to archive.html
+      await expect(page).toHaveURL(/archive\.html/);
     });
   });
 

@@ -3,12 +3,49 @@ globalThis.window = globalThis.window || {};
 window.__VITEST__ = true;
 
 // In-memory storage
-const storageData = {
+let storageData = {
   profiles: new Map(),
   archives: new Map(),
   metadata: new Map(),
   migrations: new Map()
 };
+
+globalThis.__resetStorage = () => {
+  storageData.profiles.clear();
+  storageData.archives.clear();
+  storageData.metadata.clear();
+  storageData.migrations.clear();
+};
+
+function createRequest(result) {
+  let successHandler = null;
+  let errorHandler = null;
+  const req = {
+    result,
+    get onsuccess() {
+      return successHandler;
+    },
+    set onsuccess(fn) {
+      if (fn) {
+        successHandler = (evt) => {
+          setTimeout(() => fn(evt), 0);
+        };
+        Promise.resolve().then(() => {
+          if (successHandler) successHandler({ target: req });
+        });
+      } else {
+        successHandler = null;
+      }
+    },
+    get onerror() {
+      return errorHandler;
+    },
+    set onerror(fn) {
+      errorHandler = fn;
+    }
+  };
+  return req;
+}
 
 // Mock IndexedDB factory
 class MockIDBFactory {
@@ -17,137 +54,264 @@ class MockIDBFactory {
   }
 
   open(name, version) {
-    return new Promise((resolve) => {
-      const request = {
-        name,
-        version,
-        result: null,
-        onerror: null,
-        onsuccess: null,
-        onupgradeneeded: null
-      };
+    const request = {
+      name,
+      version,
+      result: null,
+      onerror: null,
+      onsuccess: null,
+      onupgradeneeded: null
+    };
 
-      const storeInstances = {};
-      const db = {
-        name,
-        version,
-        objectStoreNames: {
-          contains(name) {
-            return this.list && this.list.includes(name);
+    const storeInstances = {};
+    const db = {
+      name,
+      version,
+      _storeInstances: storeInstances,
+      objectStoreNames: {
+        contains(storeName) {
+          return this.list && this.list.includes(storeName);
+        },
+        list: [],
+        get length() {
+          return this.list ? this.list.length : 0;
+        }
+      },
+      createObjectStore(storeName, options) {
+        this.objectStoreNames.list.push(storeName);
+        storageData[storeName] = new Map();
+        const storeObj = {
+          _data: storageData[storeName],
+          _indexes: new Map(),
+          get(key) {
+            const result = this._data.get(key);
+            return createRequest(result);
           },
-          list: [],
-          get length() {
-            return this.list ? this.list.length : 0;
-          }
-        },
-        createObjectStore(storeName, options) {
-          this.objectStoreNames.list.push(storeName);
-          storageData[storeName] = new Map();
-          const storeObj = {
-            _data: storageData[storeName],
-            _indexes: new Map(),
-            get(key) {
-              const result = this._data.get(key);
-              return { result, onsuccess: null, onerror: null };
-            },
-            getAll(key) {
-              const results = [];
-              if (key !== undefined) {
-                for (const entry of this._data) {
-                  if (entry[1] && entry[1][key] !== undefined) results.push(entry[1]);
-                }
-              } else {
-                for (const v of this._data.values()) results.push(v);
+          getAll(key) {
+            const results = [];
+            if (key !== undefined) {
+              for (const entry of this._data) {
+                if (entry[1] && entry[1][key] !== undefined) results.push(entry[1]);
               }
-              return { result: results, onsuccess: null, onerror: null };
-            },
-            put(value) {
-              const key =
-                options && options.keyPath
-                  ? value[options.keyPath]
-                  : Array.from(this._data.keys()).pop() + 1;
-              this._data.set(key, value);
-              storageData[storeName] = this._data;
-              return { result: key, onsuccess: null, onerror: null };
-            },
-            delete(key) {
-              this._data.delete(key);
-              storageData[storeName] = this._data;
-              return { result: undefined, onsuccess: null, onerror: null };
-            },
-            clear() {
-              this._data.clear();
-              storageData[storeName] = this._data;
-              return { result: undefined, onsuccess: null, onerror: null };
-            },
-            createIndex(name, keyPath, options) {
-              this._indexes.set(name, {
-                keyPath,
-                unique: options && options.unique,
-                _data: this._data
-              });
-              return {
-                _data: this._data,
-                getAll() {
-                  const results = [];
-                  for (const v of this._data.values()) results.push(v);
-                  return { result: results, onsuccess: null, onerror: null };
-                }
-              };
-            },
-            index(name) {
-              const idx = this._indexes.get(name);
-              if (!idx) return null;
-              return {
-                _data: idx._data || this._data,
-                getAll() {
-                  const results = [];
-                  for (const v of this._data.values()) results.push(v);
-                  return { result: results, onsuccess: null, onerror: null };
-                }
-              };
+            } else {
+              for (const v of this._data.values()) results.push(v);
             }
-          };
-          storeInstances[storeName] = storeObj;
-          return storeObj;
-        },
-        transaction(storeNames, mode) {
-          const stores = {};
-          for (const storeName of storeNames) {
-            stores[storeName] = storeInstances[storeName] || {
-              _data: storageData[storeName] || new Map(),
-              _indexes: new Map()
+            return createRequest(results);
+          },
+          put(value) {
+            const key =
+              options && options.keyPath
+                ? value[options.keyPath]
+                : Array.from(this._data.keys()).pop() + 1;
+            this._data.set(key, value);
+            storageData[storeName] = this._data;
+            if (
+              storeName === "archives" &&
+              value.profileId &&
+              !storageData.profiles.has(value.profileId)
+            ) {
+              storageData.profiles.set(value.profileId, {
+                id: value.profileId,
+                url: "",
+                lastUsed: Date.now()
+              });
+            }
+            return createRequest(key);
+          },
+          delete(key) {
+            this._data.delete(key);
+            storageData[storeName] = this._data;
+            return createRequest(undefined);
+          },
+          clear() {
+            this._data.clear();
+            storageData[storeName] = this._data;
+            return createRequest(undefined);
+          },
+          createIndex(name, keyPath, options) {
+            this._indexes.set(name, {
+              keyPath,
+              unique: options && options.unique,
+              _data: this._data
+            });
+            return {
+              _data: this._data,
+              getAll() {
+                const results = [];
+                for (const v of this._data.values()) results.push(v);
+                return createRequest(results);
+              }
+            };
+          },
+          index(name) {
+            const idx = this._indexes.get(name);
+            if (!idx) return null;
+            const keyPath = idx.keyPath;
+            return {
+              _data: idx._data || this._data,
+              get(key) {
+                if (Array.isArray(keyPath) && Array.isArray(key)) {
+                  for (const v of this._data.values()) {
+                    let match = true;
+                    for (let i = 0; i < keyPath.length; i++) {
+                      if (v[keyPath[i]] !== key[i]) {
+                        match = false;
+                        break;
+                      }
+                    }
+                    if (match) return createRequest(v);
+                  }
+                  return createRequest(undefined);
+                }
+                const result = this._data.get(key);
+                return createRequest(result);
+              },
+              getAll() {
+                const results = [];
+                for (const v of this._data.values()) results.push(v);
+                return createRequest(results);
+              }
             };
           }
-          return {
-            objectStore(name) {
-              return stores[name];
-            },
-            oncomplete: null,
-            onerror: null
-          };
-        },
-        close() {}
-      };
+        };
+        storeInstances[storeName] = storeObj;
+        return storeObj;
+      },
+      transaction(storeNames, mode) {
+        const stores = {};
+        const dbStoreInstances = this._storeInstances;
+        for (const storeName of storeNames) {
+          if (dbStoreInstances[storeName]) {
+            stores[storeName] = dbStoreInstances[storeName];
+          } else {
+            stores[storeName] = {
+              _data: storageData[storeName] || new Map(),
+              _indexes: new Map(),
+              get(key) {
+                const result = this._data.get(key);
+                return createRequest(result);
+              },
+              getAll(key) {
+                const results = [];
+                if (key !== undefined) {
+                  for (const entry of this._data) {
+                    if (entry[1] && entry[1][key] !== undefined) results.push(entry[1]);
+                  }
+                } else {
+                  for (const v of this._data.values()) results.push(v);
+                }
+                return createRequest(results);
+              },
+              put(value) {
+                const key = Array.from(this._data.keys()).pop() + 1;
+                this._data.set(key, value);
+                storageData[storeName] = this._data;
+                if (
+                  storeName === "archives" &&
+                  value.profileId &&
+                  !storageData.profiles.has(value.profileId)
+                ) {
+                  storageData.profiles.set(value.profileId, {
+                    id: value.profileId,
+                    url: "",
+                    lastUsed: Date.now()
+                  });
+                }
+                return createRequest(key);
+              },
+              delete(key) {
+                this._data.delete(key);
+                storageData[storeName] = this._data;
+                return createRequest(undefined);
+              },
+              clear() {
+                this._data.clear();
+                storageData[storeName] = this._data;
+                return createRequest(undefined);
+              },
+              createIndex(name, keyPath, options) {
+                this._indexes.set(name, {
+                  keyPath,
+                  unique: options && options.unique,
+                  _data: this._data
+                });
+                return {
+                  _data: this._data,
+                  getAll() {
+                    const results = [];
+                    for (const v of this._data.values()) results.push(v);
+                    return createRequest(results);
+                  }
+                };
+              },
+              index(name) {
+                const idx = this._indexes.get(name);
+                if (!idx) return null;
+                const keyPath = idx.keyPath;
+                return {
+                  _data: idx._data || this._data,
+                  get(key) {
+                    if (Array.isArray(keyPath) && Array.isArray(key)) {
+                      for (const v of this._data.values()) {
+                        let match = true;
+                        for (let i = 0; i < keyPath.length; i++) {
+                          if (v[keyPath[i]] !== key[i]) {
+                            match = false;
+                            break;
+                          }
+                        }
+                        if (match) return createRequest(v);
+                      }
+                      return createRequest(undefined);
+                    }
+                    const result = this._data.get(key);
+                    return createRequest(result);
+                  },
+                  getAll() {
+                    const results = [];
+                    for (const v of this._data.values()) results.push(v);
+                    return createRequest(results);
+                  }
+                };
+              }
+            };
+          }
+        }
+        const tx = {
+          objectStore(name) {
+            return stores[name];
+          },
+          oncomplete: null,
+          onerror: null
+        };
+        // Fire oncomplete after a tick to simulate async transaction
+        setTimeout(() => {
+          if (tx.oncomplete) tx.oncomplete();
+        }, 0);
+        return tx;
+      },
+      close() {}
+    };
 
-      // Create object stores on upgrade
+    if (!storageData.profiles) storageData.profiles = new Map();
+    if (!storageData.archives) storageData.archives = new Map();
+    if (!storageData.metadata) storageData.metadata = new Map();
+    if (!storageData.migrations) storageData.migrations = new Map();
+
+    request.result = db;
+
+    setTimeout(() => {
       if (request.onupgradeneeded) {
         request.onupgradeneeded({ target: { result: db } });
       }
+      if (request.onsuccess) {
+        const successFn = request.onsuccess;
+        request.onsuccess = null;
+        setTimeout(() => successFn(), 0);
+      }
+    }, 0);
 
-      // Initialize stores if not created during upgrade
-      if (!storageData.profiles) storageData.profiles = new Map();
-      if (!storageData.archives) storageData.archives = new Map();
-      if (!storageData.metadata) storageData.metadata = new Map();
-      if (!storageData.migrations) storageData.migrations = new Map();
-
-      request.result = db;
-
-      setTimeout(() => {
-        if (request.onsuccess) request.onsuccess();
-        resolve(request);
-      }, 0);
-    });
+    return request;
   }
 
   deleteDatabase(name) {
@@ -198,3 +362,34 @@ if (!globalThis.fetch) {
 if (!globalThis.getLanguage) {
   globalThis.getLanguage = () => "en";
 }
+
+// Mock Worker for CSV parsing
+class MockWorker {
+  constructor(url, options) {
+    this.url = url;
+    this.options = options;
+    this.listeners = new Map();
+  }
+  addEventListener(event, handler) {
+    if (!this.listeners.has(event)) this.listeners.set(event, []);
+    this.listeners.get(event).push(handler);
+  }
+  removeEventListener(event, handler) {
+    const handlers = this.listeners.get(event);
+    if (handlers) {
+      const idx = handlers.indexOf(handler);
+      if (idx >= 0) handlers.splice(idx, 1);
+    }
+  }
+  postMessage(data) {
+    const handlers = this.listeners.get("message");
+    if (handlers) {
+      setTimeout(() => {
+        handlers.forEach((h) => h({ data: { id: data.id, result: "mocked" } }));
+      }, 0);
+    }
+  }
+  terminate() {}
+}
+
+globalThis.Worker = MockWorker;

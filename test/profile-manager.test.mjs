@@ -17,6 +17,7 @@ import {
 describe("ProfileManager", () => {
   beforeEach(async () => {
     localStorage.clear();
+    if (globalThis.__resetStorage) globalThis.__resetStorage();
     await initProfileManager();
   });
 
@@ -35,7 +36,7 @@ describe("ProfileManager", () => {
 
     test("throws error for invalid URL", async () => {
       await expect(addProfile("invalid-url", "Ward", "Stake")).rejects.toThrow(
-        "URL must be a Google Sheets URL"
+        "Invalid URL format"
       );
     });
 

@@ -79,16 +79,15 @@ test.describe("Offline", () => {
   });
 
   test.describe("Archive Offline", () => {
-    test("can view archives modal when online", async ({ page }) => {
+    test("can navigate to archive page when online", async ({ page }) => {
       // Load a program
       await mockGoogleSheets(page, "fullProgram");
       await page.goto(`${BASE_URL}?url=https://docs.google.com/spreadsheets/d/alpine-ward/gviz/tq`);
       await page.waitForSelector("#unitname", { timeout: 10000 });
 
-      // View archives button should work when online
+      // View archives button should navigate to archive.html when online
       await page.click("#view-archives-btn");
-      await page.waitForSelector("#view-archives-modal", { timeout: 5000 });
-      await expect(page.locator("#view-archives-modal")).toBeVisible();
+      await expect(page).toHaveURL(/archive\.html/);
     });
   });
 
