@@ -51,7 +51,7 @@ export async function autoArchive(profileId, programDate, csvData, options = {})
     return { archived: false, reason: "missing_params" };
   }
 
-  const { force = false } = options;
+  const { force = false, profileUrl = null } = options;
 
   const existing = await getArchive(profileId, programDate);
 
@@ -63,6 +63,7 @@ export async function autoArchive(profileId, programDate, csvData, options = {})
     }
 
     existing.csvData = csvData;
+    existing.profileUrl = profileUrl || existing.profileUrl;
     existing.cachedAt = now;
     await saveArchive(existing);
 
@@ -79,6 +80,7 @@ export async function autoArchive(profileId, programDate, csvData, options = {})
     profileId,
     programDate,
     csvData,
+    profileUrl,
     cachedAt: now
   };
 
@@ -227,4 +229,5 @@ export async function getStorageIntegrityReport() {
   return await getStorageIntegrity();
 }
 
+export { deleteArchive };
 export { MAX_SIZE_BYTES, WARNING_THRESHOLD_BYTES, MAX_AGE_DAYS };

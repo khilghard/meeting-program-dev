@@ -2,6 +2,7 @@ import { showScanner } from "./qr.js";
 import * as Profiles from "./profiles.js";
 import { hasLegacyProfiles, migrateLegacyProfiles } from "./data/ProfileManager.js";
 import * as ArchiveManager from "./data/ArchiveManager.js";
+import { getProfileArchives, deleteArchive, initArchiveManager } from "./data/ArchiveManager.js";
 import { t, getLanguage, initI18n, setLanguage } from "./i18n/index.js";
 import { fetchSheet, parseCSV } from "./utils/csv.js";
 import { createWorker } from "./workers/workerInterface.js";
@@ -24,9 +25,15 @@ import {
   renderLinkWithSpace
 } from "./utils/renderers.js";
 import { saveProgramHistory, getProgramHistory, cleanupHistory } from "./history.js";
-import { initShareUI, promptPWAInstall } from "./share.js";
+import { initShareUI, promptPWAInstall, openHelpModal } from "./share.js";
 import { checkMigrationRequired } from "./data/MigrationSystem.js";
 import { showMigrationBanner, resetMigrationBannerSession } from "./data/MigrationBanner.js";
+import {
+  getArchiveWithValidation,
+  getStorageInfo,
+  getStorageIntegrity,
+  cleanupOldArchives
+} from "./archive-fix.js";
 
 // ------------------------------------------------------------
 // 4. Theme Logic
@@ -262,6 +269,9 @@ async function init() {
       }
     }
 
+    // 0c. Initialize archive manager
+    await initArchiveManager();
+
     // 1. Initialize profiles from IndexedDB (including migrated data)
     await Profiles.initProfiles();
     console.log("[INIT] Profiles loaded:", Profiles.getProfiles().length);
@@ -315,11 +325,21 @@ async function init() {
       if (welcomeText) welcomeText.classList.add("hidden");
       if (themeToggle) themeToggle.classList.add("hidden");
       if (reloadBtn) reloadBtn.classList.add("hidden");
+      // Make sure help button is visible in zero state
+      const helpBtn = document.getElementById("help-btn");
+      if (helpBtn) helpBtn.classList.remove("hidden");
 
       // Hide main program area and clean up loading state
       main.classList.add("hidden");
       main.classList.remove("loading");
       if (pageContainer) pageContainer.classList.remove("loading");
+
+      // Show help modal on first load if not previously dismissed
+      const helpShown = localStorage.getItem("meeting_program_help_shown");
+      if (!helpShown) {
+        openHelpModal();
+      }
+
       return;
     }
 
@@ -385,10 +405,15 @@ async function init() {
 
       // Auto-archive if program date exists
       const programDate = rows.find((r) => r.key === "date")?.value || "";
+      console.log("[Archive] Program date:", programDate);
       let archiveResult = null;
       if (loadedProfile && programDate) {
-        // Archive the program data
-        archiveResult = await ArchiveManager.autoArchive(loadedProfile.id, programDate, rows);
+        console.log("[Archive] Auto-archiving:", loadedProfile.id, programDate);
+        // Archive the program data with the profile URL
+        archiveResult = await ArchiveManager.autoArchive(loadedProfile.id, programDate, rows, {
+          profileUrl: loadedProfile.url
+        });
+        console.log("[Archive] Result:", archiveResult);
         if (archiveResult.archived) {
           console.log(
             `Program auto-archived: ${programDate} (${archiveResult.updated ? "updated" : "new"})`
@@ -396,6 +421,13 @@ async function init() {
         } else {
           console.log(`Program not archived: ${archiveResult.reason}`);
         }
+      } else {
+        console.log(
+          "[Archive] Not archiving - loadedProfile:",
+          loadedProfile,
+          "programDate:",
+          programDate
+        );
       }
 
       // Check for migration requirement
@@ -439,11 +471,12 @@ async function init() {
         const cachedDate = cachedRows.find((r) => r.key === "date")?.value || "";
         let cachedArchiveResult = null;
         if (cachedProfile && cachedDate) {
-          // Auto-archive the cached program data
+          // Auto-archive the cached program data with the profile URL
           cachedArchiveResult = await ArchiveManager.autoArchive(
             cachedProfile.id,
             cachedDate,
-            cachedRows
+            cachedRows,
+            { profileUrl: cachedProfile.url }
           );
           if (cachedArchiveResult.archived) {
             console.log(
@@ -547,7 +580,7 @@ function initProfileUI() {
   const viewArchivesBtn = document.getElementById("view-archives-btn");
   if (viewArchivesBtn) {
     viewArchivesBtn.onclick = () => {
-      window.location.href = "./archive.html";
+      window.location.href = "archive.html";
     };
   }
 
@@ -718,41 +751,28 @@ async function openArchivesModal() {
 
   if (!modal || !list) return;
 
-  const archivedPrograms = ArchiveManager.getProfileArchives(currentProfile.id);
+  // Initialize archive manager
+  await initArchiveManager();
+
+  // Get archives for current profile
+  const currentProfile = Profiles.getCurrentProfile();
+  if (!currentProfile) {
+    list.innerHTML = "<li style='justify-content:center;opacity:0.6;'>No profile selected</li>";
+    modal.showModal();
+    if (closeBtn) {
+      closeBtn.onclick = () => modal.close();
+    }
+    return;
+  }
+
+  const archivedPrograms = await getProfileArchives(currentProfile.id);
 
   list.innerHTML = "";
-
-  // If there's an active profile, show option to deactivate it
-  if (currentProfile && !currentProfile.inactive) {
-    const deactivateCurrentLi = document.createElement("li");
-    deactivateCurrentLi.style.flexDirection = "column";
-    deactivateCurrentLi.style.alignItems = "flex-start";
-    deactivateCurrentLi.style.padding = "16px";
-
-    const deactivateLabel = document.createElement("span");
-    deactivateLabel.style.fontWeight = "bold";
-    deactivateLabel.textContent = `Deactivate: ${currentProfile.unitName}`;
-
-    const deactivateBtn = document.createElement("button");
-    deactivateBtn.className = "deactivate-btn";
-    deactivateBtn.style.marginTop = "8px";
-    deactivateBtn.textContent = "Deactivate Profile";
-    deactivateBtn.onclick = async () => {
-      if (confirm(`Deactivate ${currentProfile.unitName}?`)) {
-        await Profiles.deactivateProfile(currentProfile.id);
-        openArchivesModal(); // Refresh the modal
-      }
-    };
-
-    deactivateCurrentLi.appendChild(deactivateLabel);
-    deactivateCurrentLi.appendChild(deactivateBtn);
-    list.appendChild(deactivateCurrentLi);
-  }
 
   if (!archivedPrograms || archivedPrograms.length === 0) {
     list.innerHTML += "<li style='justify-content:center;opacity:0.6;'>No archived programs</li>";
   } else {
-    archivedPrograms.forEach((p) => {
+    archivedPrograms.forEach((archive) => {
       const li = document.createElement("li");
       li.className = "archive-item";
 
@@ -761,7 +781,7 @@ async function openArchivesModal() {
 
       const date = document.createElement("span");
       date.className = "archive-date";
-      date.textContent = p.programDate || "Unknown Date";
+      date.textContent = archive.programDate || "Unknown Date";
 
       info.appendChild(date);
 
@@ -773,9 +793,29 @@ async function openArchivesModal() {
       loadBtn.style.padding = "6px 12px";
       loadBtn.style.fontSize = "0.85rem";
       loadBtn.textContent = "View";
-      loadBtn.onclick = () => {
-        const archiveUrl = `archive.html?profileId=${currentProfile.id}&date=${encodeURIComponent(p.programDate)}`;
-        window.location.href = archiveUrl;
+      loadBtn.onclick = async () => {
+        // Load the archive directly in the modal
+        const rows = archive.csvData;
+        if (!rows || !Array.isArray(rows)) {
+          alert("Archive data is corrupted or missing");
+          return;
+        }
+
+        // Clear existing program content
+        document.getElementById("main-program").innerHTML = "";
+        renderProgram(rows);
+
+        // Update header info
+        document.getElementById("unitname").textContent = archive.unitName || "Unknown Unit";
+        document.getElementById("unitaddress").textContent = archive.unitAddress || "";
+        document.getElementById("date").textContent = archive.programDate;
+
+        // Show the program view
+        document.body.classList.add("archive-view");
+
+        // Close the modal and reload to show the archive properly
+        modal.close();
+        // Note: The archive-view class will be cleaned up by the init() call
       };
 
       const deleteBtn = document.createElement("button");
@@ -784,8 +824,8 @@ async function openArchivesModal() {
       deleteBtn.style.fontSize = "0.85rem";
       deleteBtn.textContent = "Delete";
       deleteBtn.onclick = async () => {
-        if (confirm(`Delete archive for ${p.programDate}?`)) {
-          await ArchiveManager.deleteArchive(currentProfile.id, p.programDate);
+        if (confirm(`Delete archive for ${archive.programDate}?`)) {
+          await deleteArchive(currentProfile.id, archive.programDate);
           openArchivesModal(); // Refresh
         }
       };
@@ -802,7 +842,12 @@ async function openArchivesModal() {
   modal.showModal();
 
   if (closeBtn) {
-    closeBtn.onclick = () => modal.close();
+    closeBtn.onclick = () => {
+      modal.close();
+      // Clean up archive view - reload the current program
+      document.body.classList.remove("archive-view");
+      init();
+    };
   }
 }
 
@@ -1320,11 +1365,19 @@ if (typeof window !== "undefined" && !window.__VITEST__) {
   initI18n();
   initNetworkStatus();
   initPrintButton();
-  updateStaticStrings();
   initLanguageSelector();
   initHistoryUI();
   initShareUI();
   promptPWAInstall();
+  updateStaticStrings();
+  // Ensure help modal is properly initialized before init()
+  if (typeof window !== "undefined" && !window.__VITEST__) {
+    // Check if we're in zero state and help modal should be shown
+    const helpShown = localStorage.getItem("meeting_program_help_shown");
+    if (!helpShown) {
+      openHelpModal();
+    }
+  }
   init();
 }
 

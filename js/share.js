@@ -78,16 +78,12 @@ function getCurrentProgramUrl() {
   const params = new URLSearchParams(window.location.search);
   const urlParam = params.get("url");
   if (urlParam) {
-    return (
-      window.location.origin + window.location.pathname + "?url=" + encodeURIComponent(urlParam)
-    );
+    return urlParam; // Return the raw URL parameter as it's already a full URL
   }
 
   const profile = getCurrentProfile();
   if (profile && profile.url) {
-    return (
-      window.location.origin + window.location.pathname + "?url=" + encodeURIComponent(profile.url)
-    );
+    return profile.url; // Return the raw URL from profile
   }
 
   return null;
@@ -103,6 +99,11 @@ function generateQRCode(url, container) {
     return;
   }
 
+  if (!url) {
+    container.innerHTML = "<p>No program loaded</p>";
+    return;
+  }
+
   try {
     const canvas = document.createElement("canvas");
     QRCode.toCanvas(canvas, url, { width: 250, margin: 2 }, (error) => {
@@ -112,8 +113,8 @@ function generateQRCode(url, container) {
       }
       container.appendChild(canvas);
     });
-  } catch {
-    container.innerHTML = "<p>Error generating QR code</p>";
+  } catch (err) {
+    container.innerHTML = "<p>Error generating QR code: " + err.message + "</p>";
   }
 }
 
@@ -132,6 +133,7 @@ function openHelpModal() {
 
   updateHelpStrings();
 
+  // Ensure the modal is visible
   modal.showModal();
 
   if (closeBtn) {
@@ -160,4 +162,4 @@ function updateHelpStrings() {
   if (title) title.textContent = t("helpTitle");
 }
 
-export { HELP_SHOWN_KEY, INSTALL_PROMPT_KEY };
+export { HELP_SHOWN_KEY, INSTALL_PROMPT_KEY, openHelpModal };

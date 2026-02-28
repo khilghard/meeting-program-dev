@@ -96,11 +96,13 @@
           <!-- Options populated dynamically -->
         </select>
       </div>
-        <div style="justify-content: center; align-items: center; text-align: center;">
-          <button id="manage-profiles-btn" class="icon-btn" aria-label="Manage Programs">⚙️</button>
-          <button id="view-archives-btn" class="icon-btn" aria-label="View Archives">📦</button>
-          <button id="update-btn" class="icon-btn" aria-label="Check for Updates">🔄</button>
-        </div>
+
+      <!-- PROFILE MANAGEMENT BUTTONS -->
+      <div style="justify-content: center; align-items: center; text-align: center;">
+        <button id="manage-profiles-btn" class="icon-btn" aria-label="Manage Programs">⚙️</button>
+        <button id="view-archives-btn" class="icon-btn" aria-label="View Archives">📦</button>
+        <button id="update-btn" class="icon-btn" aria-label="Check for Updates">🔄</button>
+      </div>
 
       <!-- QR ACTION BUTTON (dynamic text + behavior handled in main.js) -->
       <button id="qr-action-btn" class="qr-action-btn"></button>
@@ -158,19 +160,6 @@
           <div class="modal-actions">
             <button id="confirm-add-btn" class="primary-btn">Add</button>
             <button id="cancel-add-btn" class="secondary-btn">Cancel</button>
-          </div>
-        </div>
-      </dialog>
-
-      <!-- VIEW ARCHIVES MODAL -->
-      <dialog id="view-archives-modal" class="modal">
-        <div class="modal-content">
-          <h3>Archived Programs</h3>
-          <ul id="archived-programs-list" class="profiles-list">
-            <!-- Populated dynamically -->
-          </ul>
-          <div class="modal-actions">
-            <button id="close-archives-modal-btn" class="secondary-btn">Close</button>
           </div>
         </div>
       </dialog>

@@ -56,6 +56,10 @@ async function init() {
   toggleTheme = themeModule.toggleTheme;
   console.log("[Archive] Theme module loaded");
 
+  // Initialize theme system immediately
+  initTheme();
+  console.log("[Archive] Theme system initialized");
+
   // Load profiles module
   Profiles = await import("./data/ProfileManager.js");
   console.log("[Archive] Profiles module loaded");
