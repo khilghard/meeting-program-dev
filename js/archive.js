@@ -9,6 +9,16 @@ console.log("[Archive] archive.js loaded");
 import * as ArchiveManager from "./data/ArchiveManager.js";
 import { t } from "./i18n/index.js";
 
+function escapeHtml(str) {
+  if (!str) return "";
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 let initTheme, toggleTheme;
 let Profiles;
 let currentProfile = null;
@@ -205,16 +215,16 @@ async function loadArchives() {
     const card = document.createElement("div");
     card.className = "profile-card";
 
-    const date = archive.programDate || "Unknown Date";
-    const conducting = info.conducting || "";
-    const presiding = info.presiding || "";
+    const date = escapeHtml(archive.programDate) || "Unknown Date";
+    const conducting = escapeHtml(info.conducting) || "";
+    const presiding = escapeHtml(info.presiding) || "";
 
     card.innerHTML = `
       <div class="profile-card-content">
         <div class="profile-card-name">${date}</div>
         <div class="profile-card-details">${conducting ? `Conducting: ${conducting}` : ""}</div>
         <div class="profile-card-details">Speakers:</div>
-        ${info.speakers && info.speakers.length > 0 ? info.speakers.map((speaker) => `<div class="profile-card-details">${speaker}</div>`).join("") : "<div class=\"profile-card-details\">No speakers</div>"}
+        ${info.speakers && info.speakers.length > 0 ? info.speakers.map((speaker) => `<div class="profile-card-details">${escapeHtml(speaker)}</div>`).join("") : "<div class=\"profile-card-details\">No speakers</div>"}
       </div>
     `;
 

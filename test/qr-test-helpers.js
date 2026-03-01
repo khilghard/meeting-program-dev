@@ -97,7 +97,6 @@ export const testStopQRScanner = () => {
   }
 };
 
-// Expose the mocks on the window for direct access in tests
 window.isSafari = testIsSafari;
 window.isValidSheetUrl = testIsValidSheetUrl;
 window.extractSheetUrl = testExtractSheetUrl;
@@ -108,17 +107,3 @@ window.hideManualUrlEntry = testHideManualUrlEntry;
 window.scanFrame = testScanFrame;
 window.startQRScanner = testStartQRScanner;
 window.stopQRScanner = testStopQRScanner;
-
-// Export the mocks for use in test files
-export {
-  testIsSafari,
-  testIsValidSheetUrl,
-  testExtractSheetUrl,
-  testShowScanner,
-  testHideScanner,
-  testShowManualUrlEntry,
-  testHideManualUrlEntry,
-  testScanFrame,
-  testStartQRScanner,
-  testStopQRScanner
-};

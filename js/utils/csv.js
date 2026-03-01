@@ -46,9 +46,10 @@ function parseCSV(csv) {
   const isMultiLang =
     headerRow.length > 2 && LANGUAGE_HEADERS.includes(headerRow[1]?.toLowerCase());
 
-  // Get language column index (default to 1 for 'en')
+  // Get language column index (default to English index 0)
   const currentLang = getLanguage() || "en";
   const langIndex = LANGUAGE_HEADERS.indexOf(currentLang);
+  // Default to English (index 0) if language not found, so column will be  column1 (English)
   const safeLangIndex = langIndex >= 0 ? langIndex : 0;
 
   const result = [];
@@ -59,9 +60,10 @@ function parseCSV(csv) {
 
     if (isMultiLang) {
       // Multi-language format: key,en,es,fr,swa
-      // Try current language first, then fall back to English
+      // Try current language first, then fall back to English (column 1)
       const langValue = row[safeLangIndex + 1];
       const enValue = row[1]; // English is always column 1
+      // Use current language if available and not empty, otherwise fall back to English
       rawValue = langValue && langValue.trim() !== "" ? langValue : enValue;
     } else {
       // Original format: key,value

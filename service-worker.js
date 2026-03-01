@@ -13,8 +13,10 @@ const DYNAMIC_CACHE = "meeting-program-dynamic-v1";
 const MAX_DYNAMIC_CACHE = 50;
 const MAX_CACHE_AGE_DAYS = 30;
 
-const MAX_CACHES_TO_KEEP = 3;
+// Cache expiration for Google Sheets (24 hours in milliseconds)
+const SHEET_CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000;
 
+const MAX_CACHES_TO_KEEP = 3;
 
 // Files to precache
 const URLS = [
@@ -147,31 +149,72 @@ self.addEventListener("fetch", (event) => {
   if (url.hostname.includes("docs.google.com")) {
     event.respondWith(
       fetch(req)
-        .then((res) => res)
+        .then((res) => {
+          // Cache the fresh response
+          if (res.ok) {
+            const resClone = res.clone();
+            const cacheWithTimestamp = new Response(resClone.body, {
+              status: res.status,
+              statusText: res.statusText,
+              headers: new Headers({
+                ...Object.fromEntries(res.headers.entries()),
+                "cached-at": Date.now().toString()
+              })
+            });
+            caches.open(DYNAMIC_CACHE).then((cache) => {
+              cache.put(req, cacheWithTimestamp);
+            });
+          }
+          return res;
+        })
         .catch(() => caches.match(req))
     );
     return;
   }
 
-  // Stale-while-revalidate for: Archive data (handled via postMessage from app)
-  // For now, just network-first
+  // Check for cache-bust parameter (reload button adds t=timestamp)
+  const forceRefresh = url.searchParams.has("t") && url.searchParams.get("force") === "true";
+
+  // Dynamic cache with expiration for other requests
   event.respondWith(
     fetch(req)
       .then((res) => {
         // Cache successful responses in dynamic cache
         if (res.ok) {
-          return caches.open(DYNAMIC_CACHE).then((cache) => {
-            cache.put(req, res.clone());
-            return res;
+          const resClone = res.clone();
+          const cacheWithTimestamp = new Response(resClone.body, {
+            status: res.status,
+            statusText: res.statusText,
+            headers: new Headers({
+              ...Object.fromEntries(res.headers.entries()),
+              "cached-at": Date.now().toString()
+            })
+          });
+          caches.open(DYNAMIC_CACHE).then((cache) => {
+            cache.put(req, cacheWithTimestamp);
           });
         }
         return res;
       })
       .catch(() => {
         // Fallback to cache
-        return caches.match(req).then((cached) => {
-          if (cached) return cached;
-          return new Response("Offline", { status: 503 });
+        return caches.open(DYNAMIC_CACHE).then((cache) => {
+          return cache.match(req).then((cachedResponse) => {
+            if (cachedResponse) {
+              // Check if cache has expired (24 hours for Google Sheets)
+              const cachedAt = cachedResponse.headers.get("cached-at");
+              if (cachedAt) {
+                const age = Date.now() - parseInt(cachedAt, 10);
+                if (url.hostname.includes("docs.google.com") && age > SHEET_CACHE_EXPIRY_MS) {
+                  console.log("[SW] Google Sheet cache expired but offline - serving stale cache");
+                  // Return stale cache when offline even if expired
+                  return cachedResponse;
+                }
+              }
+              return cachedResponse;
+            }
+            return new Response("Offline", { status: 503 });
+          });
         });
       })
   );

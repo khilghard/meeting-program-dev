@@ -273,11 +273,10 @@ async function getStorageInfo() {
   const profiles = await getAllProfiles();
   const archives = await getAllArchivesForAllProfiles();
 
-  let used = 0;
   const profileData = JSON.stringify(profiles);
   const archiveData = JSON.stringify(archives);
 
-  used = new Blob([profileData + archiveData]).size;
+  const used = new Blob([profileData + archiveData]).size;
 
   return {
     used,
@@ -377,9 +376,7 @@ async function getStorageIntegrity() {
       continue;
     }
 
-    // Convert csvData to string for consistent checksum calculation
-    const csvDataString = JSON.stringify(archive.csvData);
-    const calculatedChecksum = await calculateChecksum(csvDataString);
+    const calculatedChecksum = await calculateChecksum(archive.csvData);
     if (calculatedChecksum !== archive.checksum) {
       result.corrupted++;
       result.errors.push({

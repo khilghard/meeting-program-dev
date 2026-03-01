@@ -197,13 +197,13 @@ deleteArchive(profileId, programDate);
 
 ## Implementation Checklist
 
-- [ ] Remove modal-based archive viewing from index.html
-- [ ] Implement archive.html page
-- [ ] Add "View Archives" navigation button on index.html
-- [ ] Add "Return to Home" button on archive.html
-- [ ] Implement auto-archive on program load
-- [ ] Implement archive list display on archive.html
-- [ ] Implement archive viewing on archive.html
-- [ ] Ensure profile isolation in archive queries
-- [ ] Ensure date-based archive overwrite logic
-- [ ] Update tests to match new archive flow
+- [x] Remove modal-based archive viewing from index.html
+- [x] Implement archive.html page
+- [x] Add "View Archives" navigation button on index.html
+- [x] Add "Return to Home" button on archive.html
+- [x] Implement auto-archive on program load
+- [x] Implement archive list display on archive.html
+- [x] Implement archive viewing on archive.html
+- [x] Ensure profile isolation in archive queries
+- [x] Ensure date-based archive overwrite logic
+- [x] Update tests to match new archive flow

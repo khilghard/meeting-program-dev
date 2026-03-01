@@ -37,7 +37,8 @@ function initTheme() {
   const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
   const applyTheme = (theme) => {
-    document.documentElement.setAttribute("data-theme", theme);
+    const validTheme = theme === "dark" || theme === "light" ? theme : "light";
+    document.documentElement.setAttribute("data-theme", validTheme);
   };
 
   // 1. Determine initial theme
@@ -369,7 +370,14 @@ async function init() {
     if (unitHeader) unitHeader.classList.remove("hidden");
 
     reloadBtn.classList.remove("hidden");
-    reloadBtn.onclick = () => location.reload();
+    reloadBtn.onclick = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      // Add cache-busting parameters: t=timestamp and force=true
+      urlParams.set("t", Date.now().toString());
+      urlParams.set("force", "true");
+      const newUrl = window.location.pathname + "?" + urlParams.toString();
+      window.location.href = newUrl;
+    };
 
     // Ensure main program area is visible
     main.classList.remove("hidden");
@@ -397,16 +405,30 @@ async function init() {
 
       // Handle Profile Creation from URL param or legacy localStorage
       if (!currentProfile && sheetUrl) {
-        // Extract and set the site URL from the sheetUrl
+        // Extract and set the site URL from the current page location
+        // This handles both app-format URLs and direct sheet URL scans
         try {
-          const parsed = new URL(sheetUrl);
-          if (parsed.pathname === "/meeting-program" || parsed.hostname.includes("github.io")) {
-            const baseUrl = `${parsed.protocol}//${parsed.host}${parsed.pathname}`;
-            const { setMetadata } = await import("./data/IndexedDBManager.js");
-            await setMetadata("siteUrl", baseUrl);
+          const { setMetadata } = await import("./data/IndexedDBManager.js");
+
+          // Get the site URL from current window location (works for both hosted and local)
+          const currentUrl = window.location.href;
+          const parsedCurrent = new URL(currentUrl);
+
+          // Build the base site URL (without query params)
+          let siteUrl = `${parsedCurrent.protocol}//${parsedCurrent.host}${parsedCurrent.pathname}`;
+
+          // Remove trailing slash for consistency
+          if (siteUrl.endsWith("/")) {
+            siteUrl = siteUrl.slice(0, -1);
           }
+
+          // Store the site URL in IndexedDB
+          await setMetadata("siteUrl", siteUrl);
+
+          // Also store in localStorage for quick access (share.js uses this)
+          localStorage.setItem("meeting_program_site_url", siteUrl);
         } catch (e) {
-          // Ignore if URL parsing fails
+          console.warn("Failed to store site URL:", e);
         }
 
         await Profiles.addProfile(sheetUrl, unitName, stakeName);
@@ -824,9 +846,15 @@ async function openArchivesModal() {
           return;
         }
 
+        // Re-sanitize archive data for defense in depth
+        const sanitizeEntry = (await import("./sanitize.js")).sanitizeEntry;
+        const sanitizedRows = rows
+          .map((row) => sanitizeEntry(row.key, row.value))
+          .filter((row) => row !== null);
+
         // Clear existing program content
         document.getElementById("main-program").innerHTML = "";
-        renderProgram(rows);
+        renderProgram(sanitizedRows);
 
         // Update header info
         document.getElementById("unitname").textContent = archive.unitName || "Unknown Unit";

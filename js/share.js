@@ -78,18 +78,21 @@ function getCurrentProgramUrl() {
   const params = new URLSearchParams(window.location.search);
   const urlParam = params.get("url");
 
+  // Get the sheet URL
+  let sheetUrl = null;
+
   // If we have a direct Google Sheets URL parameter, use it
   if (urlParam && urlParam.startsWith("https://docs.google.com/spreadsheets/")) {
-    return urlParam;
+    sheetUrl = urlParam;
   }
 
   // If we have an app URL with sheet as parameter, extract the sheet URL
-  if (urlParam) {
+  if (!sheetUrl && urlParam) {
     try {
       const parsed = new URL(urlParam);
-      const sheetUrl = parsed.searchParams.get("url");
-      if (sheetUrl && sheetUrl.startsWith("https://docs.google.com/spreadsheets/")) {
-        return sheetUrl;
+      const extracted = parsed.searchParams.get("url");
+      if (extracted && extracted.startsWith("https://docs.google.com/spreadsheets/")) {
+        sheetUrl = extracted;
       }
     } catch (e) {
       // Invalid URL format
@@ -97,12 +100,38 @@ function getCurrentProgramUrl() {
   }
 
   // If we have a profile, use its URL
-  const profile = getCurrentProfile();
-  if (profile && profile.url) {
-    return profile.url;
+  if (!sheetUrl) {
+    const profile = getCurrentProfile();
+    if (profile && profile.url) {
+      sheetUrl = profile.url;
+    }
   }
 
-  return null;
+  if (!sheetUrl) {
+    return null;
+  }
+
+  // Build the full site URL with sheet URL as parameter
+  // Get the site URL from IndexedDB or use default
+  const siteUrl = getSiteUrl();
+  if (siteUrl) {
+    const fullUrl = new URL(siteUrl);
+    fullUrl.searchParams.set("url", sheetUrl);
+    return fullUrl.toString();
+  }
+
+  // Fallback to just the sheet URL if no site URL found
+  return sheetUrl;
+}
+
+function getSiteUrl() {
+  // This will be set after the first program load
+  // Check localStorage first for quick access
+  const stored = localStorage.getItem("meeting_program_site_url");
+  if (stored) return stored;
+
+  // Default fallback
+  return "https://khilghard.github.io/meeting-program/";
 }
 
 function getCurrentProfile() {

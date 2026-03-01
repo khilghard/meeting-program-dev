@@ -99,9 +99,10 @@ test.describe("Sharing", () => {
       // Open share
       await page.click("#share-btn");
 
-      // Verify the URL text is displayed
+      // Verify the URL text is displayed (should be the full share URL with encoded program URL)
       const urlDisplay = page.locator("#share-url-display");
-      await expect(urlDisplay).toContainText(programUrl);
+      const displayedUrl = await urlDisplay.textContent();
+      expect(decodeURIComponent(displayedUrl)).toContain(programUrl);
     });
   });
 
