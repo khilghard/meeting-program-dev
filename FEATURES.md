@@ -152,7 +152,7 @@ Meeting Program is a Progressive Web App (PWA) that displays sacrament meeting p
   - XSS prevention
   - Unknown key filtering
 
-### 12. Program Sharing (v2.1.0)
+### 12. Program Sharing (v1.6.0)
 
 - **Description:** Share program with neighbors via QR code
 - **Implementation:** `js/share.js`
@@ -163,7 +163,7 @@ Meeting Program is a Progressive Web App (PWA) that displays sacrament meeting p
   - Includes direct URL display for manual entry
   - Translations for all 4 languages
 
-### 13. Help & FAQ (v2.1.0)
+### 13. Help & FAQ (v1.6.0)
 
 - **Description:** In-app help system with PWA installation instructions
 - **Implementation:** `js/share.js`
