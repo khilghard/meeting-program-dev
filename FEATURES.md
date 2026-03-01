@@ -8,7 +8,7 @@ Meeting Program is a Progressive Web App (PWA) that displays sacrament meeting p
 
 ---
 
-## Current Features (v1.5.0)
+## Current Features (v2.1.0)
 
 ### 1. Dynamic Program Loading
 
@@ -96,7 +96,7 @@ Meeting Program is a Progressive Web App (PWA) that displays sacrament meeting p
   - Persists profiles in localStorage
   - Shows profile selector when multiple profiles exist
 
-### 8. Program History (v1.5.0)
+### 8. Program History (v2.1.0)
 
 - **Description:** Archives previous meeting programs
 - **Implementation:** `js/history.js`
@@ -112,7 +112,7 @@ Meeting Program is a Progressive Web App (PWA) that displays sacrament meeting p
     - Extended: 2 years if data < 100KB
   - History modal UI to view/load past programs
 
-### 9. Hymn Linking (v1.5.0)
+### 9. Hymn Linking (v2.1.0)
 
 - **Description:** Clickable links to hymns on Church website
 - **Implementation:** `js/utils/renderers.js`
@@ -121,7 +121,7 @@ Meeting Program is a Progressive Web App (PWA) that displays sacrament meeting p
   - Children's songs (CS format) link to: `https://www.churchofjesuschrist.org/music/library/children/{slug}`
   - Links open in new tab with proper security attributes
 
-### 10. Honorific Translation (v1.5.0)
+### 10. Honorific Translation (v2.1.0)
 
 - **Description:** Auto-translates English honorifics to local language
 - **Implementation:** `js/i18n/honorifics.js`
@@ -152,7 +152,7 @@ Meeting Program is a Progressive Web App (PWA) that displays sacrament meeting p
   - XSS prevention
   - Unknown key filtering
 
-### 12. Program Sharing (v1.6.0)
+### 12. Program Sharing (v2.1.0)
 
 - **Description:** Share program with neighbors via QR code
 - **Implementation:** `js/share.js`
@@ -163,7 +163,7 @@ Meeting Program is a Progressive Web App (PWA) that displays sacrament meeting p
   - Includes direct URL display for manual entry
   - Translations for all 4 languages
 
-### 13. Help & FAQ (v1.6.0)
+### 13. Help & FAQ (v2.1.0)
 
 - **Description:** In-app help system with PWA installation instructions
 - **Implementation:** `js/share.js`
@@ -179,6 +179,22 @@ Meeting Program is a Progressive Web App (PWA) that displays sacrament meeting p
 ## Implemented Requirements
 
 All requirements listed in `docs/REQUIREMENTS_*.md` have been implemented and are included in the current feature set above. See the `docs/` folder for details on implemented items such as IndexedDB-backed profiles/archives, service worker update flows, offline caching strategies, sharing/QR flows, internationalization, and UI/theme behaviors.
+
+No further features are planned for this project; the app is at stable feature-complete version v2.1.0.
+
+## Notable changes (v1.6.0 → v2.1.0)
+
+The following highlights summarize the work completed between v1.6.0 and v2.1.0.
+
+- Service worker & versioning: improved caching strategies, version-based cache names, more robust update checks and skipWaiting flow; added scripts and logic to keep `js/version.js` and the service worker in sync.
+- Archive subsystem: implemented archive/index pages, archive object models, date-based archives per profile, checksum and data-integrity fixes, and consistent rendering for archived programs.
+- Profile management: refactored profile handling, added IndexedDB-backed storage patterns (profiles/archives), safeguards around profile creation/deletion, and improved QR-based profile onboarding.
+- QR & sharing: enhanced QR scanner and share flow to extract sheet URLs and site URLs reliably; added manual URL entry fallbacks and URL validation improvements.
+- Internationalization: added i18n support to the archive UI and ensured UI translations persist across pages.
+- Sanitization & rendering: improved sanitization logic, tightened URL validation (https-only), and consolidated rendering via `renderers.js` for consistent output between live and archived views.
+- Tests: added comprehensive E2E and unit tests covering profiles, service worker behavior, QR scanning flows, and archive functionality.
+- UX & theming: fixed theme initialization on archive pages, consistent styling across archive and main views, and multiple small UI/formatting fixes.
+- Misc: various bug fixes, dependency updates, version bumps, and CI/test adjustments.
 
 ## Contributing
 
