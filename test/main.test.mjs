@@ -52,7 +52,8 @@ vi.mock("../js/sanitize.js", () => ({
 // Mock qr.js
 vi.mock("../js/qr.js", () => ({
   showScanner: vi.fn(),
-  stopQRScanner: vi.fn()
+  stopQRScanner: vi.fn(),
+  extractSheetUrl: vi.fn((url) => url)
 }));
 
 // Mock profiles.js

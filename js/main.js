@@ -1,4 +1,4 @@
-import { showScanner } from "./qr.js";
+import { showScanner, extractSheetUrl } from "./qr.js";
 import * as Profiles from "./profiles.js";
 import { hasLegacyProfiles, migrateLegacyProfiles } from "./data/ProfileManager.js";
 import * as ArchiveManager from "./data/ArchiveManager.js";
@@ -28,12 +28,6 @@ import { saveProgramHistory, getProgramHistory, cleanupHistory } from "./history
 import { initShareUI, promptPWAInstall, openHelpModal } from "./share.js";
 import { checkMigrationRequired } from "./data/MigrationSystem.js";
 import { showMigrationBanner, resetMigrationBannerSession } from "./data/MigrationBanner.js";
-import {
-  getArchiveWithValidation,
-  getStorageInfo,
-  getStorageIntegrity,
-  cleanupOldArchives
-} from "./archive-fix.js";
 
 // ------------------------------------------------------------
 // 4. Theme Logic
@@ -248,6 +242,15 @@ async function init() {
   const main = document.getElementById("main-program");
   const pageContainer = document.getElementById("page-container");
 
+  // Set canonical URL dynamically from IndexedDB
+  const { getMetadata } = await import("./data/IndexedDBManager.js");
+  const siteUrl = await getMetadata("siteUrl");
+  const canonicalUrl = siteUrl ? `${siteUrl}/` : "https://khilghard.github.io/meeting-program/";
+  const canonicalLink = document.querySelector("#canonical-link");
+  if (canonicalLink) {
+    canonicalLink.href = canonicalUrl;
+  }
+
   // Show spinner
   if (pageContainer) pageContainer.classList.add("loading");
   main.classList.add("loading");
@@ -292,6 +295,14 @@ async function init() {
       }
     } else if (currentProfile && !sheetUrl) {
       sheetUrl = currentProfile.url;
+    }
+
+    // Extract sheet URL from app URL if needed
+    if (sheetUrl) {
+      const extractedUrl = extractSheetUrl(sheetUrl);
+      if (extractedUrl) {
+        sheetUrl = extractedUrl;
+      }
     }
 
     // 3. Setup UI Selectors
@@ -386,6 +397,18 @@ async function init() {
 
       // Handle Profile Creation from URL param or legacy localStorage
       if (!currentProfile && sheetUrl) {
+        // Extract and set the site URL from the sheetUrl
+        try {
+          const parsed = new URL(sheetUrl);
+          if (parsed.pathname === "/meeting-program" || parsed.hostname.includes("github.io")) {
+            const baseUrl = `${parsed.protocol}//${parsed.host}${parsed.pathname}`;
+            const { setMetadata } = await import("./data/IndexedDBManager.js");
+            await setMetadata("siteUrl", baseUrl);
+          }
+        } catch (e) {
+          // Ignore if URL parsing fails
+        }
+
         await Profiles.addProfile(sheetUrl, unitName, stakeName);
         localStorage.removeItem("sheetUrl");
         initProfileUI();

@@ -77,13 +77,29 @@ export function openShareModal() {
 function getCurrentProgramUrl() {
   const params = new URLSearchParams(window.location.search);
   const urlParam = params.get("url");
-  if (urlParam) {
-    return urlParam; // Return the raw URL parameter as it's already a full URL
+
+  // If we have a direct Google Sheets URL parameter, use it
+  if (urlParam && urlParam.startsWith("https://docs.google.com/spreadsheets/")) {
+    return urlParam;
   }
 
+  // If we have an app URL with sheet as parameter, extract the sheet URL
+  if (urlParam) {
+    try {
+      const parsed = new URL(urlParam);
+      const sheetUrl = parsed.searchParams.get("url");
+      if (sheetUrl && sheetUrl.startsWith("https://docs.google.com/spreadsheets/")) {
+        return sheetUrl;
+      }
+    } catch (e) {
+      // Invalid URL format
+    }
+  }
+
+  // If we have a profile, use its URL
   const profile = getCurrentProfile();
   if (profile && profile.url) {
-    return profile.url; // Return the raw URL from profile
+    return profile.url;
   }
 
   return null;

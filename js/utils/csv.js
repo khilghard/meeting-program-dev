@@ -15,9 +15,9 @@ function parseCSV(csv) {
     const char = str[i];
     const nextChar = str[i + 1];
 
-    if (char === '"') {
-      if (inQuotes && nextChar === '"') {
-        currentField += '"';
+    if (char === "\"") {
+      if (inQuotes && nextChar === "\"") {
+        currentField += "\"";
         i++; // skip next quote
       } else {
         inQuotes = !inQuotes;

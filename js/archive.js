@@ -214,7 +214,7 @@ async function loadArchives() {
         <div class="profile-card-name">${date}</div>
         <div class="profile-card-details">${conducting ? `Conducting: ${conducting}` : ""}</div>
         <div class="profile-card-details">Speakers:</div>
-        ${info.speakers && info.speakers.length > 0 ? info.speakers.map((speaker) => `<div class="profile-card-details">${speaker}</div>`).join("") : '<div class="profile-card-details">No speakers</div>'}
+        ${info.speakers && info.speakers.length > 0 ? info.speakers.map((speaker) => `<div class="profile-card-details">${speaker}</div>`).join("") : "<div class=\"profile-card-details\">No speakers</div>"}
       </div>
     `;
 

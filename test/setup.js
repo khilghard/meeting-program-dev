@@ -17,6 +17,59 @@ globalThis.__resetStorage = () => {
   storageData.migrations.clear();
 };
 
+// Mock navigator.userAgent for isSafari() tests
+if (!global.navigator) {
+  global.navigator = {};
+}
+
+Object.defineProperty(navigator, "userAgent", {
+  value:
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
+  writable: true
+});
+
+// Mock navigator.mediaDevices for camera tests
+if (!global.navigator.mediaDevices) {
+  global.navigator.mediaDevices = {};
+}
+
+navigator.mediaDevices.getUserMedia = vi.fn().mockImplementation(() => {
+  return Promise.resolve({
+    getTracks: () => []
+  });
+});
+
+// Import and initialize i18n system before QR module
+import { initI18n } from "../js/i18n/index.js";
+initI18n();
+
+// Import QR module functions from the actual module
+import * as qrModule from "../js/qr.js";
+
+// Make QR module functions available on window for tests
+window.isSafari = qrModule.isSafari;
+window.isValidSheetUrl = qrModule.isValidSheetUrl;
+window.extractSheetUrl = qrModule.extractSheetUrl;
+window.showScanner = qrModule.showScanner;
+window.hideScanner = qrModule.hideScanner;
+window.showManualUrlEntry = qrModule.showManualUrlEntry;
+window.hideManualUrlEntry = qrModule.hideManualUrlEntry;
+window.scanFrame = qrModule.scanFrame;
+window.startQRScanner = qrModule.startQRScanner;
+window.stopQRScanner = qrModule.stopQRScanner;
+window.handleScannedUrl = qrModule.handleScannedUrl;
+window.t = qrModule.t;
+
+// Mock jsQR for QR scanning tests
+if (typeof global === "undefined") {
+  global = {};
+}
+global.jsQR = vi.fn().mockImplementation((data, width, height) => {
+  return {
+    data: "https://docs.google.com/spreadsheets/d/test"
+  };
+});
+
 function createRequest(result) {
   let successHandler = null;
   let errorHandler = null;
@@ -284,7 +337,6 @@ class MockIDBFactory {
           oncomplete: null,
           onerror: null
         };
-        // Fire oncomplete after a tick to simulate async transaction
         setTimeout(() => {
           if (tx.oncomplete) tx.oncomplete();
         }, 0);
@@ -393,3 +445,63 @@ class MockWorker {
 }
 
 globalThis.Worker = MockWorker;
+
+// Set up test environment
+beforeEach(() => {
+  document.body.innerHTML = "";
+
+  const qrScanner = document.createElement("div");
+  qrScanner.id = "qr-scanner";
+  document.body.appendChild(qrScanner);
+
+  const qrVideo = document.createElement("video");
+  qrVideo.id = "qr-video";
+  document.body.appendChild(qrVideo);
+
+  const qrCanvas = document.createElement("canvas");
+  qrCanvas.id = "qr-canvas";
+  document.body.appendChild(qrCanvas);
+
+  const qrOutput = document.createElement("div");
+  qrOutput.id = "qr-output";
+  document.body.appendChild(qrOutput);
+
+  const qrActionBtn = document.createElement("button");
+  qrActionBtn.id = "qr-action-btn";
+  qrActionBtn.textContent = "Scan Program QR Code";
+  document.body.appendChild(qrActionBtn);
+
+  const manualUrlBtn = document.createElement("button");
+  manualUrlBtn.id = "manual-url-btn";
+  manualUrlBtn.textContent = "Enter Sheet URL Manually";
+  document.body.appendChild(manualUrlBtn);
+
+  const manualUrlContainer = document.createElement("div");
+  manualUrlContainer.id = "manual-url-container";
+  manualUrlContainer.hidden = true;
+  document.body.appendChild(manualUrlContainer);
+
+  const manualUrlInput = document.createElement("input");
+  manualUrlInput.id = "manual-url-input";
+  manualUrlInput.placeholder = "Enter Google Sheets URL";
+  manualUrlContainer.appendChild(manualUrlInput);
+
+  const manualUrlSubmit = document.createElement("button");
+  manualUrlSubmit.id = "manual-url-submit";
+  manualUrlSubmit.textContent = "Add";
+  manualUrlContainer.appendChild(manualUrlSubmit);
+
+  global.jsQR = vi.fn().mockImplementation((data, width, height) => {
+    return {
+      data: "https://docs.google.com/spreadsheets/d/test"
+    };
+  });
+
+  window.t = qrModule.t;
+
+  window.__TEST_ENV__ = true;
+
+  window.__handleScannedUrl__ = vi.fn();
+});
+
+window.__TEST_ENV__ = true;
