@@ -19,17 +19,12 @@
     "*.js": "eslint --fix"
   },
   "dependencies": {
-    "@eslint/js": "^10.0.1",
-    "express": "^5.2.1"
-  },
-  "devDependencies": {
-    "@axe-core/playwright": "^4.11.1",
-    "@peculiar/webcrypto": "^1.5.0",
+    "@eslint/js": "^9.0.0",
     "@playwright/test": "^1.58.2",
-    "@vitest/coverage-v8": "^4.0.18",
-    "eslint": "^10.0.2",
-    "eslint-config-prettier": "^10.1.8",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^10.0.0",
     "eslint-plugin-import": "^2.32.0",
+    "express": "^5.2.1",
     "fake-indexeddb": "^6.2.5",
     "husky": "^9.1.7",
     "jsdom": "^28.1.0",

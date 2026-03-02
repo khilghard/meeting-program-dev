@@ -4,7 +4,7 @@
 // ------------------------------------------------------------
 const MPPATH = "/meeting-program";
 const APP_PREFIX = "smpwa";
-const VERSION = "2.1.0";
+const VERSION = "2.1.1";
 const CACHE_NAME = `${APP_PREFIX}-${VERSION}`;
 
 // Separate caches for different content types
