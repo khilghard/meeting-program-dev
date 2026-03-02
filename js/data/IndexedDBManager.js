@@ -273,11 +273,10 @@ async function getStorageInfo() {
   const profiles = await getAllProfiles();
   const archives = await getAllArchivesForAllProfiles();
 
-  let used = 0;
   const profileData = JSON.stringify(profiles);
   const archiveData = JSON.stringify(archives);
 
-  used = new Blob([profileData + archiveData]).size;
+  const used = new Blob([profileData + archiveData]).size;
 
   return {
     used,
@@ -351,7 +350,7 @@ async function getArchiveWithValidation(profileId, programDate) {
   const calculatedChecksum = await calculateChecksum(archive.csvData);
 
   if (calculatedChecksum !== archive.checksum) {
-    return { valid: false, data: null, error: "Checksum mismatch - data may be corrupted" };
+    return { valid: false, data: archive, error: "Checksum mismatch - data may be corrupted" };
   }
 
   return { valid: true, data: archive, error: null };

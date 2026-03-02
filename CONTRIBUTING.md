@@ -40,17 +40,20 @@ This project serves members of The Church of Jesus Christ of Latter-day Saints. 
 1. **Fork the repository** on GitHub
 
 2. **Clone your fork:**
+
    ```bash
    git clone https://github.com/YOUR_USERNAME/meeting-program.git
    cd meeting-program
    ```
 
 3. **Install dependencies:**
+
    ```bash
    npm install
    ```
 
 4. **Run the development server:**
+
    ```bash
    npm run dev
    ```
@@ -116,17 +119,17 @@ npm run test:e2e:ui
 
 ```javascript
 // Unit tests
-describe('Module Name', () => {
-  describe('functionName()', () => {
-    test('should do something specific', () => {
+describe("Module Name", () => {
+  describe("functionName()", () => {
+    test("should do something specific", () => {
       // ...
     });
   });
 });
 
 // E2E tests
-test.describe('Feature Name', () => {
-  test('should complete user flow', async ({ page }) => {
+test.describe("Feature Name", () => {
+  test("should complete user flow", async ({ page }) => {
     // ...
   });
 });
@@ -196,12 +199,14 @@ meeting-program/
 ### Before Submitting
 
 1. **Run all tests:**
+
    ```bash
    npm test
    npm run test:e2e
    ```
 
 2. **Run linting:**
+
    ```bash
    npm run lint
    npm run format:check
@@ -214,6 +219,7 @@ meeting-program/
 ### Creating a Pull Request
 
 1. **Push your branch** to your fork:
+
    ```bash
    git push origin feature/your-feature-name
    ```
@@ -247,6 +253,7 @@ style: Fix linting issues in main.js
 ```
 
 Prefixes:
+
 - `feat:` - New feature
 - `fix:` - Bug fix
 - `docs:` - Documentation changes
@@ -357,4 +364,3 @@ By contributing to this project, you agree that your contributions will be licen
 ---
 
 Thank you for contributing! 🎉
-

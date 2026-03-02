@@ -5,23 +5,23 @@ self.onmessage = function (e) {
     let result = null;
 
     switch (type) {
-      case "parseCSV":
-        result = parseCSV(payload, options);
-        break;
-      case "calculateChecksum":
-        result = calculateChecksum(payload);
-        break;
-      case "compareData":
-        result = compareData(payload.old, payload.new);
-        break;
-      case "sortData":
-        result = sortData(payload.data, payload.sortKey);
-        break;
-      case "cleanupArchives":
-        result = cleanupOldArchives(payload.archives, payload.daysOld, payload.maxArchives);
-        break;
-      default:
-        throw new Error(`Unknown worker type: ${type}`);
+    case "parseCSV":
+      result = parseCSV(payload, options);
+      break;
+    case "calculateChecksum":
+      result = calculateChecksum(payload);
+      break;
+    case "compareData":
+      result = compareData(payload.old, payload.new);
+      break;
+    case "sortData":
+      result = sortData(payload.data, payload.sortKey);
+      break;
+    case "cleanupArchives":
+      result = cleanupOldArchives(payload.archives, payload.daysOld, payload.maxArchives);
+      break;
+    default:
+      throw new Error(`Unknown worker type: ${type}`);
     }
 
     self.postMessage({ type, id, result });
@@ -43,9 +43,9 @@ function parseCSV(csv, options = {}) {
     const char = str[i];
     const nextChar = str[i + 1];
 
-    if (char === '"') {
-      if (inQuotes && nextChar === '"') {
-        currentField += '"';
+    if (char === "\"") {
+      if (inQuotes && nextChar === "\"") {
+        currentField += "\"";
         i++;
       } else {
         inQuotes = !inQuotes;

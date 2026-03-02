@@ -1,5 +1,9 @@
 # 📘 meeting-program
 
+[![GitHub Pages](https://img.shields.io/badge/Host-GitHub%20Pages-blue)](https://khilghard.github.io/meeting-program)
+[![GitHub Release](https://img.shields.io/github/v/release/khilghard/meeting-program)](https://github.com/khilghard/meeting-program/releases)
+[![License](https://img.shields.io/github/license/khilghard/meeting-program)](LICENSE)
+
 Provides meeting notes highlighting the program for the day. Hosted on a GitHub Page and pulling data dynamically from Google Sheets. Designed for use on phones and tablets during sacrament meetings via QR code.
 
 The challenge this program solves:
@@ -15,6 +19,76 @@ The solution was:
 3. A PWA that can be used offline and updated in real time.
 
 ---
+
+## 🚀 Quick Start
+
+1. Open the app: **https://khilghard.github.io/meeting-program**
+2. Scan your program's QR code
+3. That's it!
+
+Your program loads automatically. The app works offline and remembers your last program.
+
+---
+
+## 📋 Table of Contents
+
+- [Quick Start](#-quick-start)
+- [Site Assets](#️-site-assets)
+- [Multi-Language Support](#-multi-language-support)
+- [Hosting on GitHub](#-hosting-on-github)
+- [Development](#-development)
+- [Testing](#-testing)
+- [Feature Work](#-feature-work)
+- [Deploying](#-deploying)
+- [Google Sheets Setup](#-google-sheets-setup-for-normal-users)
+- [Keys & Values Reference](#-keys--values-reference)
+- [Create a QR Code](#-5-create-a-qr-code-for-the-csv-link)
+- [Load the Sheet](#-6-load-the-sheet-in-the-app)
+- [Updating the Program](#-7-updating-the-program)
+- [Privacy & Safety](#-8-privacy--safety-notes)
+- [Security & Sanitization](#-security--sanitization)
+- [Setting Up the Next Meeting](#-setting-up-the-next-meeting)
+- [Example Sheets](#-example-google-sheets-structure)
+- [What's New in v2.0](#-whats-new-in-v20)
+- [Migration from v1.x](#migration-from-v1x)
+
+---
+
+## 🛠️ Development
+
+### Prerequisites
+
+- Node.js 20+
+- npm 10+
+
+### Setup
+
+```bash
+npm install
+```
+
+### Commands
+
+| Command                 | Description                  |
+| ----------------------- | ---------------------------- |
+| `npm run dev`           | Run local development server |
+| `npm run lint`          | Check code style             |
+| `npm run lint:fix`      | Auto-fix lint issues         |
+| `npm run format`        | Auto-format code             |
+| `npm run format:check`  | Check formatting             |
+| `npm test`              | Run unit tests               |
+| `npm run test:run`      | Run unit tests once          |
+| `npm run test:coverage` | Run tests with coverage      |
+| `npm run test:e2e`      | Run E2E tests                |
+| `npm run test:e2e:ui`   | Open Playwright UI           |
+
+### Tech Stack
+
+- Vanilla JavaScript (ES Modules)
+- [Vitest](https://vitest.dev/) - Unit testing
+- [Playwright](https://playwright.dev/) - E2E testing
+- IndexedDB - Offline data storage
+- Service Worker - PWA capabilities
 
 ## 🖼️ Site Assets
 

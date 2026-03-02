@@ -58,6 +58,10 @@ async function refreshCache() {
  * @returns {Profile[]}
  */
 export function getProfiles() {
+  if (!cache.initialized) {
+    console.warn("Profiles not initialized, returning empty array. Call initProfiles() first.");
+    return [];
+  }
   return cache.profiles;
 }
 
@@ -66,6 +70,9 @@ export function getProfiles() {
  * @returns {Profile[]}
  */
 export function getInactiveProfiles() {
+  if (!cache.initialized) {
+    return [];
+  }
   return cache.profiles.filter((p) => p.inactive);
 }
 
@@ -74,6 +81,9 @@ export function getInactiveProfiles() {
  * @returns {Profile[]}
  */
 export function getActiveProfiles() {
+  if (!cache.initialized) {
+    return [];
+  }
   return cache.profiles.filter((p) => !p.inactive);
 }
 
@@ -137,15 +147,20 @@ export async function selectProfile(id) {
  * @returns {string|null}
  */
 export function getSelectedProfileId() {
+  if (!cache.initialized) {
+    return null;
+  }
   return cache.selectedId;
 }
 
 /**
  * Gets a profile by ID (sync - uses cache)
- * @param {string} id
  * @returns {Profile|undefined}
  */
 export function getProfileById(id) {
+  if (!cache.initialized) {
+    return undefined;
+  }
   return cache.profiles.find((p) => p.id === id);
 }
 
@@ -154,6 +169,9 @@ export function getProfileById(id) {
  * @returns {Profile|null}
  */
 export function getCurrentProfile() {
+  if (!cache.initialized) {
+    return null;
+  }
   return cache.currentProfile;
 }
 

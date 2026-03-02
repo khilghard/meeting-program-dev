@@ -8,7 +8,7 @@ Meeting Program is a Progressive Web App (PWA) that displays sacrament meeting p
 
 ---
 
-## Current Features (v1.5.0)
+## Current Features (v2.1.0)
 
 ### 1. Dynamic Program Loading
 
@@ -96,7 +96,7 @@ Meeting Program is a Progressive Web App (PWA) that displays sacrament meeting p
   - Persists profiles in localStorage
   - Shows profile selector when multiple profiles exist
 
-### 8. Program History (v1.5.0)
+### 8. Program History (v2.1.0)
 
 - **Description:** Archives previous meeting programs
 - **Implementation:** `js/history.js`
@@ -112,7 +112,7 @@ Meeting Program is a Progressive Web App (PWA) that displays sacrament meeting p
     - Extended: 2 years if data < 100KB
   - History modal UI to view/load past programs
 
-### 9. Hymn Linking (v1.5.0)
+### 9. Hymn Linking (v2.1.0)
 
 - **Description:** Clickable links to hymns on Church website
 - **Implementation:** `js/utils/renderers.js`
@@ -121,7 +121,7 @@ Meeting Program is a Progressive Web App (PWA) that displays sacrament meeting p
   - Children's songs (CS format) link to: `https://www.churchofjesuschrist.org/music/library/children/{slug}`
   - Links open in new tab with proper security attributes
 
-### 10. Honorific Translation (v1.5.0)
+### 10. Honorific Translation (v2.1.0)
 
 - **Description:** Auto-translates English honorifics to local language
 - **Implementation:** `js/i18n/honorifics.js`
@@ -176,168 +176,25 @@ Meeting Program is a Progressive Web App (PWA) that displays sacrament meeting p
 
 ---
 
-## Future Features (Planned)
+## Implemented Requirements
 
-### 1. Program Sharing via QR Codes
+All requirements listed in `docs/REQUIREMENTS_*.md` have been implemented and are included in the current feature set above. See the `docs/` folder for details on implemented items such as IndexedDB-backed profiles/archives, service worker update flows, offline caching strategies, sharing/QR flows, internationalization, and UI/theme behaviors.
 
-**Description:** Allow users to share the current program with nearby users
+No further features are planned for this project; the app is at stable feature-complete version v2.1.0.
 
-**User Flow:**
+## Notable changes (v1.6.0 → v2.1.0)
 
-1. Display first QR code: The meeting-program website URL
-2. Show instructions: "Scan to open the app"
-3. Handle camera permission failures with helpful guidance
-4. Flip to second "page": QR code containing the current program URL
-5. Show instructions: "How to install PWA on Android/iPhone"
+The following highlights summarize the work completed between v1.6.0 and v2.1.0.
 
-**Implementation Notes:**
-
-- Use existing QR generation library (qrcode.js or similar)
-- Create multi-step onboarding flow
-- Add PWA installation instructions for:
-  - iOS: Safari → Share → Add to Home Screen
-  - Android: Chrome → Menu → Install App
-
-### 2. Improved User Onboarding
-
-**Description:** Better guidance for first-time users, especially around camera permissions
-
-**Features:**
-
-- First-run tutorial explaining app purpose
-- Camera permission request with explanation
-- Fallback manual URL entry
-- Clear error messages for common issues
-- "How to use" help section
-
-### 3. Additional Features (Proposed)
-
-- **Program Templates:** Pre-built CSV templates for common use cases
-- **Print Mode:** CSS print styles for paper programs
-- **Notification Reminders:** Browser notifications for meeting time
-- **Multi-Day Support:** Handle multiple meetings per day
-- **Hymn Search:** Search hymns by number or title
-- **Speaker Notes:** Add private notes visible only to clerks
-- **Version Changelog:** In-app release notes
-- **Analytics:** Anonymous usage tracking
-- **Backup/Export:** Export program data as JSON
-
----
-
-## v2.0 Features (Planned)
-
-### 1. IndexedDB Storage
-
-**Description:** Replace localStorage with IndexedDB for reliable data persistence
-
-**Features:**
-
-- All profile and archive data stored in IndexedDB
-- Transaction support for data integrity
-- Automatic storage management (10MB limit, 2-year retention)
-- Checksum validation for data integrity
-- Graceful degradation on storage errors
-
-**Implementation:** `js/data/IndexedDBManager.js`, `js/data/ProfileManager.js`
-
-### 2. Service Worker Enhancement
-
-**Description:** Advanced caching strategies for offline-first experience
-
-**Features:**
-
-- Cache-first for static assets
-- Network-first for Google Sheets URLs
-- Stale-while-revalidate for archive data
-- Custom offline page
-- Background sync for migration checks
-
-**Implementation:** `service-worker.js`
-
-### 3. Migration System
-
-**Description:** Notify users when programs need updating
-
-**Features:**
-
-- Detect `obsolete` and `migrationUrl` keys from Google Sheet
-- Validate migration URL before prompting
-- Non-intrusive banner notification
-- "Remind Me Later" option
-- Background sync when network available
-- Works completely offline
-
-**Implementation:** `js/data/ProfileManager.js`, `js/main.js`
-
-### 4. Archive Timeline UI
-
-**Description:** Visual timeline of past programs
-
-**Features:**
-
-- Timeline view with calendar dots
-- Newest programs displayed first
-- One-tap to load past programs
-- Storage usage indicator
-- Automatic cleanup warnings
-
-**Implementation:** `js/archive.js`
-
-### 5. Profile Cards
-
-**Description:** Enhanced profile selection interface
-
-**Features:**
-
-- Visual profile cards with status indicators
-- Green = active, Yellow = needs migration, Gray = archived
-- Search/filter profiles
-- Language flag icons
-- Accessible keyboard navigation
-
-**Implementation:** `js/main.js`, `css/styles.css`
-
-### 6. Print-Friendly Mode
-
-**Description:** Clean print output for physical programs
-
-**Features:**
-
-- One-click print button
-- Hides all UI elements
-- Optimized typography and spacing
-- Black text on white background
-- Works in all browsers
-
-**Implementation:** `css/styles.css`
-
-### 7. Offline Indicator
-
-**Description:** Clear network status feedback
-
-**Features:**
-
-- Subtle icon: 🌐 (online) or 📱 (offline)
-- "Working offline" message with last update time
-- Auto-detects network recovery
-- Non-intrusive placement
-
-**Implementation:** `js/main.js`
-
-### 8. Data Export/Import
-
-**Description:** Backup and restore functionality
-
-**Features:**
-
-- Export all profiles and archives as JSON
-- Import from JSON file
-- Includes checksums for integrity
-- Merge or replace options
-
-**Implementation:** `js/data/ProfileManager.js`
-
----
+- Service worker & versioning: improved caching strategies, version-based cache names, more robust update checks and skipWaiting flow; added scripts and logic to keep `js/version.js` and the service worker in sync.
+- Archive subsystem: implemented archive/index pages, archive object models, date-based archives per profile, checksum and data-integrity fixes, and consistent rendering for archived programs.
+- Profile management: refactored profile handling, added IndexedDB-backed storage patterns (profiles/archives), safeguards around profile creation/deletion, and improved QR-based profile onboarding.
+- QR & sharing: enhanced QR scanner and share flow to extract sheet URLs and site URLs reliably; added manual URL entry fallbacks and URL validation improvements.
+- Internationalization: added i18n support to the archive UI and ensured UI translations persist across pages.
+- Sanitization & rendering: improved sanitization logic, tightened URL validation (https-only), and consolidated rendering via `renderers.js` for consistent output between live and archived views.
+- Tests: added comprehensive E2E and unit tests covering profiles, service worker behavior, QR scanning flows, and archive functionality.
+- UX & theming: fixed theme initialization on archive pages, consistent styling across archive and main views, and multiple small UI/formatting fixes.
+- Misc: various bug fixes, dependency updates, version bumps, and CI/test adjustments.
 
 ## Contributing
 

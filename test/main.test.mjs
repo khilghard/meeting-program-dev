@@ -52,7 +52,8 @@ vi.mock("../js/sanitize.js", () => ({
 // Mock qr.js
 vi.mock("../js/qr.js", () => ({
   showScanner: vi.fn(),
-  stopQRScanner: vi.fn()
+  stopQRScanner: vi.fn(),
+  extractSheetUrl: vi.fn((url) => url)
 }));
 
 // Mock profiles.js
@@ -532,7 +533,16 @@ describe("Networking & Errors", () => {
   });
 
   describe("init()", () => {
-    test.skip("loads from sheetUrl if present in localStorage (legacy migration)", async () => {
+    vi.mock("../js/workers/workerInterface.js", () => ({
+      createWorker: vi.fn((type, payload) => {
+        if (type === "parseCSV") {
+          return Promise.resolve([{ key: "speaker", value: "Alice" }]);
+        }
+        return Promise.resolve(null);
+      })
+    }));
+
+    test("loads from sheetUrl if present in localStorage (legacy migration)", async () => {
       const url = "https://docs.google.com/spreadsheets/d/test";
       localStorage.setItem("sheetUrl", url);
       global.fetch.mockResolvedValue({

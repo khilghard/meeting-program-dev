@@ -51,7 +51,7 @@ export async function autoArchive(profileId, programDate, csvData, options = {})
     return { archived: false, reason: "missing_params" };
   }
 
-  const { force = false } = options;
+  const { force = false, profileUrl = null } = options;
 
   const existing = await getArchive(profileId, programDate);
 
@@ -63,6 +63,7 @@ export async function autoArchive(profileId, programDate, csvData, options = {})
     }
 
     existing.csvData = csvData;
+    existing.profileUrl = profileUrl || existing.profileUrl;
     existing.cachedAt = now;
     await saveArchive(existing);
 
@@ -74,12 +75,17 @@ export async function autoArchive(profileId, programDate, csvData, options = {})
     };
   }
 
+  // Calculate checksum before creating archive object
+  const checksum = await calculateChecksum(csvData);
+
   const newArchive = {
     id: generateArchiveId(profileId, programDate),
     profileId,
     programDate,
     csvData,
-    cachedAt: now
+    profileUrl,
+    cachedAt: now,
+    checksum
   };
 
   await saveArchive(newArchive);
@@ -227,4 +233,5 @@ export async function getStorageIntegrityReport() {
   return await getStorageIntegrity();
 }
 
+export { deleteArchive };
 export { MAX_SIZE_BYTES, WARNING_THRESHOLD_BYTES, MAX_AGE_DAYS };

@@ -8,7 +8,7 @@ export default [
   // ------------------------------------------------------------
   {
     files: ["js/**/*.js"],
-    ignores: ["server.js", "../service-worker.js"],
+    ignores: ["server.js", "../service-worker.js", "js/workers/*.js"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
@@ -71,6 +71,33 @@ export default [
       indent: ["error", 2],
       semi: ["error", "always"],
       quotes: ["error", "double"]
+    }
+  },
+
+  // ------------------------------------------------------------
+  // Web Workers (data.worker.js, workerInterface.js)
+  // ------------------------------------------------------------
+  {
+    files: ["js/workers/*.js"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: {
+        self: "readonly",
+        Worker: "readonly",
+        console: "readonly",
+        fetch: "readonly",
+        MessageChannel: "readonly",
+        globalThis: "readonly",
+        crypto: "readonly",
+        TextEncoder: "readonly"
+      }
+    },
+    rules: {
+      indent: ["error", 2],
+      semi: ["error", "always"],
+      quotes: ["error", "double"],
+      "no-unused-vars": ["warn"]
     }
   },
 

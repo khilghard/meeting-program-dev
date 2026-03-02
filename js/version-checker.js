@@ -6,7 +6,19 @@
 import { VERSION } from "./version.js";
 import { isNewer } from "./version-parser.js";
 
-const REMOTE_URL = "https://khilghard.github.io/meeting-program/version.json";
+let REMOTE_URL = "https://khilghard.github.io/meeting-program/version.json";
+
+// Get site URL from IndexedDB
+async function getSiteUrl() {
+  const { getMetadata } = await import("./data/IndexedDBManager.js");
+  const storedUrl = await getMetadata("siteUrl");
+  return storedUrl || "https://khilghard.github.io/meeting-program";
+}
+
+// Initialize REMOTE_URL with the stored site URL
+getSiteUrl().then((url) => {
+  REMOTE_URL = `${url}/version.json`;
+});
 const CHECK_INTERVAL_MS = 3600000;
 const CACHE_BUST_PARAM = "t";
 const MAX_RETRIES = 3;

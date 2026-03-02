@@ -62,30 +62,93 @@ export async function validateMigrationUrl(url) {
   // Validate URL format
   try {
     const urlObj = new URL(url);
-    if (!urlObj.href.includes("docs.google.com/spreadsheets/")) {
+    if (
+      !urlObj.hostname.includes("docs.google.com") ||
+      !urlObj.pathname.includes("/spreadsheets/")
+    ) {
       return { valid: false, data: null, error: "URL must be a Google Sheets URL" };
     }
   } catch (e) {
     return { valid: false, data: null, error: "Invalid URL format" };
   }
 
-  // In a browser environment, we'd fetch the URL here
-  // For testing, we'll simulate a successful fetch
-  // In production, this would use fetch() with error handling
+  // Validate URL by fetching the actual content
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      return { valid: false, data: null, error: "Failed to fetch Google Sheets data" };
+    }
 
-  // Simulate a successful fetch (would be replaced with actual fetch)
-  // This is a placeholder for the actual network request
-  // For now, we'll just return a dummy response that passes validation
+    // Parse the CSV content
+    const csvText = await response.text();
+    if (!csvText || csvText.length === 0) {
+      return { valid: false, data: null, error: "Empty response from Google Sheets" };
+    }
 
-  // We'll assume the CSV data contains the required fields
-  return {
-    valid: true,
-    data: {
-      unitName: "Migrated Unit",
-      stakeName: "Migrated Stake"
-    },
-    error: null
-  };
+    // Extract unit name and stake name from CSV data
+    const lines = csvText.split("\n");
+    if (lines.length < 2) {
+      return { valid: false, data: null, error: "Invalid CSV format" };
+    }
+
+    // Parse first row as headers
+    const headers = lines[0].split(",").map((h) => h.trim());
+
+    // Find unit name and stake name in data rows
+    let unitName = "";
+    let stakeName = "";
+
+    for (let i = 1; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+
+      const values = lines[i].split(",").map((v) => v.trim());
+
+      // Look for unit name and stake name in common header positions
+      const unitIndex =
+        headers.indexOf("unitName") !== -1
+          ? headers.indexOf("unitName")
+          : headers.indexOf("unit") !== -1
+            ? headers.indexOf("unit")
+            : -1;
+      const stakeIndex =
+        headers.indexOf("stakeName") !== -1
+          ? headers.indexOf("stakeName")
+          : headers.indexOf("stake") !== -1
+            ? headers.indexOf("stake")
+            : -1;
+
+      if (unitIndex !== -1 && values[unitIndex]) {
+        unitName = values[unitIndex];
+      }
+
+      if (stakeIndex !== -1 && values[stakeIndex]) {
+        stakeName = values[stakeIndex];
+      }
+
+      // If we found both, break
+      if (unitName && stakeName) break;
+    }
+
+    // If we have valid data, return it
+    if (unitName && stakeName) {
+      return {
+        valid: true,
+        data: {
+          unitName,
+          stakeName
+        },
+        error: null
+      };
+    } else {
+      return { valid: false, data: null, error: "Could not find required data in Google Sheets" };
+    }
+  } catch (error) {
+    return {
+      valid: false,
+      data: null,
+      error: "Network error fetching Google Sheets data: " + error.message
+    };
+  }
 }
 
 export async function getMigrationPreference(profileId) {

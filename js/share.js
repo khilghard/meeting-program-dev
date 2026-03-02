@@ -77,20 +77,61 @@ export function openShareModal() {
 function getCurrentProgramUrl() {
   const params = new URLSearchParams(window.location.search);
   const urlParam = params.get("url");
-  if (urlParam) {
-    return (
-      window.location.origin + window.location.pathname + "?url=" + encodeURIComponent(urlParam)
-    );
+
+  // Get the sheet URL
+  let sheetUrl = null;
+
+  // If we have a direct Google Sheets URL parameter, use it
+  if (urlParam && urlParam.startsWith("https://docs.google.com/spreadsheets/")) {
+    sheetUrl = urlParam;
   }
 
-  const profile = getCurrentProfile();
-  if (profile && profile.url) {
-    return (
-      window.location.origin + window.location.pathname + "?url=" + encodeURIComponent(profile.url)
-    );
+  // If we have an app URL with sheet as parameter, extract the sheet URL
+  if (!sheetUrl && urlParam) {
+    try {
+      const parsed = new URL(urlParam);
+      const extracted = parsed.searchParams.get("url");
+      if (extracted && extracted.startsWith("https://docs.google.com/spreadsheets/")) {
+        sheetUrl = extracted;
+      }
+    } catch (e) {
+      // Invalid URL format
+    }
   }
 
-  return null;
+  // If we have a profile, use its URL
+  if (!sheetUrl) {
+    const profile = getCurrentProfile();
+    if (profile && profile.url) {
+      sheetUrl = profile.url;
+    }
+  }
+
+  if (!sheetUrl) {
+    return null;
+  }
+
+  // Build the full site URL with sheet URL as parameter
+  // Get the site URL from IndexedDB or use default
+  const siteUrl = getSiteUrl();
+  if (siteUrl) {
+    const fullUrl = new URL(siteUrl);
+    fullUrl.searchParams.set("url", sheetUrl);
+    return fullUrl.toString();
+  }
+
+  // Fallback to just the sheet URL if no site URL found
+  return sheetUrl;
+}
+
+function getSiteUrl() {
+  // This will be set after the first program load
+  // Check localStorage first for quick access
+  const stored = localStorage.getItem("meeting_program_site_url");
+  if (stored) return stored;
+
+  // Default fallback
+  return "https://khilghard.github.io/meeting-program/";
 }
 
 function getCurrentProfile() {
@@ -103,6 +144,11 @@ function generateQRCode(url, container) {
     return;
   }
 
+  if (!url) {
+    container.innerHTML = "<p>No program loaded</p>";
+    return;
+  }
+
   try {
     const canvas = document.createElement("canvas");
     QRCode.toCanvas(canvas, url, { width: 250, margin: 2 }, (error) => {
@@ -112,8 +158,8 @@ function generateQRCode(url, container) {
       }
       container.appendChild(canvas);
     });
-  } catch {
-    container.innerHTML = "<p>Error generating QR code</p>";
+  } catch (err) {
+    container.innerHTML = "<p>Error generating QR code: " + err.message + "</p>";
   }
 }
 
@@ -132,6 +178,7 @@ function openHelpModal() {
 
   updateHelpStrings();
 
+  // Ensure the modal is visible
   modal.showModal();
 
   if (closeBtn) {
@@ -160,4 +207,4 @@ function updateHelpStrings() {
   if (title) title.textContent = t("helpTitle");
 }
 
-export { HELP_SHOWN_KEY, INSTALL_PROMPT_KEY };
+export { HELP_SHOWN_KEY, INSTALL_PROMPT_KEY, openHelpModal };
