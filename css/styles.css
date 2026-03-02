@@ -176,6 +176,7 @@ a:visited {
   padding: 30px 20px;
   /* Space around the text */
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   text-align: center;
