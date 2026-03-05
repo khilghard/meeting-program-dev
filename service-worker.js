@@ -2,14 +2,14 @@
 // CONFIG
 // NOTE: Keep VERSION in sync with js/version.js
 // ------------------------------------------------------------
-const MPPATH = "/meeting-program";
+const MPPATH = "/meeting-program-dev";
 const APP_PREFIX = "smpwa";
 const VERSION = "2.1.1";
 const CACHE_NAME = `${APP_PREFIX}-${VERSION}`;
 
 // Separate caches for different content types
-const STATIC_CACHE = "meeting-program-static-v1";
-const DYNAMIC_CACHE = "meeting-program-dynamic-v1";
+const STATIC_CACHE = `meeting-program-static-v${VERSION}`;
+const DYNAMIC_CACHE = `meeting-program-dynamic-v${VERSION}`;
 const MAX_DYNAMIC_CACHE = 50;
 const MAX_CACHE_AGE_DAYS = 30;
 
