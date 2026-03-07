@@ -62,8 +62,12 @@
       if (lastLoadedVersion && lastLoadedVersion !== VERSION) {
         console.log(`[VERSION] Detected version mismatch: ${lastLoadedVersion} -> ${VERSION}. Clearing cache...`);
         // Clear all caches
-        if (navigator.serviceWorker?.controller) {
-          navigator.serviceWorker.controller.postMessage({ action: "clearCache" });
+        try {
+          if (typeof navigator !== "undefined" && navigator.serviceWorker?.controller) {
+            navigator.serviceWorker.controller.postMessage({ action: "clearCache" });
+          }
+        } catch (err) {
+          console.warn("[VERSION] Could not notify service worker:", err);
         }
         sessionStorage.clear();
         // Reload with fresh content

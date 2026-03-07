@@ -112,7 +112,10 @@ function initNetworkStatus() {
     const textEl = statusEl.querySelector(".status-text");
     const lastSyncEl = statusEl.querySelector(".last-sync");
 
-    if (navigator.onLine) {
+    // Guard against navigator not being available
+    const isOnline = typeof navigator !== "undefined" ? navigator.onLine : true;
+
+    if (isOnline) {
       iconEl.textContent = "🌐";
       textEl.textContent = "Online";
       statusEl.classList.remove("offline");

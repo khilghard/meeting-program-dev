@@ -391,6 +391,7 @@ async function getStoredLanguage() {
 
 function detectBrowserLanguage() {
   try {
+    if (typeof navigator === "undefined") return null;
     const browserLang = navigator.language || navigator.userLanguage || navigator.browserLanguage;
     if (!browserLang) return null;
 
