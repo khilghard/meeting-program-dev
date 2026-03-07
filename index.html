@@ -4,6 +4,39 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sacrament Meeting Program</title>
+    
+    <!-- Dynamically set manifest based on deployment path -->
+    <script>
+      (function detectAndSetManifest() {
+        const pathname = window.location.pathname;
+        const isDevDeployment = pathname.includes('/meeting-program-dev/');
+        const isProdDeployment = pathname.includes('/meeting-program/') && !isDevDeployment;
+        
+        let manifestHref = '/meeting-program/manifest.webmanifest'; // Default for prod
+        let deploymentPath = '/meeting-program/';
+        
+        if (isDevDeployment) {
+          manifestHref = '/meeting-program-dev/manifest.dev.webmanifest';
+          deploymentPath = '/meeting-program-dev/';
+        } else if (isProdDeployment) {
+          manifestHref = '/meeting-program/manifest.prod.webmanifest';
+          deploymentPath = '/meeting-program/';
+        }
+        
+        // Store for service worker and other scripts to use
+        window.MANIFEST_PATH = manifestHref;
+        window.DEPLOYMENT_PATH = deploymentPath;
+        
+        // Create and append manifest link (must happen in head, before other scripts)
+        const link = document.createElement('link');
+        link.rel = 'manifest';
+        link.href = manifestHref;
+        document.head.appendChild(link);
+        
+        console.log(`[Init] Detected deployment: ${deploymentPath}, using manifest: ${manifestHref}`);
+      })();
+    </script>
+    
     <script type="module">
       import { VERSION } from "./js/version.js";
       window.APP_VERSION = VERSION;
@@ -14,7 +47,6 @@
       document.head.appendChild(mainScript);
     </script>
     <link id="canonical-link" rel="canonical" />
-    <link rel="manifest" href="/meeting-program/manifest.webmanifest" />
     <link id="styles-link" rel="stylesheet" href="" />
     <link rel="icon" type="image/png" sizes="32x32" href="img/favicon.png" />
   </head>
