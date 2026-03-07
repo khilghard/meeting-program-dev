@@ -257,6 +257,11 @@ async function init() {
   main.classList.add("loading");
 
   try {
+    // Load and log version
+    const versionResponse = await fetch("./version.json");
+    const versionData = await versionResponse.json();
+    console.log(`[VERSION] App running version: ${versionData.version}`);
+
     console.log("[INIT] Starting initialization...");
 
     // 0. Cleanup old history entries
