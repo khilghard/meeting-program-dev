@@ -26,7 +26,7 @@ console.log(`[SW] BASE_PATH detected: "${BASE_PATH}"`);
 // Legacy support - keep old MPPATH for existing users
 const MPPATH = BASE_PATH || "/meeting-program-dev";
 const APP_PREFIX = "smpwa";
-const VERSION = "2.2.4";
+const VERSION = "2.2.5";
 const CACHE_NAME = `${APP_PREFIX}-${VERSION}`;
 
 // All users now on 2.2.x - single unified cache scheme
@@ -301,7 +301,11 @@ self.addEventListener("fetch", (event) => {
     url.pathname === `${BASE_PATH}` ||
     (BASE_PATH !== "/" && url.pathname === `${BASE_PATH.slice(0, -1)}`)
   ) {
-    const indexReq = new Request(`${BASE_PATH}index.html`, req);
+    // Create RequestInit without 'navigate' mode (which cannot be set in RequestInit)
+    const indexReq = new Request(`${BASE_PATH}index.html`, {
+      method: req.method,
+      headers: req.headers,
+    });
     event.respondWith(handleStaticCache(indexReq));
     return;
   }
