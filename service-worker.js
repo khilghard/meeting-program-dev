@@ -26,10 +26,10 @@ console.log(`[SW] BASE_PATH detected: "${BASE_PATH}"`);
 // Legacy support - keep old MPPATH for existing users
 const MPPATH = BASE_PATH || "/meeting-program-dev";
 const APP_PREFIX = "smpwa";
-const VERSION = "2.2.0";
+const VERSION = "2.2.2";
 const CACHE_NAME = `${APP_PREFIX}-${VERSION}`;
 
-// All users now on 2.2.1 - single unified cache scheme
+// All users now on 2.2.x - single unified cache scheme
 const STATIC_CACHE = `meeting-program-static-v${VERSION}`;
 const DYNAMIC_CACHE = `meeting-program-dynamic-v${VERSION}`;
 const MAX_DYNAMIC_CACHE = 50;
@@ -360,23 +360,22 @@ self.addEventListener("message", (event) => {
       (async () => {
         try {
           const keys = await caches.keys();
+          console.log("[SW] clearCache: Found caches:", keys);
           const results = await promiseAllSafe(
             keys.map((key) => {
-              if (key.startsWith(APP_PREFIX)) {
-                return caches.delete(key);
-              }
-              return Promise.resolve();
+              // Clear ALL caches, not just those with APP_PREFIX
+              console.log("[SW] Deleting cache:", key);
+              return caches.delete(key);
             }),
             { logger: (msg) => console.warn("[SW]", msg) }
           );
 
+          const deleted = results.filter((r) => r.success).length;
           const failed = results.filter((r) => !r.success).length;
-          if (failed > 0) {
-            console.warn(`[SW] ${failed} cache deletions failed`);
-          }
-
+          console.log(`[SW] Cache clear complete: ${deleted} deleted, ${failed} failed`);
+          
           if (event.ports[0]) {
-            event.ports[0].postMessage({ success: true });
+            event.ports[0].postMessage({ success: true, deletedCount: deleted });
           }
         } catch (err) {
           console.error("[SW] Clear cache failed:", err);

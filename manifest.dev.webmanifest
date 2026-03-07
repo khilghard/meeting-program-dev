@@ -1,7 +1,7 @@
 {
   "name": "Sacrament Meeting Program",
   "short_name": "Meeting Program",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "description": "Official sacrament meeting program for The Church of Jesus Christ of Latter-day Saints",
   "scope": "/meeting-program-dev/",
   "start_url": "/meeting-program-dev/",
