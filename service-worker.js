@@ -1,47 +1,61 @@
-// ------------------------------------------------------------
+// Detect base path from current service worker location
+const BASE_PATH = (() => {
+  const swPath = self.location.pathname;
+  
+  // Determine which deployment this service worker is for
+  if (swPath.includes('/meeting-program-dev/')) {
+    return '/meeting-program-dev/';
+  } else if (swPath.includes('/meeting-program/')) {
+    return '/meeting-program/';
+  }
+  
+  return '/meeting-program/'; // Default for backwards compatibility
+})();
+
 // CONFIG
 // NOTE: Keep VERSION in sync with js/version.js
-// ------------------------------------------------------------
-const MPPATH = "/meeting-program";
+const MPPATH = BASE_PATH;
 const APP_PREFIX = "smpwa";
-const VERSION = "2.1.4";
+const VERSION = "2.1.5"; // Updated to v2.1.5
 const CACHE_NAME = `${APP_PREFIX}-${VERSION}`;
 
-// Separate caches for different content types
-const STATIC_CACHE = "meeting-program-static-v1";
-const DYNAMIC_CACHE = "meeting-program-dynamic-v1";
+console.log(`[SW] BASE_PATH detected: "${BASE_PATH}"`, `VERSION: ${VERSION}`);
+
+// Separate caches for different content types - now versioned
+const STATIC_CACHE = `meeting-program-static-v${VERSION}`;
+const DYNAMIC_CACHE = `meeting-program-dynamic-v${VERSION}`;
 const MAX_DYNAMIC_CACHE = 50;
 const MAX_CACHE_AGE_DAYS = 30;
 
 // Cache expiration for Google Sheets (24 hours in milliseconds)
 const SHEET_CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000;
 
-const MAX_CACHES_TO_KEEP = 3;
+const MAX_CACHES_TO_KEEP = 5; // Increased to support cache versioning
 
-// Files to precache
+// Files to precache - note: manifest detection happens in index.html
 const URLS = [
-  `${MPPATH}/index.html?v=${VERSION}`,
-  `${MPPATH}/css/styles.css?v=${VERSION}`,
-  `${MPPATH}/js/version.js?v=${VERSION}`,
-  `${MPPATH}/js/version-parser.js?v=${VERSION}`,
-  `${MPPATH}/js/version-checker.js?v=${VERSION}`,
-  `${MPPATH}/js/service-worker-manager.js?v=${VERSION}`,
-  `${MPPATH}/js/update-manager.js?v=${VERSION}`,
-  `${MPPATH}/js/main.js?v=${VERSION}`,
-  `${MPPATH}/js/qr.js?v=${VERSION}`,
-  `${MPPATH}/js/sanitize.js?v=${VERSION}`,
-  `${MPPATH}/js/profiles.js?v=${VERSION}`,
-  `${MPPATH}/js/i18n/index.js?v=${VERSION}`,
-  `${MPPATH}/js/i18n/honorifics.js?v=${VERSION}`,
-  `${MPPATH}/js/history.js?v=${VERSION}`,
-  `${MPPATH}/js/auto-archive.js?v=${VERSION}`,
-  `${MPPATH}/js/archive.js?v=${VERSION}`,
-  `${MPPATH}/archive.html?v=${VERSION}`,
-  `${MPPATH}/js/utils/csv.js?v=${VERSION}`,
-  `${MPPATH}/js/utils/renderers.js?v=${VERSION}`,
-  `${MPPATH}/img/icon.png`,
-  `${MPPATH}/img/favicon.png`,
-  `${MPPATH}/manifest.webmanifest`,
+  `${MPPATH}index.html?v=${VERSION}`,
+  `${MPPATH}css/styles.css?v=${VERSION}`,
+  `${MPPATH}js/version.js?v=${VERSION}`,
+  `${MPPATH}js/version-parser.js?v=${VERSION}`,
+  `${MPPATH}js/version-checker.js?v=${VERSION}`,
+  `${MPPATH}js/service-worker-manager.js?v=${VERSION}`,
+  `${MPPATH}js/update-manager.js?v=${VERSION}`,
+  `${MPPATH}js/main.js?v=${VERSION}`,
+  `${MPPATH}js/qr.js?v=${VERSION}`,
+  `${MPPATH}js/sanitize.js?v=${VERSION}`,
+  `${MPPATH}js/profiles.js?v=${VERSION}`,
+  `${MPPATH}js/i18n/index.js?v=${VERSION}`,
+  `${MPPATH}js/i18n/honorifics.js?v=${VERSION}`,
+  `${MPPATH}js/history.js?v=${VERSION}`,
+  `${MPPATH}js/auto-archive.js?v=${VERSION}`,
+  `${MPPATH}js/archive.js?v=${VERSION}`,
+  `${MPPATH}archive.html?v=${VERSION}`,
+  `${MPPATH}js/utils/csv.js?v=${VERSION}`,
+  `${MPPATH}js/utils/renderers.js?v=${VERSION}`,
+  `${MPPATH}img/icon.png`,
+  `${MPPATH}img/favicon.png`,
+  `${MPPATH}manifest.prod.webmanifest`,
   "https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"
 ];
 
@@ -102,9 +116,49 @@ self.addEventListener("fetch", (event) => {
   // Only handle GET requests
   if (req.method !== "GET") return;
 
+  // Helper: Handle static content with network-first strategy
+async function handleStaticCache(req) {
+  try {
+    // NETWORK-FIRST: Try to fetch fresh content first
+    const res = await fetch(req);
+    
+    if (res.ok) {
+      // Update cache with fresh content
+      const cache = await caches.open(STATIC_CACHE);
+      cache.put(req, res.clone());
+    }
+    
+    return res;
+  } catch (fetchErr) {
+    // Network failed, fall back to cached version (offline support)
+    try {
+      const cached = await caches.match(req);
+      if (cached) {
+        console.log(`[SW] Network unavailable, serving cached: ${req.url.substring(req.url.lastIndexOf('/') + 1)}`);
+        return cached;
+      }
+    } catch (cacheErr) {
+      console.warn(`[SW] Cache lookup failed:`, cacheErr);
+    }
+    
+    // Both network and cache failed
+    console.error(`[SW] No cached or network response for:`, req.url);
+    throw fetchErr;
+  }
+}
+
+// FETCH — Different strategies based on content type
+// ------------------------------------------------------------
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
+  const url = new URL(req.url);
+
+  // Only handle GET requests
+  if (req.method !== "GET") return;
+
   // Cache-only for: App manifest and icons
   if (
-    url.pathname.includes("manifest.webmanifest") ||
+    url.pathname.includes("manifest.") ||
     url.pathname.includes("/img/") ||
     url.pathname.includes("favicon")
   ) {
@@ -122,26 +176,13 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Cache-first for: /index.html, /css/*.css, /js/*.js
+  // NETWORK-FIRST for: /index.html, /css/*.css, /js/*.js (fresh content on refresh)
   if (
     url.pathname.endsWith("/index.html") ||
     url.pathname.includes("/css/") ||
     url.pathname.includes("/js/")
   ) {
-    event.respondWith(
-      caches.match(req).then((cached) => {
-        if (cached) return cached;
-
-        return fetch(req)
-          .then((res) => {
-            return caches.open(STATIC_CACHE).then((cache) => {
-              cache.put(req, res.clone());
-              return res;
-            });
-          })
-          .catch(() => caches.match(req));
-      })
-    );
+    event.respondWith(handleStaticCache(req));
     return;
   }
 
