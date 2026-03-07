@@ -1,3 +1,5 @@
+import { sanitizeEntry } from "../sanitize.js";
+
 globalThis.onmessage = function (e) {
   const { type, payload, options = {}, id } = e.data;
 
@@ -106,12 +108,8 @@ function processWorkerCSVRows(rows, options) {
       rawValue = row[1];
     }
 
-    const entry = {
-      key: rawKey?.trim(),
-      value: rawValue?.trim()
-    };
-
-    if (!entry.key) return;
+    const entry = sanitizeEntry(rawKey, rawValue);
+    if (!entry) return;
 
     if (entry.value) {
       entry.value = entry.value.replaceAll(/~/g, ",");
