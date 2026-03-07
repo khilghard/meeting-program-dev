@@ -4,10 +4,79 @@
  */
 
 const DB_NAME = "MeetingProgramDB";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORES = ["profiles", "archives", "metadata", "migrations"];
 
 let dbInstance = null;
+
+/**
+ * Create indexes for a given object store if they don't exist.
+ */
+function ensureIndexes(store, indexArray) {
+  if (!store || !store.indexNames) return;
+  for (const indexConfig of indexArray) {
+    const indexName = typeof indexConfig === "string" ? indexConfig : indexConfig.name;
+    try {
+      if (!store.indexNames.contains(indexName)) {
+        if (typeof indexConfig === "object") {
+          store.createIndex(indexConfig.name, indexConfig.keyPath, indexConfig.options);
+        } else if (indexName === "profileId_programDate") {
+          store.createIndex(indexName, ["profileId", "programDate"], { unique: true });
+        } else {
+          store.createIndex(indexName, indexName, { unique: false });
+        }
+      }
+    } catch (error) {
+      // Index creation might fail if in certain transaction modes
+    }
+  }
+}
+
+async function validateAndFixSchema(db) {
+  try {
+    const requiredIndexes = {
+      profiles: ["url", "lastUsed"],
+      archives: ["profileId", "programDate", "profileId_programDate"]
+    };
+
+    // Check profiles store
+    if (db.objectStoreNames.contains("profiles")) {
+      try {
+        const tx = db.transaction(["profiles"], "readonly");
+        const store = tx.objectStore("profiles");
+        for (const indexName of requiredIndexes.profiles) {
+          if (!store.indexNames?.contains(indexName)) {
+            return true;
+          }
+        }
+      } catch (error) {
+        console.warn("[IndexedDB] Profiles store validation error:", error);
+        return true;
+      }
+    }
+
+    // Check archives store
+    if (db.objectStoreNames.contains("archives")) {
+      try {
+        const tx = db.transaction(["archives"], "readonly");
+        const store = tx.objectStore("archives");
+        for (const indexName of requiredIndexes.archives) {
+          if (!store.indexNames?.contains(indexName)) {
+            return true;
+          }
+        }
+      } catch (error) {
+        console.warn("[IndexedDB] Archives store validation error:", error);
+        return true;
+      }
+    }
+
+    return false;
+  } catch (error) {
+    console.warn("[IndexedDB] Schema validation error:", error);
+    return true;
+  }
+}
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -16,20 +85,20 @@ function openDB() {
       return;
     }
 
-    let hasRetriedWithoutVersion = false;
+    let attempt = 0;
 
-    const startOpen = (version) => {
+    const tryOpen = (version) => {
+      attempt++;
+
       const request =
         typeof version === "number"
           ? globalThis.indexedDB.open(DB_NAME, version)
           : globalThis.indexedDB.open(DB_NAME);
 
       request.onerror = () => {
-        // If an existing DB was created with a higher version, reopen without
-        // forcing a lower one so we attach to the current schema safely.
-        if (!hasRetriedWithoutVersion && request.error?.name === "VersionError") {
-          hasRetriedWithoutVersion = true;
-          startOpen();
+        // Try without version if we get a VersionError
+        if (attempt === 1 && request.error?.name === "VersionError") {
+          tryOpen(); // Retry without version
           return;
         }
         reject(request.error);
@@ -42,13 +111,29 @@ function openDB() {
 
       request.onupgradeneeded = (event) => {
         const db = event.target.result;
+        const tx = event.target.transaction;
 
+        // Profiles store
         if (!db.objectStoreNames.contains("profiles")) {
           const profilesStore = db.createObjectStore("profiles", { keyPath: "id" });
           profilesStore.createIndex("url", "url", { unique: false });
           profilesStore.createIndex("lastUsed", "lastUsed", { unique: false });
+        } else if (tx) {
+          // Add missing indexes to existing store
+          try {
+            const store = tx.objectStore("profiles");
+            if (store.indexNames && !store.indexNames.contains("url")) {
+              store.createIndex("url", "url", { unique: false });
+            }
+            if (store.indexNames && !store.indexNames.contains("lastUsed")) {
+              store.createIndex("lastUsed", "lastUsed", { unique: false });
+            }
+          } catch (error) {
+            console.warn("[IndexedDB] Error adding profiles indexes:", error);
+          }
         }
 
+        // Archives store
         if (!db.objectStoreNames.contains("archives")) {
           const archivesStore = db.createObjectStore("archives", { keyPath: "id" });
           archivesStore.createIndex("profileId", "profileId", { unique: false });
@@ -56,19 +141,39 @@ function openDB() {
           archivesStore.createIndex("profileId_programDate", ["profileId", "programDate"], {
             unique: true
           });
+        } else if (tx) {
+          // Add missing indexes to existing store
+          try {
+            const store = tx.objectStore("archives");
+            if (store.indexNames && !store.indexNames.contains("profileId")) {
+              store.createIndex("profileId", "profileId", { unique: false });
+            }
+            if (store.indexNames && !store.indexNames.contains("programDate")) {
+              store.createIndex("programDate", "programDate", { unique: false });
+            }
+            if (store.indexNames && !store.indexNames.contains("profileId_programDate")) {
+              store.createIndex("profileId_programDate", ["profileId", "programDate"], {
+                unique: true
+              });
+            }
+          } catch (error) {
+            console.warn("[IndexedDB] Error adding archives indexes:", error);
+          }
         }
 
+        // Metadata store
         if (!db.objectStoreNames.contains("metadata")) {
           db.createObjectStore("metadata", { keyPath: "key" });
         }
 
+        // Migrations store
         if (!db.objectStoreNames.contains("migrations")) {
           db.createObjectStore("migrations", { keyPath: "profileId" });
         }
       };
     };
 
-    startOpen(DB_VERSION);
+    tryOpen();
   });
 }
 
