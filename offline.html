@@ -81,7 +81,7 @@
     <script>
       const lastSync = localStorage.getItem("last_online_sync");
       if (lastSync) {
-        const date = new Date(parseInt(lastSync));
+        const date = new Date(Number.parseInt(lastSync));
         document.getElementById("last-sync").textContent = "Last online: " + date.toLocaleString();
       }
     </script>

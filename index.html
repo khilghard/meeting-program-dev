@@ -3,29 +3,115 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Sacrament Meeting Program" />
+    <link rel="apple-touch-icon" sizes="180x180" href="img/favicon.png" />
     <title>Sacrament Meeting Program</title>
+    
+    <!-- Dynamically set manifest based on deployment path -->
+    <script>
+      (function detectAndSetManifest() {
+        const pathname = window.location.pathname;
+        const isDevDeployment = pathname.includes('/meeting-program-dev/');
+        const isProdDeployment = pathname.includes('/meeting-program/') && !isDevDeployment;
+        
+        let manifestHref = '/manifest.webmanifest'; // Default for local testing
+        let deploymentPath = '/';
+        
+        if (isProdDeployment) {
+          manifestHref = '/meeting-program/manifest.prod.webmanifest';
+          deploymentPath = '/meeting-program/';
+        } else if (isDevDeployment) {
+          manifestHref = '/meeting-program-dev/manifest.dev.webmanifest';
+          deploymentPath = '/meeting-program-dev/';
+        }
+        
+        // Store for service worker and other scripts to use
+        window.MANIFEST_PATH = manifestHref;
+        window.DEPLOYMENT_PATH = deploymentPath;
+        
+        // Create and append manifest link (must happen in head, before other scripts)
+        const link = document.createElement('link');
+        link.rel = 'manifest';
+        link.href = manifestHref;
+        document.head.appendChild(link);
+        
+        console.log(`[Init] Detected deployment: ${deploymentPath}, using manifest: ${manifestHref}`);
+      })();
+    </script>
+    
+    <link id="canonical-link" rel="canonical" />
+    <link id="styles-link" rel="stylesheet" href="" />
+    <link rel="icon" type="image/png" sizes="32x32" href="img/favicon.png" />
+    <script type="importmap">
+      {
+        "imports": {
+          "dexie": "https://cdn.jsdelivr.net/npm/dexie@4.3.0/+esm"
+        }
+      }
+    </script>
     <script type="module">
       import { VERSION } from "./js/version.js";
-      window.APP_VERSION = VERSION;
+      globalThis.APP_VERSION = VERSION;
       document.getElementById("styles-link").href = `css/styles.css?v=${VERSION}`;
       const mainScript = document.createElement("script");
       mainScript.type = "module";
       mainScript.src = `js/main.js?v=${VERSION}`;
       document.head.appendChild(mainScript);
+
+      // Register service worker after version is loaded
+      async function registerServiceWorker() {
+        if (!("serviceWorker" in navigator)) return;
+
+        const swUrl = `service-worker.js?v=${VERSION}`;
+
+        try {
+          const registration = await navigator.serviceWorker.register(swUrl);
+          registration.onupdatefound = () => {
+            const installingWorker = registration.installing;
+            installingWorker.onstatechange = () => {
+              if (installingWorker.state === "installed") {
+                if (navigator.serviceWorker.controller) {
+                  // Show update notification
+                  const el = document.getElementById("update-notification");
+                  if (el) el.hidden = false;
+                }
+              }
+            };
+          };
+        } catch (error) {
+          console.log("Service Worker registration failed:", error);
+        }
+      }
+
+      // Call the async function
+      registerServiceWorker().catch((err) => console.error("SW registration error:", err));
+
+      function refreshPage() {
+        if (navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({ action: "skipWaiting" });
+          const reloadBtn = document.getElementById("reload-btn");
+          if (reloadBtn) {
+            reloadBtn.onclick = () => location.reload();
+          }
+        }
+      }
+
+      function showUpdateNotification() {
+        const el = document.getElementById("update-notification");
+        if (el) el.hidden = false;
+      }
     </script>
-    <link id="canonical-link" rel="canonical" />
-    <link rel="manifest" href="/meeting-program/manifest.webmanifest" />
-    <link id="styles-link" rel="stylesheet" href="" />
-    <link rel="icon" type="image/png" sizes="32x32" href="img/favicon.png" />
   </head>
 
   <body>
     <!-- NETWORK STATUS INDICATOR -->
-    <div id="network-status" class="network-status hidden" role="status" aria-live="polite">
+    <output id="network-status" class="network-status hidden" aria-live="polite">
       <span class="status-icon"></span>
       <span class="status-text"></span>
       <span class="last-sync"></span>
-    </div>
+    </output>
 
     <!-- MAIN APP ROOT -->
     <div id="app"></div>
@@ -35,16 +121,15 @@
       <div class="header-section welcome-bar">
         <div class="welcome-controls">
           <button id="help-btn" class="icon-btn help-btn" aria-label="Help">❓</button>
-          <div
+          <button
             id="language-selector-btn"
             class="language-selector-wrapper"
-            role="button"
             aria-haspopup="dialog"
             aria-label="Select Language"
           >
             <span class="globe-icon">🌐</span>
             <span id="current-language-text">English</span>
-          </div>
+          </button>
           <button id="share-btn" class="icon-btn share-btn" aria-label="Share Program">📤</button>
           <button id="print-btn" class="icon-btn print-btn" aria-label="Print Program">🖨️</button>
           <button
@@ -77,8 +162,12 @@
 
       <div class="sacrament-unit-header">
         <h1 id="sacrament-services-title">Sacrament Services</h1>
-        <h2 class="sacrament-unit-header-h2"><span id="unitname"></span></h2>
-        <h3 class="sacrament-unit-header-h6"><span id="unitaddress"></span></h3>
+        <h2 class="sacrament-unit-header-h2" id="unit-name-heading">
+          <span id="unitname">Name</span>
+        </h2>
+        <h3 class="sacrament-unit-header-h6" aria-label="Unit address">
+          <span id="unitaddress">Address</span>
+        </h3>
         <p id="date" style="padding-top: 15px"></p>
       </div>
     </header>
@@ -260,40 +349,6 @@
     <!-- MODULES -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
-
-    <!-- SERVICE WORKER -->
-    <script>
-      if ("serviceWorker" in navigator) {
-        const swUrl = `service-worker.js?v=${window.APP_VERSION}`;
-        navigator.serviceWorker
-          .register(swUrl)
-          .then((registration) => {
-            registration.onupdatefound = () => {
-              const installingWorker = registration.installing;
-              installingWorker.onstatechange = () => {
-                if (installingWorker.state === "installed") {
-                  if (navigator.serviceWorker.controller) {
-                    showUpdateNotification();
-                  }
-                }
-              };
-            };
-          })
-          .catch((error) => console.log("Service Worker registration failed:", error));
-      }
-
-      function refreshPage() {
-        if (navigator.serviceWorker.controller) {
-          navigator.serviceWorker.controller.postMessage({ action: "skipWaiting" });
-          reloadBtn.onclick = () => init();
-        }
-      }
-
-      function showUpdateNotification() {
-        const el = document.getElementById("update-notification");
-        if (el) el.hidden = false;
-      }
-    </script>
   </body>
 
   <footer>

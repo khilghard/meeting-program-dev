@@ -633,7 +633,7 @@ footer {
   z-index: 9999;
   pointer-events: none;
   font-size: 14px;
-  color: #333333 !important;
+  color: var(--text-color);
 
   opacity: 0;
   /* subtle slide */

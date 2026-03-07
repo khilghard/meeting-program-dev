@@ -1,37 +1,21 @@
-import { describe, test, expect, beforeEach, vi } from "vitest";
+import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
 
-// Mock i18n.js
-vi.mock("../js/i18n/index.js", () => ({
-  t: vi.fn((key) => {
-    const translations = {
-      cancel: "Cancel",
-      scanProgramQR: "Scan Program QR Code",
-      scanNewProgram: "Scan a Different Program",
-      cameraUnavailable: "Camera access is not available in this browser.",
-      cameraDenied: "Camera access denied or unavailable.",
-      invalidQR: "Invalid QR code. Please scan a program QR code.",
-      scannedUrl: "Scanned URL:",
-      enterSheetUrlManually: "Enter Sheet URL Manually",
-      enterSheetUrl: "Enter Google Sheets URL",
-      invalidSheetUrl: "Invalid URL. Please enter a valid Google Sheets URL.",
-      add: "Add",
-      updateAvailable: "Update available",
-      updateNow: "Update now"
-    };
-    // Return the translation if it exists, otherwise return the key as-is
-    return translations[key] || key;
-  }),
-  getLanguage: vi.fn(() => "en"),
-  initI18n: vi.fn(() => "en"),
-  setLanguage: vi.fn(),
-  getSupportedLanguages: vi.fn(() => ["en", "es", "fr", "swa"])
-}));
-
-// Mock jsQR
+// Mock jsQR (external library)
 global.jsQR = vi.fn();
 
-// Import qr.js without mocking it
+// Mock IndexedDBManager for QR tests
+const mockMetadata = {};
+vi.mock("../js/data/IndexedDBManager.js", () => ({
+  getMetadata: vi.fn((key) => Promise.resolve(mockMetadata[key] || null)),
+  setMetadata: vi.fn((key, value) => {
+    mockMetadata[key] = value;
+    return Promise.resolve(true);
+  })
+}));
+
+// Import qr.js and its dependencies (real modules, no internal mocks)
 import * as QR from "../js/qr.js";
+import * as I18n from "../js/i18n/index.js";
 
 const {
   isSafari,
@@ -47,10 +31,78 @@ const {
   hideManualUrlEntry
 } = QR;
 
+// Set up test isolation with browser API stubs
+stubBrowserAPIs();
+
 describe("QR Module", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     localStorage.clear();
+    // Reset mock metadata
+    Object.keys(mockMetadata).forEach((key) => delete mockMetadata[key]);
+
+    // Initialize i18n to load translations
+    await I18n.initI18n();
+
+    // Create required DOM elements
+    const setupDOM = () => {
+      // Remove any existing elements
+      document
+        .querySelectorAll(
+          "#qr-scanner, #qr-video, #qr-canvas, #qr-output, #qr-action-btn, #manual-url-btn, #manual-url-container, #manual-url-input, #manual-url-submit"
+        )
+        .forEach((el) => el.remove());
+
+      // Create scanner section
+      const qrScanner = document.createElement("section");
+      qrScanner.id = "qr-scanner";
+      qrScanner.hidden = true;
+      document.body.appendChild(qrScanner);
+
+      // Create video element
+      const video = document.createElement("video");
+      video.id = "qr-video";
+      qrScanner.appendChild(video);
+
+      // Create canvas element
+      const canvas = document.createElement("canvas");
+      canvas.id = "qr-canvas";
+      canvas.hidden = true;
+      qrScanner.appendChild(canvas);
+
+      // Create output element
+      const output = document.createElement("p");
+      output.id = "qr-output";
+      qrScanner.appendChild(output);
+
+      // Create action button
+      const actionBtn = document.createElement("button");
+      actionBtn.id = "qr-action-btn";
+      actionBtn.textContent = "Scan Program QR Code";
+      document.body.appendChild(actionBtn);
+
+      // Create manual URL section
+      const manualBtn = document.createElement("button");
+      manualBtn.id = "manual-url-btn";
+      manualBtn.hidden = true;
+      document.body.appendChild(manualBtn);
+
+      const manualContainer = document.createElement("div");
+      manualContainer.id = "manual-url-container";
+      manualContainer.hidden = true;
+      document.body.appendChild(manualContainer);
+
+      const manualInput = document.createElement("input");
+      manualInput.id = "manual-url-input";
+      manualInput.type = "text";
+      manualContainer.appendChild(manualInput);
+
+      const manualSubmit = document.createElement("button");
+      manualSubmit.id = "manual-url-submit";
+      manualContainer.appendChild(manualSubmit);
+    };
+
+    setupDOM();
 
     // Mock navigator.mediaDevices
     Object.defineProperty(navigator, "mediaDevices", {
@@ -205,18 +257,18 @@ describe("QR Module", () => {
       expect(btn.textContent).toBe("Cancel");
     });
 
-    test("hideScanner hides section and restores button", () => {
+    test("hideScanner hides section and restores button", async () => {
       const btn = document.getElementById("qr-action-btn");
       showScanner();
-      hideScanner();
+      await hideScanner();
       expect(document.getElementById("qr-scanner").hidden).toBe(true);
       expect(btn.textContent).toBe("Scan Program QR Code");
     });
 
-    test("hideScanner shows different text if URL is stored", () => {
+    test("hideScanner shows different text if URL is stored", async () => {
       const btn = document.getElementById("qr-action-btn");
-      localStorage.setItem("sheetUrl", "https://docs.google.com/spreadsheets/d/123");
-      hideScanner();
+      mockMetadata["legacy_sheetUrl"] = "https://docs.google.com/spreadsheets/d/123";
+      await hideScanner();
       expect(btn.textContent).toBe("Scan a Different Program");
     });
 
@@ -365,6 +417,9 @@ describe("QR Module", () => {
       manualInput.value = "https://docs.google.com/spreadsheets/d/test";
       manualSubmit.click();
 
+      // Wait for async event dispatch
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
       expect(dispatchEventSpy).toHaveBeenCalled();
       const event = dispatchEventSpy.mock.calls[0][0];
       expect(event.type).toBe("qr-scanned");
@@ -453,10 +508,8 @@ describe("QR Module", () => {
       await startQRScanner();
 
       const video = document.getElementById("qr-video");
-      // Object.defineProperty to bypass read-only readyState
-      Object.defineProperty(video, "readyState", { value: 4 }); // HAVE_ENOUGH_DATA
-      Object.defineProperty(video, "videoWidth", { value: 100 });
-      Object.defineProperty(video, "videoHeight", { value: 100 });
+      // Stub video element properties for testing
+      stubVideoElement(video, { readyState: 4, videoWidth: 100, videoHeight: 100 });
 
       // Mock jsQR to return a valid URL
       global.jsQR.mockReturnValue({ data: "https://docs.google.com/spreadsheets/d/test" });
@@ -479,7 +532,7 @@ describe("QR Module", () => {
       await startQRScanner();
 
       const video = document.getElementById("qr-video");
-      Object.defineProperty(video, "readyState", { value: 4 });
+      stubVideoElement(video, { readyState: 4 });
       const output = document.getElementById("qr-output");
 
       // Mock jsQR to return an invalid string
@@ -500,7 +553,7 @@ describe("QR Module", () => {
       await startQRScanner();
 
       const video = document.getElementById("qr-video");
-      Object.defineProperty(video, "readyState", { value: 4 });
+      stubVideoElement(video, { readyState: 4 });
       const output = document.getElementById("qr-output");
 
       // Mock jsQR to return an invalid string

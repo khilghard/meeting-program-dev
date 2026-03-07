@@ -15,14 +15,15 @@ The app supports light/dark themes with system preference detection and manual t
 
 ### Theme Storage
 
-- Key: `localStorage.theme`
-- Values: `"light"`, `"dark"`, or unset
+- **Primary Storage**: IndexedDB (`userPreference_theme` metadata key)
+- **Fallback**: Browser localStorage (for legacy compatibility)
+- **Values**: `"light"` or `"dark"`
 
 ### Theme Detection Priority
 
 ```
-1. localStorage.theme (if set)
-2. System preference (prefers-color-scheme)
+1. IndexedDB stored preference (if set)
+2. System preference (prefers-color-scheme media query)
 3. Default: light
 ```
 
@@ -39,9 +40,23 @@ The app supports light/dark themes with system preference detection and manual t
 ### Implementation
 
 ```javascript
+// Get theme preference from IndexedDB
+const savedTheme = await getMetadata("userPreference_theme");
+let theme = savedTheme;
+
+// Fall back to system preference if nothing saved
+if (!theme) {
+  const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  theme = isDark ? "dark" : "light";
+}
+
+// Apply theme to DOM
+document.documentElement.dataset.theme = theme;
+
+// Save preference when user toggles
 const newTheme = currentTheme === "dark" ? "light" : "dark";
-document.documentElement.setAttribute("data-theme", newTheme);
-localStorage.setItem("theme", newTheme);
+document.documentElement.dataset.theme = newTheme;
+await setMetadata("userPreference_theme", newTheme);
 ```
 
 ---
@@ -80,14 +95,19 @@ localStorage.setItem("theme", newTheme);
 
 ```javascript
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
-  if (!localStorage.getItem("theme")) {
-    applyTheme(e.matches ? "dark" : "light");
-  }
+  getMetadata("userPreference_theme").then((savedTheme) => {
+    // Only apply if user hasn't set a manual preference
+    if (!savedTheme) {
+      const theme = e.matches ? "dark" : "light";
+      document.documentElement.dataset.theme = theme;
+    }
+  });
 });
 ```
 
 ### Behavior
 
+- Auto updates when system preference changes
 - Only applies if user hasn't set manual preference
 - User preference (if set) always takes priority
 

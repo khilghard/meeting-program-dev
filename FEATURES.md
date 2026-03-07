@@ -8,7 +8,7 @@ Meeting Program is a Progressive Web App (PWA) that displays sacrament meeting p
 
 ---
 
-## Current Features (v2.1.0)
+## Current Features (v2.2.0)
 
 ### 1. Dynamic Program Loading
 
@@ -180,9 +180,22 @@ Meeting Program is a Progressive Web App (PWA) that displays sacrament meeting p
 
 All requirements listed in `docs/REQUIREMENTS_*.md` have been implemented and are included in the current feature set above. See the `docs/` folder for details on implemented items such as IndexedDB-backed profiles/archives, service worker update flows, offline caching strategies, sharing/QR flows, internationalization, and UI/theme behaviors.
 
-No further features are planned for this project; the app is at stable feature-complete version v2.1.0.
+No further major features are planned for this project; the app is at stable feature-complete version v2.2.0. Future updates will focus on maintenance, performance, and security improvements as needed.
 
-## Notable changes (v1.6.0 → v2.1.0)
+---
+
+## Notable Changes (v2.1.0 → v2.2.0)
+
+The following highlights represent improvements made in v2.2.0 (released March 4, 2025):
+
+- **Enhanced PWA Support**: Improved service worker registration and lifecycle management; better cache invalidation strategies
+- **Installation Promotion**: Added prompts to encourage PWA installation on mobile devices; better support for both iOS and Android
+- **Performance Optimizations**: Reduced bundle size; optimized CSS variables and theme switching; improved initial load times
+- **Accessibility Improvements**: Better ARIA labels; improved keyboard navigation; enhanced screen reader support
+- **Storage Migration**: Improved IndexedDB initialization and error handling; better fallback for legacy data
+- **Miscellaneous**: Additional bug fixes, dependency updates, and test coverage improvements
+
+## Notable Changes (v1.6.0 → v2.1.0)
 
 The following highlights summarize the work completed between v1.6.0 and v2.1.0.
 

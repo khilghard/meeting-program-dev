@@ -8,7 +8,10 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Default for CLI usage (when not running in browser)
 const DEFAULT_WEBSITE_URL = "https://khilghard.github.io/meeting-program/";
+// Note: This is a build-time utility, so dynamic detection isn't needed here.
+// Users can override with --website flag if needed.
 
 function extractSheetId(url) {
   const patterns = [
@@ -139,6 +142,53 @@ Examples:
   `);
 }
 
+const ARGUMENT_MAP = {
+  "-w": { key: "websiteUrl", consumesValue: true },
+  "--website": { key: "websiteUrl", consumesValue: true },
+  "-s": { key: "sheetUrl", consumesValue: true },
+  "--sheet": { key: "sheetUrl", consumesValue: true },
+  "-o": { key: "outputPath", consumesValue: true },
+  "--output": { key: "outputPath", consumesValue: true },
+  "-f": { key: "forceUpdate", consumesValue: false },
+  "--force-update": { key: "forceUpdate", consumesValue: false },
+  "-n": { key: "nocache", consumesValue: false },
+  "--nocache": { key: "nocache", consumesValue: false }
+};
+
+function parseArguments(args) {
+  const config = {
+    websiteUrl: DEFAULT_WEBSITE_URL,
+    sheetUrl: null,
+    outputPath: "./program-qr.png",
+    forceUpdate: false,
+    nocache: false
+  };
+
+  for (let i = 0; i < args.length; i++) {
+    const argDef = ARGUMENT_MAP[args[i]];
+    if (argDef) {
+      if (argDef.consumesValue) {
+        config[argDef.key] = args[++i];
+      } else {
+        config[argDef.key] = true;
+      }
+    }
+  }
+
+  return config;
+}
+
+function validateArguments(sheetUrl, forceUpdate, nocache) {
+  if (!sheetUrl && !forceUpdate && !nocache) {
+    console.error(
+      "Error: either --sheet (or -s), --force-update (or -f), or --nocache (or -n) is required"
+    );
+    console.error("Run with --help for usage information");
+    return false;
+  }
+  return true;
+}
+
 async function main() {
   const args = process.argv.slice(2);
 
@@ -147,44 +197,9 @@ async function main() {
     process.exit(0);
   }
 
-  let websiteUrl = DEFAULT_WEBSITE_URL;
-  let sheetUrl = null;
-  let outputPath = "./program-qr.png";
-  let forceUpdate = false;
-  let nocache = false;
+  const { websiteUrl, sheetUrl, outputPath, forceUpdate, nocache } = parseArguments(args);
 
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-
-    switch (arg) {
-      case "-w":
-      case "--website":
-        websiteUrl = args[++i];
-        break;
-      case "-s":
-      case "--sheet":
-        sheetUrl = args[++i];
-        break;
-      case "-o":
-      case "--output":
-        outputPath = args[++i];
-        break;
-      case "-f":
-      case "--force-update":
-        forceUpdate = true;
-        break;
-      case "-n":
-      case "--nocache":
-        nocache = true;
-        break;
-    }
-  }
-
-  if (!sheetUrl && !forceUpdate && !nocache) {
-    console.error(
-      "Error: either --sheet (or -s), --force-update (or -f), or --nocache (or -n) is required"
-    );
-    console.error("Run with --help for usage information");
+  if (!validateArguments(sheetUrl, forceUpdate, nocache)) {
     process.exit(1);
   }
 

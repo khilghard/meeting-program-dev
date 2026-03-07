@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from "vitest";
+import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   addProfile,
   selectProfile,
@@ -19,6 +19,18 @@ describe("ProfileManager", () => {
     localStorage.clear();
     if (globalThis.__resetStorage) globalThis.__resetStorage();
     await initProfileManager();
+  });
+
+  afterEach(async () => {
+    // Clear all profiles after each test
+    try {
+      const { db } = await import("../js/data/db.js");
+      await db.profiles.clear();
+      await db.metadata.clear();
+    } catch (e) {
+      // Ignore errors if db isn't initialized
+    }
+    localStorage.clear();
   });
 
   describe("Profile Creation", () => {

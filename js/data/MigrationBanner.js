@@ -5,11 +5,11 @@
 
 import { t } from "../i18n/index.js";
 import { addProfile, selectProfile } from "./ProfileManager.js";
+import { createTimer, clearTimer } from "../utils/timer-manager.js";
 
 let bannerElement = null;
 let currentMigrationUrl = null;
 let currentProfileId = null;
-let autoHideTimer = null;
 let hasShownThisSession = false;
 
 export function initMigrationBanner() {
@@ -21,13 +21,34 @@ export function initMigrationBanner() {
   bannerElement.setAttribute("role", "alert");
   bannerElement.setAttribute("aria-live", "polite");
 
-  bannerElement.innerHTML = `
-    <span class="migration-icon">⚠️</span>
-    <span class="migration-message">${t("migrationAvailable")}</span>
-    <button class="migration-btn" id="migration-view-btn">${t("viewNewProgram")}</button>
-    <button class="migration-btn secondary" id="migration-dismiss-btn">${t("remindMeLater")}</button>
-    <button class="migration-close-btn" id="migration-close-btn" aria-label="${t("close")}">×</button>
-  `;
+  const icon = document.createElement("span");
+  icon.className = "migration-icon";
+  icon.textContent = "⚠️";
+  bannerElement.appendChild(icon);
+
+  const message = document.createElement("span");
+  message.className = "migration-message";
+  message.textContent = t("migrationAvailable");
+  bannerElement.appendChild(message);
+
+  const viewBtn = document.createElement("button");
+  viewBtn.className = "migration-btn";
+  viewBtn.id = "migration-view-btn";
+  viewBtn.textContent = t("viewNewProgram");
+  bannerElement.appendChild(viewBtn);
+
+  const dismissBtn = document.createElement("button");
+  dismissBtn.className = "migration-btn secondary";
+  dismissBtn.id = "migration-dismiss-btn";
+  dismissBtn.textContent = t("remindMeLater");
+  bannerElement.appendChild(dismissBtn);
+
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "migration-close-btn";
+  closeBtn.id = "migration-close-btn";
+  closeBtn.setAttribute("aria-label", t("close"));
+  closeBtn.textContent = "×";
+  bannerElement.appendChild(closeBtn);
 
   const app = document.getElementById("app");
   if (app) {
@@ -39,7 +60,7 @@ export function initMigrationBanner() {
   document.getElementById("migration-close-btn").addEventListener("click", handleClose);
 }
 
-export async function showMigrationBanner(profileId, migrationUrl) {
+export function showMigrationBanner(profileId, migrationUrl) {
   if (hasShownThisSession) return;
 
   initMigrationBanner();
@@ -50,8 +71,11 @@ export async function showMigrationBanner(profileId, migrationUrl) {
   bannerElement.classList.remove("hidden");
   hasShownThisSession = true;
 
-  autoHideTimer = setTimeout(() => {
+  clearTimer("migration_auto_hide");
+  createTimer(10000, "migration_auto_hide");
+  const autoHideTimer = setTimeout(() => {
     hideMigrationBanner();
+    clearTimeout(autoHideTimer);
   }, 10000);
 }
 
@@ -60,10 +84,8 @@ export function hideMigrationBanner() {
 
   bannerElement.classList.add("hidden");
 
-  if (autoHideTimer) {
-    clearTimeout(autoHideTimer);
-    autoHideTimer = null;
-  }
+  clearTimer("migration_auto_hide");
+  clearTimer("migration_error_reset");
 }
 
 async function handleViewNewProgram() {
@@ -82,7 +104,7 @@ async function handleViewNewProgram() {
 
       hideMigrationBanner();
 
-      window.location.reload();
+      globalThis.window.location.reload();
     } else {
       throw new Error("Failed to create profile");
     }
@@ -90,9 +112,12 @@ async function handleViewNewProgram() {
     console.error("Migration failed:", error);
     viewBtn.textContent = t("migrationError");
 
-    setTimeout(() => {
+    clearTimer("migration_error_reset");
+    createTimer(3000, "migration_error_reset");
+    const errorResetTimer = setTimeout(() => {
       viewBtn.textContent = originalText;
       viewBtn.disabled = false;
+      clearTimeout(errorResetTimer);
     }, 3000);
   }
 }

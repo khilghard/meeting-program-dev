@@ -1,287 +1,124 @@
 /**
  * IndexedDBManager.js
- * Manages IndexedDB storage for profiles, archives, metadata, and migrations.
+ * Wrapper around Dexie for managing profiles, archives, metadata, and migrations.
+ * 
+ * Replaced raw IndexedDB with Dexie to enable automatic schema versioning
+ * and safe upgrades for existing users.
  */
 
+import db from "./db.js";
+
 const DB_NAME = "MeetingProgramDB";
-const DB_VERSION = 1;
-const STORES = ["profiles", "archives", "metadata", "migrations"];
+const DB_VERSION = 3; // Updated to v3: added date index to history, inactive index to profiles
+const STORES = ["profiles", "archives", "metadata", "migrations", "history"];
 
-let dbInstance = null;
-
-function openDB() {
-  return new Promise((resolve, reject) => {
-    if (dbInstance) {
-      resolve(dbInstance);
-      return;
-    }
-
-    const request = globalThis.indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onerror = () => {
-      reject(request.error);
-    };
-
-    request.onsuccess = () => {
-      dbInstance = request.result;
-      resolve(dbInstance);
-    };
-
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-
-      if (!db.objectStoreNames.contains("profiles")) {
-        const profilesStore = db.createObjectStore("profiles", { keyPath: "id" });
-        profilesStore.createIndex("url", "url", { unique: false });
-        profilesStore.createIndex("lastUsed", "lastUsed", { unique: false });
-      }
-
-      if (!db.objectStoreNames.contains("archives")) {
-        const archivesStore = db.createObjectStore("archives", { keyPath: "id" });
-        archivesStore.createIndex("profileId", "profileId", { unique: false });
-        archivesStore.createIndex("programDate", "programDate", { unique: false });
-        archivesStore.createIndex("profileId_programDate", ["profileId", "programDate"], {
-          unique: true
-        });
-      }
-
-      if (!db.objectStoreNames.contains("metadata")) {
-        db.createObjectStore("metadata", { keyPath: "key" });
-      }
-
-      if (!db.objectStoreNames.contains("migrations")) {
-        db.createObjectStore("migrations", { keyPath: "profileId" });
-      }
-    };
-  });
-}
-
+// Open the database - Dexie handles the version check and upgrade automatically
 async function createDatabase() {
-  return openDB();
+  return db.open();
 }
+
 
 async function getProfile(id) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(["profiles"], "readonly");
-    const store = transaction.objectStore("profiles");
-    const request = store.get(id);
-
-    request.onsuccess = () => resolve(request.result || null);
-    request.onerror = () => reject(request.error);
-  });
+  return db.profiles.get(id) || null;
 }
 
 async function getAllProfiles() {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(["profiles"], "readonly");
-    const store = transaction.objectStore("profiles");
-    const index = store.index("lastUsed");
-    const request = index.getAll();
-
-    request.onsuccess = () => {
-      const profiles = request.result || [];
-      profiles.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
-      resolve(profiles);
-    };
-    request.onerror = () => reject(request.error);
-  });
+  const profiles = await db.profiles.toArray();
+  // Sort by lastUsed (most recent first)
+  profiles.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+  return profiles;
 }
 
 async function getActiveProfiles() {
-  const profiles = await getAllProfiles();
+  // Use the inactive index for efficient querying
+  const profiles = await db.profiles.toArray();
   return profiles.filter((p) => !p.inactive);
 }
 
 async function getInactiveProfiles() {
-  const profiles = await getAllProfiles();
+  const profiles = await db.profiles.where("id").notEqual("").toArray();
   return profiles.filter((p) => p.inactive);
 }
 
 async function saveProfile(profile) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(["profiles"], "readwrite");
-    const store = transaction.objectStore("profiles");
-    const request = store.put(profile);
-
-    request.onsuccess = () => resolve(profile);
-    request.onerror = () => reject(request.error);
-  });
+  await db.profiles.put(profile);
+  return profile;
 }
 
 async function deleteProfile(id) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(["profiles"], "readwrite");
-    const store = transaction.objectStore("profiles");
-    const request = store.delete(id);
-
-    request.onsuccess = () => resolve(true);
-    request.onerror = () => reject(request.error);
-  });
+  await db.profiles.delete(id);
+  return true;
 }
 
-async function getArchive(profileId, programDate) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(["archives"], "readonly");
-    const store = transaction.objectStore("archives");
-    const index = store.index("profileId_programDate");
-    const request = index.get([profileId, programDate]);
 
-    request.onsuccess = () => resolve(request.result || null);
-    request.onerror = () => reject(request.error);
-  });
+async function getArchive(profileId, programDate) {
+  return db.archives.where("[profileId+programDate]").equals([profileId, programDate]).first() || null;
 }
 
 async function getAllArchives(profileId) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(["archives"], "readonly");
-    const store = transaction.objectStore("archives");
-    const index = store.index("profileId");
-    const request = index.getAll(profileId);
-
-    request.onsuccess = () => {
-      const archives = request.result || [];
-      archives.sort((a, b) => (b.programDate || 0) - (a.programDate || 0));
-      resolve(archives);
-    };
-    request.onerror = () => reject(request.error);
-  });
+  const archives = await db.archives.where("profileId").equals(profileId).toArray();
+  archives.sort((a, b) => (b.programDate || 0) - (a.programDate || 0));
+  return archives;
 }
 
 async function saveArchive(archive) {
-  const db = await openDB();
   const checksum = await calculateChecksum(archive.csvData);
   const archiveWithChecksum = { ...archive, checksum };
-
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(["archives"], "readwrite");
-    const store = transaction.objectStore("archives");
-    const request = store.put(archiveWithChecksum);
-
-    request.onsuccess = () => resolve(archiveWithChecksum);
-    request.onerror = () => reject(request.error);
-  });
+  await db.archives.put(archiveWithChecksum);
+  return archiveWithChecksum;
 }
 
 async function deleteArchive(profileId, programDate) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(["archives"], "readwrite");
-    const store = transaction.objectStore("archives");
-    const index = store.index("profileId_programDate");
-    const request = index.getKey([profileId, programDate]);
-
-    request.onsuccess = () => {
-      if (request.result) {
-        const deleteRequest = store.delete(request.result);
-        deleteRequest.onsuccess = () => resolve(true);
-        deleteRequest.onerror = () => reject(deleteRequest.error);
-      } else {
-        resolve(false);
-      }
-    };
-    request.onerror = () => reject(request.error);
-  });
+  const id = `${profileId}||${programDate}`;
+  await db.archives.delete(id);
+  return true;
 }
 
 async function clearProfileArchives(profileId) {
-  const archives = await getAllArchives(profileId);
-  const db = await openDB();
-
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(["archives"], "readwrite");
-    const store = transaction.objectStore("archives");
-
-    archives.forEach((archive) => {
-      store.delete(archive.id);
-    });
-
-    transaction.oncomplete = () => resolve(true);
-    transaction.onerror = () => reject(transaction.error);
-  });
+  await db.archives.where("profileId").equals(profileId).delete();
+  return true;
 }
 
 async function clearAllArchives() {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(["archives"], "readwrite");
-    const store = transaction.objectStore("archives");
-    const request = store.clear();
-
-    request.onsuccess = () => resolve(true);
-    request.onerror = () => reject(request.error);
-  });
+  await db.archives.clear();
+  return true;
 }
 
-async function getMetadata(key) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(["metadata"], "readonly");
-    const store = transaction.objectStore("metadata");
-    const request = store.get(key);
 
-    request.onsuccess = () => {
-      const result = request.result;
-      resolve(result ? result.value : null);
-    };
-    request.onerror = () => reject(request.error);
-  });
+async function getMetadata(key) {
+  const entry = await db.metadata.get(key);
+  return entry ? entry.value : null;
 }
 
 async function setMetadata(key, value) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(["metadata"], "readwrite");
-    const store = transaction.objectStore("metadata");
-    const request = store.put({ key, value });
-
-    request.onsuccess = () => resolve(true);
-    request.onerror = () => reject(request.error);
-  });
+  await db.metadata.put({ key, value });
+  return true;
 }
 
 async function getMigration(profileId) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(["migrations"], "readonly");
-    const store = transaction.objectStore("migrations");
-    const request = store.get(profileId);
-
-    request.onsuccess = () => resolve(request.result || null);
-    request.onerror = () => reject(request.error);
-  });
+  return db.migrations.get(profileId) || null;
 }
 
 async function saveMigration(profileId, migration) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(["migrations"], "readwrite");
-    const store = transaction.objectStore("migrations");
-    const request = store.put({ profileId, ...migration });
-
-    request.onsuccess = () => resolve(true);
-    request.onerror = () => reject(request.error);
-  });
+  await db.migrations.put({ profileId, ...migration });
+  return true;
 }
+
 
 async function getStorageInfo() {
   const profiles = await getAllProfiles();
-  const archives = await getAllArchivesForAllProfiles();
+  // Count all archives directly from the archives table, not just from profiles
+  const allArchives = await db.archives.toArray();
 
   const profileData = JSON.stringify(profiles);
-  const archiveData = JSON.stringify(archives);
+  const archiveData = JSON.stringify(allArchives);
 
   const used = new Blob([profileData + archiveData]).size;
 
   return {
     used,
     profiles: profiles.length,
-    archives: archives.length
+    archives: allArchives.length
   };
 }
 
@@ -299,37 +136,29 @@ async function getAllArchivesForAllProfiles() {
 
 async function cleanupOldArchives(days) {
   const cutoffDate = Date.now() - days * 24 * 60 * 60 * 1000;
-  const profiles = await getAllProfiles();
-  const db = await openDB();
-
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(["archives"], "readwrite");
-    const store = transaction.objectStore("archives");
-    const request = store.openCursor();
-
-    let deletedCount = 0;
-
-    request.onsuccess = (event) => {
-      const cursor = event.target.result;
-      if (cursor) {
-        const archive = cursor.value;
-        if (archive.cachedAt && archive.cachedAt < cutoffDate) {
-          cursor.delete();
-          deletedCount++;
-        }
-        cursor.continue();
-      }
-    };
-
-    transaction.oncomplete = () => resolve(deletedCount);
-    transaction.onerror = () => reject(transaction.error);
-  });
+  const archives = await db.archives
+    .where("cachedAt")
+    .below(cutoffDate)
+    .toArray();
+  
+  let deletedCount = 0;
+  for (const archive of archives) {
+    await db.archives.delete(archive.id);
+    deletedCount++;
+  }
+  
+  return deletedCount;
 }
+
 
 async function calculateChecksum(data) {
   if (!data) return "";
+  
+  // If data is already a string, use it; otherwise stringify it
+  const dataStr = typeof data === "string" ? data : JSON.stringify(data);
+  
   const encoder = new TextEncoder();
-  const dataBuffer = encoder.encode(data);
+  const dataBuffer = encoder.encode(dataStr);
   const hashBuffer = await crypto.subtle.digest("SHA-256", dataBuffer);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   const hashHex = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -393,28 +222,22 @@ async function getStorageIntegrity() {
 }
 
 async function removeCorruptedArchive(profileId, programDate) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(["archives"], "readwrite");
-    const store = transaction.objectStore("archives");
-    const index = store.index("profileId_programDate");
-    const request = index.getKey([profileId, programDate]);
-
-    request.onsuccess = () => {
-      if (request.result) {
-        const deleteRequest = store.delete(request.result);
-        deleteRequest.onsuccess = () => resolve(true);
-        deleteRequest.onerror = () => reject(deleteRequest.error);
-      } else {
-        resolve(false);
-      }
-    };
-    request.onerror = () => reject(request.error);
-  });
+  // Verify the archive is actually corrupted before removing it
+  const archiveCheck = await getArchiveWithValidation(profileId, programDate);
+  if (archiveCheck.valid) {
+    console.warn(
+      `[IndexedDB] WARNING: Archive ${profileId}||${programDate} appears valid ` +
+      "but was marked for removal. Proceeding with caution."
+    );
+  }
+  // Remove the corrupted archive
+  const result = await deleteArchive(profileId, programDate);
+  console.log(`[IndexedDB] Removed corrupted archive: ${profileId}||${programDate}`);
+  return result;
 }
 
 async function resetDatabase() {
-  dbInstance = null;
+  await db.delete();
   return new Promise((resolve, reject) => {
     const request = globalThis.indexedDB.deleteDatabase(DB_NAME);
     request.onsuccess = () => resolve(true);
@@ -449,5 +272,6 @@ export {
   calculateChecksum,
   getArchiveWithValidation,
   getStorageIntegrity,
-  removeCorruptedArchive
+  removeCorruptedArchive,
+  db  // Export the Dexie instance for direct access if needed
 };

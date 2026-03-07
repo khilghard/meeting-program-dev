@@ -39,13 +39,8 @@ describe("addCacheBusting", () => {
 });
 
 describe("fetchRemoteManifest", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
   afterEach(() => {
     vi.restoreAllMocks();
-    vi.useRealTimers();
   });
 
   it("returns manifest on successful fetch", async () => {
@@ -86,13 +81,13 @@ describe("fetchRemoteManifest", () => {
 
     const resultPromise = fetchRemoteManifest();
 
-    // Advance timers through retry delays
-    await vi.advanceTimersByTimeAsync(7000);
+    // Advance timers through all retry delays (1s + 2s + initial attempts)
+    await vi.advanceTimersByTimeAsync(4000);
 
     const result = await resultPromise;
     expect(result).toBeNull();
     vi.useRealTimers();
-  }, 15000);
+  });
 
   it("returns null on invalid JSON", async () => {
     vi.useFakeTimers();
@@ -102,12 +97,12 @@ describe("fetchRemoteManifest", () => {
     });
 
     const resultPromise = fetchRemoteManifest();
-    await vi.advanceTimersByTimeAsync(7000);
+    await vi.advanceTimersByTimeAsync(4000);
     const result = await resultPromise;
 
     expect(result).toBeNull();
     vi.useRealTimers();
-  }, 15000);
+  });
 
   it("uses cache busting parameter", async () => {
     global.fetch = vi.fn().mockResolvedValue({
@@ -124,13 +119,8 @@ describe("fetchRemoteManifest", () => {
 });
 
 describe("checkForUpdates", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
   afterEach(() => {
     vi.restoreAllMocks();
-    vi.useRealTimers();
   });
 
   it("returns needsUpdate true when remote version is newer", async () => {
@@ -186,13 +176,13 @@ describe("checkForUpdates", () => {
     global.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
 
     const resultPromise = checkForUpdates();
-    await vi.advanceTimersByTimeAsync(7000);
+    await vi.advanceTimersByTimeAsync(4000);
     const result = await resultPromise;
 
     expect(result.needsUpdate).toBe(false);
     expect(result.remoteVersion).toBeNull();
     vi.useRealTimers();
-  }, 15000);
+  });
 });
 
 describe("Retry Logic", () => {
