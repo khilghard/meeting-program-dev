@@ -23,7 +23,9 @@ export const ALLOWED_KEYS = new Set([
   "generalStatementWithLink",
   "generalStatement",
   "linkWithSpace",
-  "stakeName"
+  "stakeName",
+  "obsolete",
+  "migrationUrl"
 ]);
 
 // Permissive: allow most Unicode letters, digits, punctuation, spaces,
