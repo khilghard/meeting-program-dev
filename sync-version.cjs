@@ -26,7 +26,13 @@ fs.writeFileSync(SERVICE_WORKER_PATH, updatedServiceWorker);
 console.log("Updated service-worker.js");
 
 // Update version.json
-const versionJson = JSON.parse(fs.readFileSync(VERSION_JSON_PATH, "utf8"));
+let versionJson;
+try {
+  versionJson = JSON.parse(fs.readFileSync(VERSION_JSON_PATH, "utf8"));
+} catch (error) {
+  console.error("Failed to parse version.json:", error.message);
+  versionJson = {};
+}
 versionJson.version = version;
 fs.writeFileSync(VERSION_JSON_PATH, JSON.stringify(versionJson, null, 2) + "\n");
 console.log("Updated version.json");

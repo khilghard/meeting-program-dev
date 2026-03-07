@@ -5,38 +5,27 @@
 
 import { VERSION } from "./version.js";
 import { isNewer } from "./version-parser.js";
+import { getVersionFeedUrl } from "./config/baseUrl.js";
+import { createTimer } from "./utils/timer-manager.js";
 
-let REMOTE_URL = "https://khilghard.github.io/meeting-program/version.json";
-
-// Get site URL from IndexedDB
-async function getSiteUrl() {
-  const { getMetadata } = await import("./data/IndexedDBManager.js");
-  const storedUrl = await getMetadata("siteUrl");
-  return storedUrl || "https://khilghard.github.io/meeting-program";
-}
-
-// Initialize REMOTE_URL with the stored site URL
-getSiteUrl().then((url) => {
-  REMOTE_URL = `${url}/version.json`;
-});
 const CHECK_INTERVAL_MS = 3600000;
 const CACHE_BUST_PARAM = "t";
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1000;
 
 async function withRetry(fetchFn, maxRetries = MAX_RETRIES) {
-  let lastError;
-
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       return await fetchFn();
     } catch (error) {
-      lastError = error;
       console.log(`[VersionChecker] Retry attempt ${attempt + 1}/${maxRetries}:`, error.message);
 
       if (attempt < maxRetries - 1) {
         const delay = RETRY_DELAY_MS * Math.pow(2, attempt);
-        await new Promise((resolve) => setTimeout(resolve, delay));
+        await new Promise((resolve) => {
+          createTimer(delay, `retry_${attempt}_${Date.now()}`);
+          setTimeout(resolve, delay);
+        });
       }
     }
   }
@@ -57,6 +46,7 @@ export function addCacheBusting(url) {
 
 export async function fetchRemoteManifest() {
   const fetchFn = async () => {
+    const REMOTE_URL = await getVersionFeedUrl();
     const url = addCacheBusting(REMOTE_URL);
     const response = await fetch(url);
 
@@ -82,7 +72,7 @@ export async function checkForUpdates() {
 
   const remoteManifest = await fetchRemoteManifest();
 
-  if (!remoteManifest || !remoteManifest.version) {
+  if (!remoteManifest?.version) {
     return {
       needsUpdate: false,
       localVersion,
@@ -102,4 +92,5 @@ export async function checkForUpdates() {
   };
 }
 
-export { REMOTE_URL, CHECK_INTERVAL_MS, CACHE_BUST_PARAM, MAX_RETRIES, RETRY_DELAY_MS, withRetry };
+export { CHECK_INTERVAL_MS, CACHE_BUST_PARAM, MAX_RETRIES, RETRY_DELAY_MS, withRetry };
+export { getVersionFeedUrl } from "./config/baseUrl.js";

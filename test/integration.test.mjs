@@ -3,64 +3,15 @@ import { describe, test, expect, beforeEach, vi } from "vitest";
 // Prevent init() from auto-running during tests
 window.__VITEST__ = true;
 
-// Mock workerInterface.js - needed for parseCSV in tests
-vi.mock("../js/workers/workerInterface.js", () => ({
-  createWorker: vi.fn((type, payload, options) => {
-    if (type === "parseCSV") {
-      // Direct import of parseCSV for synchronous parsing
-      return import("../js/utils/csv.js").then((module) => {
-        return module.parseCSV(payload);
-      });
-    }
-    return Promise.resolve(null);
-  })
-}));
+// Set up test isolation with browser API stubs
+stubBrowserAPIs();
 
-// Mock i18n.js
-vi.mock("../js/i18n/index.js", () => ({
-  t: vi.fn((key) => key),
-  getLanguage: vi.fn(() => "en"),
-  initI18n: vi.fn(() => "en"),
-  setLanguage: vi.fn(),
-  getSupportedLanguages: vi.fn(() => ["en", "es", "fr", "swa"])
-}));
-
-// Mock qr.js
-vi.mock("../js/qr.js", () => ({
-  showScanner: vi.fn(),
-  stopQRScanner: vi.fn(),
-  extractSheetUrl: vi.fn((url) => url)
-}));
-
-// Mock profiles.js
-vi.mock("../js/profiles.js", () => ({
-  initProfiles: vi.fn(() => Promise.resolve()),
-  getProfiles: vi.fn(() => []),
-  getActiveProfiles: vi.fn(() => []),
-  getArchivedProfiles: vi.fn(() => []),
-  getCurrentProfile: vi.fn(() => null),
-  addProfile: vi.fn(),
-  selectProfile: vi.fn(),
-  removeProfile: vi.fn(),
-  archiveProfile: vi.fn(),
-  restoreProfile: vi.fn()
-}));
-
-// Mock history.js
-vi.mock("../js/history.js", () => ({
-  saveProgramHistory: vi.fn(),
-  getProgramHistory: vi.fn(() => []),
-  cleanupHistory: vi.fn()
-}));
-
-// Mock share.js
-vi.mock("../js/share.js", () => ({
-  initShareUI: vi.fn(),
-  promptPWAInstall: vi.fn()
-}));
-
-// Import the whole app/main dependencies
+// Import all modules (real modules, no internal mocks)
 import * as Main from "../js/main.js";
+import * as I18n from "../js/i18n/index.js";
+import * as Profiles from "../js/profiles.js";
+import * as History from "../js/history.js";
+import * as Share from "../js/share.js";
 
 describe("Integration: Program Loading Flows", () => {
   beforeEach(() => {

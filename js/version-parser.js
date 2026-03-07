@@ -24,8 +24,8 @@ export function parseVersion(versionString) {
   }
 
   const parsed = parts.map((part) => {
-    const num = parseInt(part, 10);
-    return isNaN(num) ? -1 : num;
+    const num = Number.parseInt(part, 10);
+    return Number.isNaN(num) ? -1 : num;
   });
 
   if (parsed.some((num) => num < 0)) {
@@ -35,6 +35,40 @@ export function parseVersion(versionString) {
   return parsed;
 }
 
+function isValidVersionString(version) {
+  return version && typeof version === "string";
+}
+
+function isZeroVersion(versionArray) {
+  return versionArray[0] === 0 && versionArray[1] === 0 && versionArray[2] === 0;
+}
+
+function compareMajor(remote, local) {
+  if (remote[0] > local[0]) return 1;
+  if (remote[0] < local[0]) return -1;
+  return 0;
+}
+
+function compareMinor(remote, local) {
+  if (remote[1] > local[1]) return 1;
+  if (remote[1] < local[1]) return -1;
+  return 0;
+}
+
+function comparePatch(remote, local) {
+  return remote[2] > local[2] ? 1 : remote[2] < local[2] ? -1 : 0;
+}
+
+function compareVersions(remote, local) {
+  const majorCompare = compareMajor(remote, local);
+  if (majorCompare !== 0) return majorCompare;
+
+  const minorCompare = compareMinor(remote, local);
+  if (minorCompare !== 0) return minorCompare;
+
+  return comparePatch(remote, local);
+}
+
 /**
  * Compares two version strings to determine if remote is newer
  * @param {string} remoteVersion - The remote version string
@@ -42,32 +76,19 @@ export function parseVersion(versionString) {
  * @returns {boolean} True if remote > local, false otherwise
  */
 export function isNewer(remoteVersion, localVersion) {
-  // Validate version strings before parsing
-  if (
-    !remoteVersion ||
-    !localVersion ||
-    typeof remoteVersion !== "string" ||
-    typeof localVersion !== "string"
-  ) {
+  if (!isValidVersionString(remoteVersion) || !isValidVersionString(localVersion)) {
     return false;
   }
 
   const remote = parseVersion(remoteVersion);
   const local = parseVersion(localVersion);
 
-  // If either version couldn't be parsed properly, don't consider it newer
-  if (remote[0] === 0 && remote[1] === 0 && remote[2] === 0) {
+  if (isZeroVersion(remote)) {
     return false;
   }
-  if (local[0] === 0 && local[1] === 0 && local[2] === 0) {
+  if (isZeroVersion(local)) {
     return true;
   }
 
-  if (remote[0] > local[0]) return true;
-  if (remote[0] < local[0]) return false;
-
-  if (remote[1] > local[1]) return true;
-  if (remote[1] < local[1]) return false;
-
-  return remote[2] > local[2];
+  return compareVersions(remote, local) > 0;
 }

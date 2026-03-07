@@ -15,6 +15,7 @@ import {
   getMetadata,
   setMetadata
 } from "./IndexedDBManager.js";
+import { clearHistory } from "../history.js";
 
 const LEGACY_STORAGE_KEY = "meeting_program_profiles";
 const LEGACY_SELECTED_KEY = "meeting_program_selected_id";
@@ -23,7 +24,7 @@ const SELECTED_PROFILE_KEY = "meeting_program_selected_id";
 let initialized = false;
 
 function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+  return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
 
 function validateUrl(url) {
@@ -37,7 +38,7 @@ function validateUrl(url) {
       return { valid: false, error: "URL must be a Google Sheets URL" };
     }
     return { valid: true, error: null };
-  } catch (e) {
+  } catch {
     return { valid: false, error: "Invalid URL format" };
   }
 }
@@ -150,6 +151,7 @@ export async function removeProfile(id) {
 
   await dbDeleteProfile(id);
   await clearProfileArchives(id);
+  await clearHistory(id); // Clear history entries for deleted profile
 
   const selectedId = await getSelectedProfileId();
   if (selectedId === id) {
@@ -195,10 +197,42 @@ export async function searchProfiles(query) {
 
   return profiles.filter(
     (p) =>
-      (p.unitName && p.unitName.toLowerCase().includes(lowerQuery)) ||
-      (p.stakeName && p.stakeName.toLowerCase().includes(lowerQuery)) ||
-      (p.url && p.url.toLowerCase().includes(lowerQuery))
+      p.unitName?.toLowerCase().includes(lowerQuery) ||
+      p.stakeName?.toLowerCase().includes(lowerQuery) ||
+      p.url?.toLowerCase().includes(lowerQuery)
   );
+}
+
+function createProfileFromLegacy(legacyProfile) {
+  return {
+    id: legacyProfile.id || generateId(),
+    url: legacyProfile.url,
+    unitName: legacyProfile.unitName || "Unknown Unit",
+    stakeName: legacyProfile.stakeName || "Unknown Stake",
+    lastUsed: legacyProfile.lastUsed || Date.now(),
+    inactive: legacyProfile.inactive || false,
+    inactiveAt: legacyProfile.inactiveAt || null
+  };
+}
+
+async function migrateSingleProfile(legacyProfile, existingProfiles) {
+  const existingByUrl = existingProfiles.find((p) => p.url === legacyProfile.url);
+  if (!existingByUrl) {
+    const profile = createProfileFromLegacy(legacyProfile);
+    await dbSaveProfile(profile);
+    return true;
+  }
+  return false;
+}
+
+async function restoreSelectedProfile(legacySelectedId) {
+  if (!legacySelectedId) return;
+
+  const profiles = await dbGetAllProfiles();
+  const profile = profiles.find((p) => p.id === legacySelectedId);
+  if (profile) {
+    await setMetadata(SELECTED_PROFILE_KEY, profile.id);
+  }
 }
 
 export async function migrateLegacyProfiles() {
@@ -221,29 +255,13 @@ export async function migrateLegacyProfiles() {
     let migratedCount = 0;
 
     for (const legacyProfile of legacyProfiles) {
-      const existingByUrl = existingProfiles.find((p) => p.url === legacyProfile.url);
-      if (!existingByUrl) {
-        const profile = {
-          id: legacyProfile.id || generateId(),
-          url: legacyProfile.url,
-          unitName: legacyProfile.unitName || "Unknown Unit",
-          stakeName: legacyProfile.stakeName || "Unknown Stake",
-          lastUsed: legacyProfile.lastUsed || Date.now(),
-          inactive: legacyProfile.inactive || false,
-          inactiveAt: legacyProfile.inactiveAt || null
-        };
-        await dbSaveProfile(profile);
+      const migrated = await migrateSingleProfile(legacyProfile, existingProfiles);
+      if (migrated) {
         migratedCount++;
       }
     }
 
-    if (legacySelectedId) {
-      const profiles = await dbGetAllProfiles();
-      const profile = profiles.find((p) => p.id === legacySelectedId);
-      if (profile) {
-        await setMetadata(SELECTED_PROFILE_KEY, profile.id);
-      }
-    }
+    await restoreSelectedProfile(legacySelectedId);
 
     localStorage.removeItem(LEGACY_STORAGE_KEY);
     localStorage.removeItem(LEGACY_SELECTED_KEY);

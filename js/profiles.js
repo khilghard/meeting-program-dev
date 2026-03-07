@@ -12,11 +12,7 @@ import {
   deactivateProfile as pmDeactivateProfile,
   reactivateProfile as pmReactivateProfile,
   getProfiles as pmGetProfiles,
-  getInactiveProfiles as pmGetInactiveProfiles,
-  getActiveProfiles as pmGetActiveProfiles,
   getSelectedProfileId as pmGetSelectedProfileId,
-  getCurrentProfile as pmGetCurrentProfile,
-  getProfileById as pmGetProfileById,
   initProfileManager
 } from "./data/ProfileManager.js";
 

@@ -1,53 +1,85 @@
 /**
  * theme.js
  * Theme management functions
+ * Uses IndexedDB for persistence (v2.2.0+)
  */
 
-export function initTheme() {
-  const savedTheme = localStorage.getItem("theme");
-  const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+const THEME_KEY = "userPreference_theme";
+
+// Dependency injection for testing
+let getMetadataFn = null;
+let setMetadataFn = null;
+
+export function setMetadataDependencies(getMetadata, setMetadata) {
+  getMetadataFn = getMetadata;
+  setMetadataFn = setMetadata;
+}
+
+async function getThemeFromStorage() {
+  try {
+    const getMetadata = getMetadataFn || (await import("./data/IndexedDBManager.js")).getMetadata;
+    return await getMetadata(THEME_KEY);
+  } catch {
+    return null;
+  }
+}
+
+async function setThemeInStorage(theme) {
+  try {
+    const setMetadata = setMetadataFn || (await import("./data/IndexedDBManager.js")).setMetadata;
+    await setMetadata(THEME_KEY, theme);
+  } catch {
+    console.warn("[theme] Failed to save theme to IndexedDB");
+  }
+}
+
+export async function initTheme() {
+  const savedTheme = await getThemeFromStorage();
+  const mediaQuery =
+    typeof globalThis.window !== "undefined" && typeof globalThis.window.matchMedia === "function"
+      ? globalThis.window.matchMedia("(prefers-color-scheme: dark)")
+      : null;
 
   const applyTheme = (theme) => {
-    document.documentElement.setAttribute("data-theme", theme);
+    document.documentElement.dataset.theme = theme;
   };
 
-  // Determine initial theme
   let theme = savedTheme;
   if (!theme) {
-    theme = mediaQuery.matches ? "dark" : "light";
+    theme = mediaQuery?.matches ? "dark" : "light";
   }
   applyTheme(theme);
 
-  // Setup Toggle Button
   const toggleBtn = document.getElementById("theme-toggle");
   if (toggleBtn) {
-    toggleBtn.onclick = () => {
-      const currentTheme = document.documentElement.getAttribute("data-theme");
+    toggleBtn.onclick = async () => {
+      const currentTheme = document.documentElement.dataset.theme;
       const newTheme = currentTheme === "dark" ? "light" : "dark";
       applyTheme(newTheme);
-      localStorage.setItem("theme", newTheme);
+      await setThemeInStorage(newTheme);
     };
   }
 
-  // Listen for system changes
-  mediaQuery.addEventListener("change", (e) => {
-    if (!localStorage.getItem("theme")) {
+  mediaQuery?.addEventListener("change", async (e) => {
+    const currentStored = await getThemeFromStorage();
+    if (!currentStored) {
       applyTheme(e.matches ? "dark" : "light");
     }
   });
 }
 
-export function toggleTheme() {
-  const currentTheme = document.documentElement.getAttribute("data-theme");
+export async function toggleTheme() {
+  const currentTheme = document.documentElement.dataset.theme;
   const newTheme = currentTheme === "dark" ? "light" : "dark";
-  document.documentElement.setAttribute("data-theme", newTheme);
-  localStorage.setItem("theme", newTheme);
+  document.documentElement.dataset.theme = newTheme;
+  await setThemeInStorage(newTheme);
+  return newTheme;
 }
 
 export function getTheme() {
-  return document.documentElement.getAttribute("data-theme") || "light";
+  return document.documentElement.dataset.theme || "light";
 }
 
 export function applyTheme(theme) {
-  document.documentElement.setAttribute("data-theme", theme);
+  document.documentElement.dataset.theme = theme;
 }

@@ -34,7 +34,7 @@ export function resetScannerState() {
 // ------------------------------------------------------------
 export function isSafari() {
   // For testing purposes, return true for Safari
-  if (typeof window === "undefined") return true;
+  if (typeof globalThis.window === "undefined") return true;
 
   // In actual browser, check user agent
   const ua = navigator?.userAgent?.toLowerCase();
@@ -58,24 +58,43 @@ export function showSafariCameraHelp() {
 // URL Validation
 // ------------------------------------------------------------
 export function isValidSheetUrl(url) {
-  if (typeof url !== "string") return false;
+  if (typeof url !== "string") {
+    console.log("[QR] URL validation: Not a string (type:", typeof url, ")");
+    return false;
+  }
 
   // Direct Google Sheets URL
   if (url.startsWith("https://docs.google.com/spreadsheets/")) {
+    console.log("[QR] URL validation: ✓ Direct Google Sheets URL");
     return true;
   }
 
   // App URL with sheet as parameter: ?url=https://docs.google.com/spreadsheets/...
   try {
     const parsed = new URL(url);
+    console.log("[QR] URL validation: Parsed URL hostname:", parsed.hostname);
+
     const sheetUrl = parsed.searchParams.get("url");
-    if (sheetUrl && sheetUrl.startsWith("https://docs.google.com/spreadsheets/")) {
-      return true;
+    if (sheetUrl) {
+      console.log(
+        "[QR] URL validation: Found 'url' parameter:",
+        sheetUrl.substring(0, 80) + (sheetUrl.length > 80 ? "..." : "")
+      );
+
+      if (sheetUrl.startsWith("https://docs.google.com/spreadsheets/")) {
+        console.log("[QR] URL validation: ✓ Valid app URL with Google Sheets parameter");
+        return true;
+      } else {
+        console.log("[QR] URL validation: ✗ 'url' parameter is not a Google Sheets URL");
+      }
+    } else {
+      console.log("[QR] URL validation: No 'url' parameter found");
     }
   } catch (e) {
-    // Invalid URL format
+    console.log("[QR] URL validation: ✗ Invalid URL format -", e.message);
   }
 
+  console.log("[QR] URL validation: ✗ URL does not match expected patterns");
   return false;
 }
 
@@ -94,10 +113,10 @@ export function extractSheetUrl(url) {
     const parsed = new URL(url);
     const sheetUrl = parsed.searchParams.get("url");
 
-    if (sheetUrl && sheetUrl.startsWith("https://docs.google.com/spreadsheets/")) {
+    if (sheetUrl?.startsWith("https://docs.google.com/spreadsheets/")) {
       return sheetUrl;
     }
-  } catch (e) {
+  } catch {
     // Invalid URL format
   }
 
@@ -121,10 +140,8 @@ export function showManualUrlEntry() {
     manualBtn.classList.remove("hidden");
     manualBtn.textContent = t("enterSheetUrlManually");
     manualBtn.onclick = () => {
-      if (manualBtn) {
-        manualBtn.hidden = true;
-        manualBtn.classList.add("hidden");
-      }
+      manualBtn.hidden = true;
+      manualBtn.classList.add("hidden");
       if (manualContainer) {
         manualContainer.hidden = false;
         manualContainer.classList.remove("hidden");
@@ -146,7 +163,7 @@ export function showManualUrlEntry() {
         handleScannedUrl(url);
         if (manualContainer) manualContainer.hidden = true;
       } else {
-        if (output) output.textContent = t("invalidSheetUrl");
+        output.textContent = t("invalidSheetUrl");
       }
     };
   }
@@ -195,18 +212,21 @@ export function showScanner() {
   const actionBtn = document.getElementById("qr-action-btn");
   if (actionBtn) {
     actionBtn.textContent = t("cancel");
-    actionBtn.onclick = () => hideScanner();
+    actionBtn.onclick = () => {
+      hideScanner();
+    };
   }
 }
 
-export function hideScanner() {
+export async function hideScanner() {
   initDOMElements();
   if (qrSection) qrSection.hidden = true;
   stopQRScanner();
   hideManualUrlEntry();
 
   const actionBtn = document.getElementById("qr-action-btn");
-  const storedUrl = localStorage.getItem("sheetUrl");
+  const { getMetadata } = await import("./data/IndexedDBManager.js");
+  const storedUrl = await getMetadata("legacy_sheetUrl");
 
   if (actionBtn) {
     if (!storedUrl) {
@@ -224,7 +244,7 @@ export function hideScanner() {
 export async function startQRScanner() {
   initDOMElements();
   try {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    if (!navigator.mediaDevices?.getUserMedia) {
       output.textContent = t("cameraUnavailable");
       return;
     }
@@ -262,58 +282,128 @@ export function stopQRScanner() {
 }
 
 // ------------------------------------------------------------
-// Scan loop
-// ------------------------------------------------------------
+// Helper: Check if enough time has passed since last scan
+function shouldScanFrame(timestamp, lastTime) {
+  return timestamp - lastTime >= 150;
+}
+
+// Helper: Process scanned QR code data
+function processScannedCode(code) {
+  if (!code) {
+    // No code detected yet - this is normal during scanning
+    return false;
+  }
+
+  const scanned = code.data.trim();
+
+  // Debug: Log the raw scanned data
+  console.log("[QR] Scanned QR code data:");
+  console.log("[QR] Raw data length:", scanned.length);
+  console.log(
+    "[QR] Raw data preview:",
+    scanned.substring(0, 100) + (scanned.length > 100 ? "..." : "")
+  );
+  console.log("[QR] Full data:", scanned);
+  console.log("[QR] Data type:", typeof code.data);
+  console.log("[QR] Data is empty:", scanned.length === 0);
+
+  // If data is empty, this is a decoding issue, not a validation issue
+  if (scanned.length === 0) {
+    console.error("[QR] ⚠️ QR code detected but data is EMPTY!");
+    console.error("[QR] This usually means:");
+    console.error("[QR] 1. The QR code is blurry or out of focus");
+    console.error("[QR] 2. The lighting is too dark or too bright");
+    console.error("[QR] 3. The angle is too extreme");
+    console.error("[QR] 4. The QR code is partially obscured");
+    console.error("[QR] 5. The camera is too close or too far");
+    console.error("[QR] QR code location (position in frame):");
+    if (code.location) {
+      console.error("[QR] Top-left:", code.location.topLeftCorner);
+      console.error("[QR] Top-right:", code.location.topRightCorner);
+      console.error("[QR] Bottom-right:", code.location.bottomRightCorner);
+      console.error("[QR] Bottom-left:", code.location.bottomLeftCorner);
+    }
+    if (output)
+      output.textContent =
+        "QR code detected but unreadable. Please ensure it's clear and well-lit.";
+    return false;
+  }
+
+  // Debug: Log QR code metadata if available
+  if (code.location) {
+    console.log("[QR] QR code location detected:");
+    console.log("[QR] Top-left:", code.location.topLeftCorner);
+    console.log("[QR] Top-right:", code.location.topRightCorner);
+    console.log("[QR] Bottom-right:", code.location.bottomRightCorner);
+    console.log("[QR] Bottom-left:", code.location.bottomLeftCorner);
+  }
+
+  if (isValidSheetUrl(scanned)) {
+    console.log("[QR] ✓ Valid Google Sheets URL detected");
+    stopQRScanner();
+    handleScannedUrl(scanned);
+    return true;
+  }
+
+  // Debug: Explain why it's invalid
+  console.error("[QR] ✗ Invalid QR code detected");
+  console.error("[QR]   Reason: Not a valid Google Sheets URL");
+  console.error("[QR]   URL validation failed for:", scanned);
+
+  // Check if it's a URL at all
+  try {
+    const url = new URL(scanned);
+    console.error("[QR]   It IS a URL, but wrong domain:", url.hostname);
+    console.error("[QR]   Expected: docs.google.com");
+    console.error("[QR]   Path:", url.pathname);
+  } catch (e) {
+    console.error("[QR]   It is NOT a valid URL format");
+    console.error("[QR]   Error:", e.message);
+  }
+
+  if (output) output.textContent = t("invalidQR");
+  return false;
+}
+
+// Helper: Handle video frame capture and analysis
+function analyzeVideoFrame() {
+  if (!video || !canvas || !ctx || video.readyState !== video.HAVE_ENOUGH_DATA) {
+    return false;
+  }
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const code = jsQR(imageData.data, canvas.width, canvas.height);
+
+  return processScannedCode(code);
+}
+
+// Main scan loop
 export function scanFrame(timestamp) {
   if (!qrStream) return;
 
-  // Limit scanning to ~6–7 fps
-  if (timestamp - lastScanTime < 150) {
+  if (!shouldScanFrame(timestamp, lastScanTime)) {
     requestAnimationFrame(scanFrame);
     return;
   }
   lastScanTime = timestamp;
 
-  if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
-    initDOMElements();
-    if (canvas) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-    }
+  initDOMElements();
 
-    if (ctx) {
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-      // For testing, simulate a valid QR code
-      if (typeof window === "undefined" && typeof global !== "undefined") {
-        // In test environment, simulate a valid QR code
-        const scannedUrl = "https://docs.google.com/spreadsheets/d/test";
-        if (isValidSheetUrl(scannedUrl)) {
-          stopQRScanner();
-          handleScannedUrl(scannedUrl);
-          return;
-        }
-      }
-
-      const code = jsQR(imageData.data, canvas.width, canvas.height);
-
-      if (code) {
-        const scanned = code.data.trim();
-
-        if (isValidSheetUrl(scanned)) {
-          stopQRScanner();
-          handleScannedUrl(scanned);
-          return;
-        }
-
-        // Invalid → keep scanning
-        if (output) output.textContent = t("invalidQR");
-      }
+  // Test environment simulation
+  if (typeof globalThis.window === "undefined" && typeof globalThis.global !== "undefined") {
+    const scannedUrl = "https://docs.google.com/spreadsheets/d/test";
+    if (isValidSheetUrl(scannedUrl)) {
+      stopQRScanner();
+      handleScannedUrl(scannedUrl);
+      return;
     }
   }
 
+  analyzeVideoFrame();
   requestAnimationFrame(scanFrame);
 }
 
@@ -327,5 +417,5 @@ export function handleScannedUrl(url) {
 
   // Dispatch event for main.js to handle
   const event = new CustomEvent("qr-scanned", { detail: { url: sheetUrl } });
-  window.dispatchEvent(event);
+  globalThis.window.dispatchEvent(event);
 }

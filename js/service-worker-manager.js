@@ -50,16 +50,13 @@ export async function checkForUpdate() {
   }
 }
 
-export async function triggerUpdate() {
-  if (!registration || !registration.waiting) {
+export function triggerUpdate() {
+  if (!registration?.waiting) {
     console.warn("[SWManager] No waiting service worker");
     return false;
   }
 
   try {
-    // Add a small delay to ensure service worker is ready
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
     registration.waiting.postMessage({ action: "skipWaiting" });
     return true;
   } catch (error) {
@@ -89,7 +86,7 @@ export function watchForControllerChange(callback) {
   navigator.serviceWorker.addEventListener("controllerchange", controllerChangeListener);
 }
 
-export async function getServiceWorkerVersion() {
+export function getServiceWorkerVersion() {
   return new Promise((resolve) => {
     if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) {
       resolve(VERSION);

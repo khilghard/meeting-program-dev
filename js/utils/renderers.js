@@ -2,9 +2,14 @@ import { t, getLanguage } from "../i18n/index.js";
 import { translateHonorifics } from "../i18n/honorifics.js";
 import { isSafeUrl } from "../sanitize.js";
 
-function renderSpeaker(name) {
+// Helper: Render a role with translated name (speaker, prayer, etc.)
+function renderHonorificRole(name, labelKey, className) {
   const translatedName = translateHonorifics(name, getLanguage());
-  appendRow(t("speaker"), translatedName, "speaker");
+  appendRow(t(labelKey), translatedName, className);
+}
+
+function renderSpeaker(name) {
+  renderHonorificRole(name, "speaker", "speaker");
 }
 
 function renderIntermediateHymn(name) {
@@ -28,33 +33,27 @@ function renderSacramentHymn(name) {
 }
 
 function renderOpeningPrayer(name) {
-  const translatedName = translateHonorifics(name, getLanguage());
-  appendRow(t("openingPrayer"), translatedName, "openingPrayer");
+  renderHonorificRole(name, "openingPrayer", "openingPrayer");
 }
 
 function renderClosingPrayer(name) {
-  const translatedName = translateHonorifics(name, getLanguage());
-  appendRow(t("closingPrayer"), translatedName, "closingPrayer");
+  renderHonorificRole(name, "closingPrayer", "closingPrayer");
 }
 
 function renderPresiding(name) {
-  const translatedName = translateHonorifics(name, getLanguage());
-  appendRow(t("presiding"), translatedName, "presiding");
+  renderHonorificRole(name, "presiding", "presiding");
 }
 
 function renderConducting(name) {
-  const translatedName = translateHonorifics(name, getLanguage());
-  appendRow(t("conducting"), translatedName, "conducting");
+  renderHonorificRole(name, "conducting", "conducting");
 }
 
 function renderMusicDirector(name) {
-  const translatedName = translateHonorifics(name, getLanguage());
-  appendRow(t("musicDirector"), translatedName, "musicDirector");
+  renderHonorificRole(name, "musicDirector", "musicDirector");
 }
 
 function renderOrganist(name) {
-  const translatedName = translateHonorifics(name, getLanguage());
-  appendRow(t("organist"), translatedName, "musicOrganist");
+  renderHonorificRole(name, "organist", "musicOrganist");
 }
 
 function renderLeader(value) {
@@ -174,7 +173,7 @@ function renderLinkWithSpace(value) {
   const inner = document.createElement("div");
   inner.className = "link-with-space-inner";
 
-  if (imgLinkRaw && imgLinkRaw.toUpperCase() !== "NONE" && isSafeUrl(imgLinkRaw)) {
+  if (imgLinkRaw?.toUpperCase() !== "NONE" && isSafeUrl(imgLinkRaw)) {
     const img = document.createElement("img");
     img.src = imgLinkRaw;
     img.className = "link-icon";
@@ -275,9 +274,9 @@ function getHymnUrl(number, isChildrensSong, title) {
   if (isChildrensSong) {
     const slug = title
       .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, "")
-      .replace(/\s+/g, "-")
-      .replace(/-+/g, "-")
+      .replaceAll(/[^a-z0-9\s-]/g, "")
+      .replaceAll(/\s+/g, "-")
+      .replaceAll(/-+/g, "-")
       .trim();
     return slug ? `https://www.churchofjesuschrist.org/music/library/children/${slug}` : null;
   }
@@ -322,7 +321,7 @@ function renderLineBreak(value) {
   const hr = document.createElement("hr");
   hr.className = "hr-text";
   if (value) {
-    hr.setAttribute("data-content", value);
+    hr.dataset.content = value;
   }
   container.appendChild(hr);
 }
