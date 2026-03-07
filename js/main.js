@@ -783,9 +783,6 @@ async function handleUpdateClick() {
     globalThis.window.location.reload(true);
   }
 }
-    globalThis.window.location.reload(true);
-  }
-}
 
 function initProfileUI() {
   const container = document.getElementById("profile-selector-container");
