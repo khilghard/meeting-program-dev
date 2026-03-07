@@ -271,6 +271,11 @@ describe("renderProgram()", () => {
     expect(spy).toHaveBeenCalledWith("Alice");
   });
 
+  test("renders numbered speaker keys for compatibility", () => {
+    renderProgram([{ key: "speaker1", value: "Alice" }]);
+    expect(document.querySelector("#speaker .value-on-right").textContent).toBe("Alice");
+  });
+
   test("skips empty values but renders horizontalLine", () => {
     const spy = vi.spyOn(renderers, "horizontalLine");
     renderProgram([
