@@ -348,6 +348,16 @@ async function handleZeroState() {
   console.log("[INIT] No sheetUrl found, entering zero state.");
   actionBtn.textContent = t("scanProgramQR");
   actionBtn.onclick = () => showScanner();
+  
+  // Check if scan button has no text (loading error) and show reset button
+  if (!actionBtn.textContent || actionBtn.textContent.trim() === "") {
+    console.log("[INIT] Scan button has no text, showing reset button.");
+    const resetBtn = document.getElementById("reset-data-btn");
+    if (resetBtn) {
+      resetBtn.classList.remove("hidden");
+      resetBtn.onclick = handleUpdateClick;
+    }
+  }
 
   toggleElementClasses(header, [], ["hidden"]);
   toggleElementClasses([welcomeBar, helpBtn], [], ["hidden"]);
@@ -722,7 +732,7 @@ function populateProfileSelector(selector, profiles, currentProfile, isViewingAr
 
 async function handleUpdateClick() {
   try {
-    console.log("[UPDATE] Force reload initiated - clearing all caches...");
+    console.log("[UPDATE] Force reload initiated - clearing all caches and data...");
     
     // Clear all browser caches directly
     if (typeof caches !== "undefined") {
@@ -764,12 +774,33 @@ async function handleUpdateClick() {
       await Promise.all(registrations.map((reg) => reg.unregister()));
     }
 
-    // Clear localStorage and sessionStorage
+    // Clear all storage (localStorage, sessionStorage, IndexedDB)
     try {
       sessionStorage.clear();
-      console.log("[UPDATE] Cleared sessionStorage");
+      localStorage.clear();
+      console.log("[UPDATE] Cleared sessionStorage and localStorage");
     } catch (err) {
-      console.warn("[UPDATE] Could not clear sessionStorage:", err);
+      console.warn("[UPDATE] Could not clear storage:", err);
+    }
+    
+    // Clear IndexedDB databases
+    try {
+      if (typeof indexedDB !== "undefined" && indexedDB.databases) {
+        const dbs = await indexedDB.databases();
+        if (dbs?.length) {
+          await Promise.all(dbs.map((db) => {
+            console.log("[UPDATE] Deleting IndexedDB:", db.name);
+            return new Promise((resolve) => {
+              const req = indexedDB.deleteDatabase(db.name);
+              req.onsuccess = resolve;
+              req.onerror = resolve;
+              req.onblocked = resolve;
+            });
+          }));
+        }
+      }
+    } catch (err) {
+      console.warn("[UPDATE] Could not clear IndexedDB:", err);
     }
 
     // Redirect with cache-busting parameter
