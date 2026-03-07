@@ -16,7 +16,7 @@ const BASE_PATH = (() => {
 // NOTE: Keep VERSION in sync with js/version.js
 const MPPATH = BASE_PATH;
 const APP_PREFIX = "smpwa";
-const VERSION = "2.1.5"; // Updated to v2.1.5
+const VERSION = "2.1.6"; // Updated to v2.1.6
 const CACHE_NAME = `${APP_PREFIX}-${VERSION}`;
 
 console.log(`[SW] BASE_PATH detected: "${BASE_PATH}"`, `VERSION: ${VERSION}`);
@@ -106,17 +106,7 @@ self.addEventListener("activate", (event) => {
   clients.claim();
 });
 
-// ------------------------------------------------------------
-// FETCH — Different strategies based on content type
-// ------------------------------------------------------------
-self.addEventListener("fetch", (event) => {
-  const req = event.request;
-  const url = new URL(req.url);
-
-  // Only handle GET requests
-  if (req.method !== "GET") return;
-
-  // Helper: Handle static content with network-first strategy
+// Helper: Handle static content with network-first strategy
 async function handleStaticCache(req) {
   try {
     // NETWORK-FIRST: Try to fetch fresh content first
@@ -147,6 +137,7 @@ async function handleStaticCache(req) {
   }
 }
 
+// ------------------------------------------------------------
 // FETCH — Different strategies based on content type
 // ------------------------------------------------------------
 self.addEventListener("fetch", (event) => {
