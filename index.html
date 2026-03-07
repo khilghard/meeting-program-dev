@@ -10,6 +10,33 @@
     <link rel="apple-touch-icon" sizes="180x180" href="img/favicon.png" />
     <title>Sacrament Meeting Program</title>
     
+    <!-- Global Error Logger (runs before everything) -->
+    <script>
+      // Capture all errors immediately
+      globalThis.allErrors = [];
+      
+      const captureError = (error, source = "global") => {
+        const errorInfo = {
+          source,
+          message: error?.message || String(error),
+          stack: error?.stack,
+          timestamp: new Date().toISOString()
+        };
+        globalThis.allErrors.push(errorInfo);
+        console.error(`[ERROR-${source.toUpperCase()}]`, errorInfo);
+      };
+      
+      // Global error handler
+      window.addEventListener("error", (e) => {
+        captureError(e.error || e.message, "error-event");
+      });
+      
+      // Unhandled promise rejection handler
+      window.addEventListener("unhandledrejection", (e) => {
+        captureError(e.reason, "unhandledRejection");
+      });
+    </script>
+    
     <!-- Dynamically set manifest based on deployment path -->
     <script>
       (function detectAndSetManifest() {
@@ -57,10 +84,31 @@
       globalThis.APP_VERSION = VERSION;
       document.getElementById("styles-link").href = `css/styles.css?v=${VERSION}`;
       
-      // Check for version mismatch - force reload if cached version is different
-      const lastLoadedVersion = sessionStorage.getItem("app_version");
-      if (lastLoadedVersion && lastLoadedVersion !== VERSION) {
+      // Persistent error logger (survives reloads)
+      globalThis.errorLog = [];
+      window.addEventListener("error", (event) => {
+        globalThis.errorLog.push({
+          type: "error",
+          message: event.message,
+          time: new Date().toISOString()
+        });
+      });
+      window.addEventListener("unhandledrejection", (event) => {
+        globalThis.errorLog.push({
+          type: "unhandledRejection",
+          reason: String(event.reason),
+          time: new Date().toISOString()
+        });
+      });
+      
+      // Check for version mismatch - force reload only if different version AND not already reloaded
+      const lastLoadedVersion = localStorage.getItem("app_version");
+      const versionCheckDone = localStorage.getItem("version_check_done");
+      
+      if (lastLoadedVersion && lastLoadedVersion !== VERSION && !versionCheckDone) {
         console.log(`[VERSION] Detected version mismatch: ${lastLoadedVersion} -> ${VERSION}. Clearing cache...`);
+        localStorage.setItem("version_check_done", "true");
+        
         // Clear all caches
         try {
           if (typeof navigator !== "undefined" && navigator.serviceWorker?.controller) {
@@ -69,11 +117,17 @@
         } catch (err) {
           console.warn("[VERSION] Could not notify service worker:", err);
         }
-        sessionStorage.clear();
+        
         // Reload with fresh content
         window.location = window.location.href.split("?")[0] + "?v=" + VERSION + "&nocache=" + Date.now();
       }
-      sessionStorage.setItem("app_version", VERSION);
+      
+      // Reset check flag on successful load
+      setTimeout(() => {
+        localStorage.removeItem("version_check_done");
+      }, 5000);
+      
+      localStorage.setItem("app_version", VERSION);
       
       const mainScript = document.createElement("script");
       mainScript.type = "module";
@@ -82,26 +136,41 @@
 
       // Register service worker after version is loaded
       async function registerServiceWorker() {
-        if (!("serviceWorker" in navigator)) return;
-
-        const swUrl = `service-worker.js?v=${VERSION}`;
-
         try {
-          const registration = await navigator.serviceWorker.register(swUrl);
-          registration.onupdatefound = () => {
-            const installingWorker = registration.installing;
-            installingWorker.onstatechange = () => {
-              if (installingWorker.state === "installed") {
-                if (navigator.serviceWorker.controller) {
-                  // Show update notification
-                  const el = document.getElementById("update-notification");
-                  if (el) el.hidden = false;
+          if (typeof navigator === "undefined") {
+            console.warn("[SW] Navigator not available, skipping service worker registration");
+            return;
+          }
+          
+          if (!("serviceWorker" in navigator)) {
+            console.warn("[SW] Service workers not supported");
+            return;
+          }
+
+          const swUrl = `service-worker.js?v=${VERSION}`;
+
+          try {
+            const registration = await navigator.serviceWorker.register(swUrl);
+            console.log("[SW] Registered successfully");
+            registration.onupdatefound = () => {
+              const installingWorker = registration.installing;
+              installingWorker.onstatechange = () => {
+                if (installingWorker.state === "installed") {
+                  if (navigator.serviceWorker.controller) {
+                    // Show update notification
+                    const el = document.getElementById("update-notification");
+                    if (el) el.hidden = false;
+                  }
                 }
-              }
+              };
             };
-          };
+          } catch (error) {
+            console.error("[SW] Registration failed:", error);
+            captureError(error, "sw-registration");
+          }
         } catch (error) {
-          console.log("Service Worker registration failed:", error);
+          console.error("[SW] Service worker setup failed:", error);
+          captureError(error, "sw-setup");
         }
       }
 
