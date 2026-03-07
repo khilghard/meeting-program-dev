@@ -16,7 +16,7 @@ const BASE_PATH = (() => {
 // NOTE: Keep VERSION in sync with js/version.js
 const MPPATH = BASE_PATH;
 const APP_PREFIX = "smpwa";
-const VERSION = "2.1.9"; // Updated to v2.1.9
+const VERSION = "2.1.100"; // Updated to v2.1.10
 const CACHE_NAME = `${APP_PREFIX}-${VERSION}`;
 
 console.log(`[SW] BASE_PATH detected: "${BASE_PATH}"`, `VERSION: ${VERSION}`);
