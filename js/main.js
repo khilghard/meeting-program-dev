@@ -349,14 +349,12 @@ async function handleZeroState() {
   actionBtn.textContent = t("scanProgramQR");
   actionBtn.onclick = () => showScanner();
   
-  // Check if scan button has no text (loading error) and show reset button
-  if (!actionBtn.textContent || actionBtn.textContent.trim() === "") {
-    console.log("[INIT] Scan button has no text, showing reset button.");
-    const resetBtn = document.getElementById("reset-data-btn");
-    if (resetBtn) {
-      resetBtn.classList.remove("hidden");
-      resetBtn.onclick = handleUpdateClick;
-    }
+  // Always show reset button on zero state page
+  const resetBtn = document.getElementById("reset-data-btn");
+  if (resetBtn) {
+    resetBtn.classList.remove("hidden");
+    resetBtn.onclick = handleUpdateClick;
+    console.log("[INIT] Reset button visible on zero state page.");
   }
 
   toggleElementClasses(header, [], ["hidden"]);
@@ -368,6 +366,45 @@ async function handleZeroState() {
   const helpShown = await getMetadata("userPreference_helpShown");
   if (!helpShown) {
     openHelpModal();
+  }
+}
+
+// Helper: Add reset button to help modal with warnings
+function addResetButtonToHelpModal() {
+  const helpSections = document.querySelector(".help-sections");
+  if (!helpSections) return;
+
+  // Check if reset section already exists to avoid duplicates
+  if (document.getElementById("reset-data-section")) {
+    return;
+  }
+
+  const resetSection = document.createElement("div");
+  resetSection.id = "reset-data-section";
+  resetSection.className = "help-section";
+  
+  resetSection.innerHTML = `
+    <h4 style="color: #d32f2f;">⚠️ Delete All Data & Cache</h4>
+    <div style="background: #fff3cd; padding: 12px; border-radius: 4px; margin: 10px 0; border-left: 4px solid #ff9800; color: #333;">
+      <p style="color: #333;"><strong style="color: #333;">WARNING:</strong> This action will:</p>
+      <ul style="margin: 5px 0; padding-left: 20px; color: #333;">
+        <li style="color: #333;">Delete all saved program data</li>
+        <li style="color: #333;">Clear local cache and storage</li>
+        <li style="color: #333;">Force download fresh data from the server</li>
+        <li style="color: #333;">This cannot be undone and is immediate</li>
+      </ul>
+      <p style="margin-top: 10px; font-size: 12px; color: #d32f2f;"><strong>Use only if the app is not working properly.</strong></p>
+    </div>
+    <button id="help-reset-btn" class="qr-action-btn" style="background: #d32f2f; width: 100%; margin-top: 10px;">Delete All Data & Reload</button>
+  `;
+
+  // Append to help-sections
+  helpSections.appendChild(resetSection);
+
+  // Attach click handler
+  const resetBtn = document.getElementById("help-reset-btn");
+  if (resetBtn) {
+    resetBtn.onclick = handleUpdateClick;
   }
 }
 
@@ -389,6 +426,15 @@ function setupActiveStateUI() {
 
   actionBtn.textContent = t("useNewQR");
   actionBtn.onclick = () => showScanner();
+  
+  // Hide reset button from main UI (will be in help modal instead)
+  const resetBtn = document.getElementById("reset-data-btn");
+  if (resetBtn) {
+    resetBtn.classList.add("hidden");
+  }
+  
+  // Add reset button to help modal with warnings
+  addResetButtonToHelpModal();
 
   // Show UI elements
   toggleElementClasses(
@@ -730,9 +776,68 @@ function populateProfileSelector(selector, profiles, currentProfile, isViewingAr
   };
 }
 
+async function handleCheckForUpdates() {
+  try {
+    console.log("[CHECK-UPDATE] Force upgrade initiated - clearing static caches only...");
+    
+    // Clear service worker caches (HTML, CSS, JS, manifestsetc)
+    if (typeof caches !== "undefined") {
+      const cacheNames = await caches.keys();
+      console.log("[CHECK-UPDATE] Found caches:", cacheNames);
+      await Promise.all(cacheNames.map((name) => {
+        console.log("[CHECK-UPDATE] Clearing cache:", name);
+        return caches.delete(name);
+      }));
+    }
+    
+    // Notify service worker to clear cache
+    if (navigator.serviceWorker?.controller) {
+      console.log("[CHECK-UPDATE] Sending clearCache to service worker...");
+      try {
+        await Promise.race([
+          new Promise((resolve) => {
+            const channel = new MessageChannel();
+            const timeout = setTimeout(() => {
+              console.warn("[CHECK-UPDATE] SW clearCache timeout - proceeding anyway");
+              resolve();
+            }, 2000);
+            channel.port1.onmessage = () => {
+              clearTimeout(timeout);
+              resolve();
+            };
+            navigator.serviceWorker.controller.postMessage({ action: "clearCache" }, [channel.port2]);
+          })
+        ]);
+      } catch (err) {
+        console.warn("[CHECK-UPDATE] SW message failed:", err);
+      }
+    }
+
+    // Unregister all service worker registrations
+    const registrations = await navigator.serviceWorker?.getRegistrations?.();
+    if (registrations?.length) {
+      console.log("[CHECK-UPDATE] Unregistering service workers:", registrations.length);
+      await Promise.all(registrations.map((reg) => reg.unregister()));
+    }
+
+    // NOTE: NOT clearing IndexedDB or localStorage - user data is preserved
+    console.log("[CHECK-UPDATE] User data and profiles preserved. Reloading page to get fresh static assets...");
+    
+    // Give browser time to process cache clears before navigation
+    await new Promise((resolve) => globalThis.window.setTimeout(resolve, 500));
+    
+    // Reload with new static assets
+    globalThis.window.location.replace(globalThis.window.location.href);
+  } catch (error) {
+    console.error("[CHECK-UPDATE] Force upgrade failed:", error);
+    // Force reload as fallback
+    globalThis.window.location.replace(globalThis.window.location.href);
+  }
+}
+
 async function handleUpdateClick() {
   try {
-    console.log("[UPDATE] Force reload initiated - clearing all caches and data...");
+    console.log("[UPDATE] Full cache and data reset initiated...");
     
     // Clear all browser caches directly
     if (typeof caches !== "undefined") {
@@ -803,18 +908,18 @@ async function handleUpdateClick() {
       console.warn("[UPDATE] Could not clear IndexedDB:", err);
     }
 
-    // Redirect with cache-busting parameter
-    const newUrl = globalThis.window.location.href.split("?")[0] + "?nocache=" + Date.now();
-    console.log("[UPDATE] Redirecting to:", newUrl);
+    // Hard reload with cache-busting: force network-first for this request
+    console.log("[UPDATE] Performing hard reload with cache invalidation...");
     
     // Give browser time to process cache clears before navigation
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => globalThis.window.setTimeout(resolve, 500));
     
-    globalThis.window.location.href = newUrl;
+    // Hard reload (bypasses cache, forces network request for index.html)
+    globalThis.window.location.replace(globalThis.window.location.href);
   } catch (error) {
     console.error("[UPDATE] Cache clear failed:", error);
-    // Force reload as fallback
-    globalThis.window.location.reload(true);
+    // Force hard reload as fallback
+    globalThis.window.location.replace(globalThis.window.location.href);
   }
 }
 
@@ -859,7 +964,7 @@ function initProfileUI() {
 
   const updateBtn = document.getElementById("update-btn");
   if (updateBtn) {
-    updateBtn.onclick = handleUpdateClick;
+    updateBtn.onclick = handleCheckForUpdates;
   }
 
   renderProfileCards();
