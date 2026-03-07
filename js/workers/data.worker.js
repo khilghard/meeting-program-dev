@@ -1,37 +1,51 @@
-self.onmessage = function (e) {
-  const { type, payload, options = {}, id } = e.data;
+if (typeof self !== "undefined") {
+  self.onmessage = function (e) {
+    const { type, payload, options = {}, id } = e.data;
 
-  try {
-    let result = null;
+    try {
+      let result = null;
 
-    switch (type) {
-    case "parseCSV":
-      result = parseCSV(payload, options);
-      break;
-    case "calculateChecksum":
-      result = calculateChecksum(payload);
-      break;
-    case "compareData":
-      result = compareData(payload.old, payload.new);
-      break;
-    case "sortData":
-      result = sortData(payload.data, payload.sortKey);
-      break;
-    case "cleanupArchives":
-      result = cleanupOldArchives(payload.archives, payload.daysOld, payload.maxArchives);
-      break;
-    default:
-      throw new Error(`Unknown worker type: ${type}`);
+      switch (type) {
+      case "parseCSV":
+        result = parseCSV(payload, options);
+        break;
+      case "calculateChecksum":
+        result = calculateChecksum(payload);
+        break;
+      case "compareData":
+        result = compareData(payload.old, payload.new);
+        break;
+      case "sortData":
+        result = sortData(payload.data, payload.sortKey);
+        break;
+      case "cleanupArchives":
+        result = cleanupOldArchives(payload.archives, payload.daysOld, payload.maxArchives);
+        break;
+      default:
+        throw new Error(`Unknown worker type: ${type}`);
+      }
+
+      self.postMessage({ type, id, result });
+    } catch (error) {
+      console.error("Worker error:", error);
+      self.postMessage({ type, id, error: error.message });
     }
+  };
+}
 
-    self.postMessage({ type, id, result });
-  } catch (error) {
-    console.error("Worker error:", error);
-    self.postMessage({ type, id, error: error.message });
+function normalizeDynamicKey(key) {
+  if (/^speaker\d+$/i.test(key)) {
+    return "speaker";
   }
-};
 
-function parseCSV(csv, options = {}) {
+  if (/^intermediatehymn\d+$/i.test(key)) {
+    return "intermediateHymn";
+  }
+
+  return key;
+}
+
+export function parseCSV(csv, options = {}) {
   const rows = [];
   let currentRow = [];
   let currentField = "";
@@ -89,8 +103,9 @@ function parseCSV(csv, options = {}) {
       rawValue = row[1];
     }
 
+    const key = normalizeDynamicKey(rawKey?.trim() || "");
     const entry = {
-      key: rawKey?.trim(),
+      key,
       value: rawValue?.trim()
     };
 
