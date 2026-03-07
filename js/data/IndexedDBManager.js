@@ -16,43 +16,59 @@ function openDB() {
       return;
     }
 
-    const request = globalThis.indexedDB.open(DB_NAME, DB_VERSION);
+    let hasRetriedWithoutVersion = false;
 
-    request.onerror = () => {
-      reject(request.error);
+    const startOpen = (version) => {
+      const request =
+        typeof version === "number"
+          ? globalThis.indexedDB.open(DB_NAME, version)
+          : globalThis.indexedDB.open(DB_NAME);
+
+      request.onerror = () => {
+        // If an existing DB was created with a higher version, reopen without
+        // forcing a lower one so we attach to the current schema safely.
+        if (!hasRetriedWithoutVersion && request.error?.name === "VersionError") {
+          hasRetriedWithoutVersion = true;
+          startOpen();
+          return;
+        }
+        reject(request.error);
+      };
+
+      request.onsuccess = () => {
+        dbInstance = request.result;
+        resolve(dbInstance);
+      };
+
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+
+        if (!db.objectStoreNames.contains("profiles")) {
+          const profilesStore = db.createObjectStore("profiles", { keyPath: "id" });
+          profilesStore.createIndex("url", "url", { unique: false });
+          profilesStore.createIndex("lastUsed", "lastUsed", { unique: false });
+        }
+
+        if (!db.objectStoreNames.contains("archives")) {
+          const archivesStore = db.createObjectStore("archives", { keyPath: "id" });
+          archivesStore.createIndex("profileId", "profileId", { unique: false });
+          archivesStore.createIndex("programDate", "programDate", { unique: false });
+          archivesStore.createIndex("profileId_programDate", ["profileId", "programDate"], {
+            unique: true
+          });
+        }
+
+        if (!db.objectStoreNames.contains("metadata")) {
+          db.createObjectStore("metadata", { keyPath: "key" });
+        }
+
+        if (!db.objectStoreNames.contains("migrations")) {
+          db.createObjectStore("migrations", { keyPath: "profileId" });
+        }
+      };
     };
 
-    request.onsuccess = () => {
-      dbInstance = request.result;
-      resolve(dbInstance);
-    };
-
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-
-      if (!db.objectStoreNames.contains("profiles")) {
-        const profilesStore = db.createObjectStore("profiles", { keyPath: "id" });
-        profilesStore.createIndex("url", "url", { unique: false });
-        profilesStore.createIndex("lastUsed", "lastUsed", { unique: false });
-      }
-
-      if (!db.objectStoreNames.contains("archives")) {
-        const archivesStore = db.createObjectStore("archives", { keyPath: "id" });
-        archivesStore.createIndex("profileId", "profileId", { unique: false });
-        archivesStore.createIndex("programDate", "programDate", { unique: false });
-        archivesStore.createIndex("profileId_programDate", ["profileId", "programDate"], {
-          unique: true
-        });
-      }
-
-      if (!db.objectStoreNames.contains("metadata")) {
-        db.createObjectStore("metadata", { keyPath: "key" });
-      }
-
-      if (!db.objectStoreNames.contains("migrations")) {
-        db.createObjectStore("migrations", { keyPath: "profileId" });
-      }
-    };
+    startOpen(DB_VERSION);
   });
 }
 
