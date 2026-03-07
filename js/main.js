@@ -719,30 +719,70 @@ function populateProfileSelector(selector, profiles, currentProfile, isViewingAr
 
 async function handleUpdateClick() {
   try {
+    console.log("[UPDATE] Force reload initiated - clearing all caches...");
+    
+    // Clear all browser caches directly
+    if (typeof caches !== "undefined") {
+      const cacheNames = await caches.keys();
+      console.log("[UPDATE] Found caches:", cacheNames);
+      await Promise.all(cacheNames.map((name) => {
+        console.log("[UPDATE] Clearing cache:", name);
+        return caches.delete(name);
+      }));
+    }
+    
+    // Notify service worker to clear cache
     if (navigator.serviceWorker?.controller) {
-      await new Promise((resolve) => {
-        const channel = new MessageChannel();
-        channel.port1.onmessage = () => {
-          resolve();
-        };
-        navigator.serviceWorker.controller.postMessage({ action: "clearCache" }, [channel.port2]);
-      });
+      console.log("[UPDATE] Sending clearCache to service worker...");
+      try {
+        await Promise.race([
+          new Promise((resolve) => {
+            const channel = new MessageChannel();
+            const timeout = setTimeout(() => {
+              console.warn("[UPDATE] SW clearCache timeout - proceeding anyway");
+              resolve();
+            }, 2000);
+            channel.port1.onmessage = () => {
+              clearTimeout(timeout);
+              resolve();
+            };
+            navigator.serviceWorker.controller.postMessage({ action: "clearCache" }, [channel.port2]);
+          })
+        ]);
+      } catch (err) {
+        console.warn("[UPDATE] SW message failed:", err);
+      }
     }
 
+    // Unregister all service worker registrations
     const registrations = await navigator.serviceWorker?.getRegistrations?.();
     if (registrations?.length) {
+      console.log("[UPDATE] Unregistering service workers:", registrations.length);
       await Promise.all(registrations.map((reg) => reg.unregister()));
     }
 
-    globalThis.window.location.href =
-      globalThis.window.location.href.split("?")[0] + "?t=" + Date.now();
-    const updateReloadTimer = setTimeout(() => {
-      globalThis.window.location.reload(true);
-      clearTimeout(updateReloadTimer);
-    }, 100);
-    const reloadTimer = updateReloadTimer;
+    // Clear localStorage and sessionStorage
+    try {
+      sessionStorage.clear();
+      console.log("[UPDATE] Cleared sessionStorage");
+    } catch (err) {
+      console.warn("[UPDATE] Could not clear sessionStorage:", err);
+    }
+
+    // Redirect with cache-busting parameter
+    const newUrl = globalThis.window.location.href.split("?")[0] + "?nocache=" + Date.now();
+    console.log("[UPDATE] Redirecting to:", newUrl);
+    
+    // Give browser time to process cache clears before navigation
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    
+    globalThis.window.location.href = newUrl;
   } catch (error) {
-    console.error("[UpdateBtn] Cache clear failed:", error);
+    console.error("[UPDATE] Cache clear failed:", error);
+    // Force reload as fallback
+    globalThis.window.location.reload(true);
+  }
+}
     globalThis.window.location.reload(true);
   }
 }
