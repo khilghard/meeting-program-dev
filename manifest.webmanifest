@@ -1,7 +1,7 @@
 {
   "name": "Sacrament Meeting Program",
   "short_name": "SMP",
-  "version": "2.1.6",
+  "version": "2.1.7",
   "description": "Displays information related to this weeks sacrament meeting",
   "scope": "/meeting-program/",
   "start_url": "/meeting-program/",
