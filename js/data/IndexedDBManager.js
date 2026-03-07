@@ -198,15 +198,33 @@ async function getAllProfiles() {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(["profiles"], "readonly");
     const store = transaction.objectStore("profiles");
-    const index = store.index("lastUsed");
-    const request = index.getAll();
+    try {
+      const index = store.index("lastUsed");
+      const request = index.getAll();
 
-    request.onsuccess = () => {
-      const profiles = request.result || [];
-      profiles.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
-      resolve(profiles);
-    };
-    request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const profiles = request.result || [];
+        profiles.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+        resolve(profiles);
+      };
+      request.onerror = () => reject(request.error);
+    } catch (error) {
+      // Index doesn't exist, manually get all and sort
+      console.debug("[IndexedDB] Falling back to cursor iteration for getAllProfiles");
+      const cursor = store.openCursor();
+      const profiles = [];
+      cursor.onsuccess = (event) => {
+        const cur = event.target.result;
+        if (cur) {
+          profiles.push(cur.value);
+          cur.continue();
+        } else {
+          profiles.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+          resolve(profiles);
+        }
+      };
+      cursor.onerror = () => reject(cursor.error);
+    }
   });
 }
 
@@ -249,11 +267,30 @@ async function getArchive(profileId, programDate) {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(["archives"], "readonly");
     const store = transaction.objectStore("archives");
-    const index = store.index("profileId_programDate");
-    const request = index.get([profileId, programDate]);
-
-    request.onsuccess = () => resolve(request.result || null);
-    request.onerror = () => reject(request.error);
+    try {
+      const index = store.index("profileId_programDate");
+      const request = index.get([profileId, programDate]);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    } catch (error) {
+      // Index doesn't exist, manual search
+      console.debug("[IndexedDB] Falling back to cursor iteration for getArchive");
+      const cursor = store.openCursor();
+      let result = null;
+      cursor.onsuccess = (event) => {
+        const cur = event.target.result;
+        if (cur) {
+          const val = cur.value;
+          if (val && val.profileId === profileId && val.programDate === programDate) {
+            result = val;
+          }
+          cur.continue();
+        } else {
+          resolve(result);
+        }
+      };
+      cursor.onerror = () => reject(cursor.error);
+    }
   });
 }
 
@@ -262,15 +299,34 @@ async function getAllArchives(profileId) {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(["archives"], "readonly");
     const store = transaction.objectStore("archives");
-    const index = store.index("profileId");
-    const request = index.getAll(profileId);
-
-    request.onsuccess = () => {
-      const archives = request.result || [];
-      archives.sort((a, b) => (b.programDate || 0) - (a.programDate || 0));
-      resolve(archives);
-    };
-    request.onerror = () => reject(request.error);
+    try {
+      const index = store.index("profileId");
+      const request = index.getAll(profileId);
+      request.onsuccess = () => {
+        const archives = request.result || [];
+        archives.sort((a, b) => (b.programDate || 0) - (a.programDate || 0));
+        resolve(archives);
+      };
+      request.onerror = () => reject(request.error);
+    } catch (error) {
+      // Index doesn't exist, manual search
+      console.debug("[IndexedDB] Falling back to cursor iteration for getAllArchives");
+      const cursor = store.openCursor();
+      const archives = [];
+      cursor.onsuccess = (event) => {
+        const cur = event.target.result;
+        if (cur) {
+          if (cur.value && cur.value.profileId === profileId) {
+            archives.push(cur.value);
+          }
+          cur.continue();
+        } else {
+          archives.sort((a, b) => (b.programDate || 0) - (a.programDate || 0));
+          resolve(archives);
+        }
+      };
+      cursor.onerror = () => reject(cursor.error);
+    }
   });
 }
 
@@ -294,19 +350,39 @@ async function deleteArchive(profileId, programDate) {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(["archives"], "readwrite");
     const store = transaction.objectStore("archives");
-    const index = store.index("profileId_programDate");
-    const request = index.getKey([profileId, programDate]);
+    try {
+      const index = store.index("profileId_programDate");
+      const request = index.getKey([profileId, programDate]);
 
-    request.onsuccess = () => {
-      if (request.result) {
-        const deleteRequest = store.delete(request.result);
-        deleteRequest.onsuccess = () => resolve(true);
-        deleteRequest.onerror = () => reject(deleteRequest.error);
-      } else {
-        resolve(false);
-      }
-    };
-    request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        if (request.result) {
+          const deleteRequest = store.delete(request.result);
+          deleteRequest.onsuccess = () => resolve(true);
+          deleteRequest.onerror = () => reject(deleteRequest.error);
+        } else {
+          resolve(false);
+        }
+      };
+      request.onerror = () => reject(request.error);
+    } catch (error) {
+      // Index doesn't exist, manual search and delete
+      const cursor = store.openCursor();
+      let found = false;
+      cursor.onsuccess = (event) => {
+        const cur = event.target.result;
+        if (cur) {
+          const val = cur.value;
+          if (val && val.profileId === profileId && val.programDate === programDate) {
+            cur.delete();
+            found = true;
+          }
+          cur.continue();
+        } else {
+          resolve(found);
+        }
+      };
+      cursor.onerror = () => reject(cursor.error);
+    }
   });
 }
 
@@ -518,19 +594,39 @@ async function removeCorruptedArchive(profileId, programDate) {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(["archives"], "readwrite");
     const store = transaction.objectStore("archives");
-    const index = store.index("profileId_programDate");
-    const request = index.getKey([profileId, programDate]);
+    try {
+      const index = store.index("profileId_programDate");
+      const request = index.getKey([profileId, programDate]);
 
-    request.onsuccess = () => {
-      if (request.result) {
-        const deleteRequest = store.delete(request.result);
-        deleteRequest.onsuccess = () => resolve(true);
-        deleteRequest.onerror = () => reject(deleteRequest.error);
-      } else {
-        resolve(false);
-      }
-    };
-    request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        if (request.result) {
+          const deleteRequest = store.delete(request.result);
+          deleteRequest.onsuccess = () => resolve(true);
+          deleteRequest.onerror = () => reject(deleteRequest.error);
+        } else {
+          resolve(false);
+        }
+      };
+      request.onerror = () => reject(request.error);
+    } catch (error) {
+      // Index doesn't exist, manual search and delete
+      const cursor = store.openCursor();
+      let found = false;
+      cursor.onsuccess = (event) => {
+        const cur = event.target.result;
+        if (cur) {
+          const val = cur.value;
+          if (val && val.profileId === profileId && val.programDate === programDate) {
+            cur.delete();
+            found = true;
+          }
+          cur.continue();
+        } else {
+          resolve(found);
+        }
+      };
+      cursor.onerror = () => reject(cursor.error);
+    }
   });
 }
 
