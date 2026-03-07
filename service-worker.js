@@ -16,7 +16,7 @@ const BASE_PATH = (() => {
 // NOTE: Keep VERSION in sync with js/version.js
 const MPPATH = BASE_PATH;
 const APP_PREFIX = "smpwa";
-const VERSION = "2.1.6"; // Updated to v2.1.6
+const VERSION = "2.1.7"; // Updated to v2.1.7
 const CACHE_NAME = `${APP_PREFIX}-${VERSION}`;
 
 console.log(`[SW] BASE_PATH detected: "${BASE_PATH}"`, `VERSION: ${VERSION}`);
@@ -211,8 +211,8 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     fetch(req)
       .then((res) => {
-        // Cache successful responses in dynamic cache
-        if (res.ok) {
+        // Cache successful responses in dynamic cache (only for http/https)
+        if (res.ok && url.protocol === 'http:' || url.protocol === 'https:') {
           const resClone = res.clone();
           const cacheWithTimestamp = new Response(resClone.body, {
             status: res.status,
