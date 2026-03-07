@@ -29,7 +29,7 @@ const APP_PREFIX = "smpwa";
 const VERSION = "2.2.0";
 const CACHE_NAME = `${APP_PREFIX}-${VERSION}`;
 
-// All users now on 2.2.0 - single unified cache scheme
+// All users now on 2.2.1 - single unified cache scheme
 const STATIC_CACHE = `meeting-program-static-v${VERSION}`;
 const DYNAMIC_CACHE = `meeting-program-dynamic-v${VERSION}`;
 const MAX_DYNAMIC_CACHE = 50;
@@ -135,6 +135,10 @@ async function handleStaticCache(req) {
       // Update cache with fresh content
       const cache = await caches.open(STATIC_CACHE);
       await cacheWithTimestamp(cache, req, res);
+      const isMainJs = req.url.includes("main.js");
+      if (isMainJs) {
+        console.log(`[SW] Serving FRESH main.js from network (${VERSION})`);
+      }
     }
     
     return res;
@@ -143,7 +147,8 @@ async function handleStaticCache(req) {
     try {
       const cached = await caches.match(req);
       if (cached) {
-        console.log(`[SW] Network unavailable, serving cached: ${req.url}`);
+        const isMainJs = req.url.includes("main.js");
+        console.log(`[SW] ${isMainJs ? "CRITICAL: Serving CACHED main.js (may be outdated)" : "Serving cached"}: ${req.url}`);
         return cached;
       }
     } catch (cacheErr) {

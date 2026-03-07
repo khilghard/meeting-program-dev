@@ -4,7 +4,7 @@
   "releaseDate": "2025-03-04",
   "compatibility": {
     "minimum": "2.1.1",
-    "current": "2.2.0"
+    "current": "2.2.1"
   },
   "features": {
     "enhancedPWA": true,

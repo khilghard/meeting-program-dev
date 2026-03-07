@@ -34,7 +34,10 @@ import { createTimer, clearTimer, clearAllTimers } from "./utils/timer-manager.j
 
 /* global MessageChannel */
 
-// ------------------------------------------------------------
+// DIAGNOSTIC: Log that main.js has loaded
+console.log("[MAIN] main.js module loaded - version from package");
+
+// ------------------------------------------------------------------
 // Theme & Install Manager Initialization
 // ------------------------------------------------------------
 initTheme();
@@ -1485,7 +1488,17 @@ if (typeof globalThis.window !== "undefined" && !globalThis.window.__VITEST__) {
       }
     };
 
-    initializeApp();
+    initializeApp().catch((err) => {
+      console.error("[INIT] Fatal initialization error:", err);
+      const main = document.getElementById("main-program");
+      if (main) {
+        main.innerHTML = `<div style="padding: 20px; color: red; text-align: center; font-family: monospace;">
+          <p><strong>Failed to initialize app</strong></p>
+          <p style="font-size: 12px; white-space: pre-wrap; text-align: left; background: #f0f0f0; padding: 10px; border-radius: 4px; overflow-x: auto;">${err.message}</p>
+          <p style="font-size: 12px;">Check browser console (DevTools) for full error stack</p>
+        </div>`;
+      }
+    });
   }
 }
 

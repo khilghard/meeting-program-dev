@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Sacrament Meeting Program" />
@@ -55,6 +56,21 @@
       import { VERSION } from "./js/version.js";
       globalThis.APP_VERSION = VERSION;
       document.getElementById("styles-link").href = `css/styles.css?v=${VERSION}`;
+      
+      // Check for version mismatch - force reload if cached version is different
+      const lastLoadedVersion = sessionStorage.getItem("app_version");
+      if (lastLoadedVersion && lastLoadedVersion !== VERSION) {
+        console.log(`[VERSION] Detected version mismatch: ${lastLoadedVersion} -> ${VERSION}. Clearing cache...`);
+        // Clear all caches
+        if (navigator.serviceWorker?.controller) {
+          navigator.serviceWorker.controller.postMessage({ action: "clearCache" });
+        }
+        sessionStorage.clear();
+        // Reload with fresh content
+        window.location = window.location.href.split("?")[0] + "?v=" + VERSION + "&nocache=" + Date.now();
+      }
+      sessionStorage.setItem("app_version", VERSION);
+      
       const mainScript = document.createElement("script");
       mainScript.type = "module";
       mainScript.src = `js/main.js?v=${VERSION}`;
