@@ -11,7 +11,7 @@ app.get("/meeting-program", (req, res) => {
 });
 
 // Start the server
-const port = 8001;
+const port = 8000;
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}/meeting-program`);
 });
