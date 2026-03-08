@@ -3,7 +3,7 @@
  * Children's Songbook: https://www.churchofjesuschrist.org/media/music/collections/childrens-songbook?lang=eng
  * Hymns: https://www.churchofjesuschrist.org/media/music/collections/hymns?lang=eng
  * Hymns for Home and Church: https://www.churchofjesuschrist.org/media/music/collections/hymns-for-home-and-church?lang=eng
- * 
+ *
  * ALL lookup keys are strings for consistency.
  * Children's songs are identified by "CS " prefix in the hymn input (e.g., "CS 73").
  */
@@ -701,21 +701,22 @@ export const hymnsLookup = {
 /**
  * Get the URL and title for a children's song by number
  * Children's songs are identified by "CS " prefix (e.g., "CS 73", "CS 2")
- * @param {string} number - The song number (e.g., "73a", "CS 12", "#73a")
+ * @param {string} hymnNumberString - The song number as a string (e.g., "73a", "CS 12", "#73a")
  * @returns {{url: string, title: string} | null} Object with URL and title, or null if not found
  */
-export function getChildrenSongData(number) {
-  if (!number) return null;
-  
+export function getChildrenSongData(hymnNumberString) {
+  if (!hymnNumberString) return null;
+
   // Remove # prefix and CS prefix if present
-  const cleanNumber = number
-    .replace(/^#?CSs*/i, "")
+  const cleanNumber = hymnNumberString
+    .replace(/^#\s*CS\s*/i, "")
+    .replace(/^CS\s*/i, "")
     .replace(/^#/, "")
     .trim();
   const data = childrenSongLookup[cleanNumber];
-  
+
   if (!data) return null;
-  
+
   return {
     url: `https://www.churchofjesuschrist.org/media/music/songs/${data.slug}?lang=eng`,
     title: data.title
@@ -724,11 +725,11 @@ export function getChildrenSongData(number) {
 
 /**
  * Get the URL for a children's song by number (legacy function)
- * @param {string} number - The song number
+ * @param {string} hymnNumberString - The song number as a string (e.g., "2", "73a", "12")
  * @returns {string|null} The full URL or null if not found
  */
-export function getChildrenSongUrl(number) {
-  const data = getChildrenSongData(number);
+export function getChildrenSongUrl(hymnNumberString) {
+  const data = getChildrenSongData(hymnNumberString);
   return data ? data.url : null;
 }
 
@@ -736,18 +737,18 @@ export function getChildrenSongUrl(number) {
 /**
  * Get the URL and title for a hymn by number
  * Regular hymns do NOT have "CS " prefix (e.g., "1", "1001", "#50")
- * @param {string} number - The hymn number (e.g., "73", "1001", "#73")
+ * @param {string} hymnNumberString - The hymn number as a string (e.g., "73", "1001", "#73")
  * @returns {{url: string, title: string} | null} Object with URL and title, or null if not found
  */
-export function getHymnData(number) {
-  if (!number) return null;
-  
+export function getHymnData(hymnNumberString) {
+  if (!hymnNumberString) return null;
+
   // Remove # prefix if present
-  const cleanNumber = number.replace(/^#/, "").trim();
+  const cleanNumber = hymnNumberString.replace(/^#/, "").trim();
   const data = hymnsLookup[cleanNumber];
-  
+
   if (!data) return null;
-  
+
   return {
     url: `https://www.churchofjesuschrist.org/media/music/songs/${data.slug}?lang=eng`,
     title: data.title
@@ -756,10 +757,10 @@ export function getHymnData(number) {
 
 /**
  * Get the URL for a hymn by number (legacy function)
- * @param {string} number - The hymn number
+ * @param {string} hymnNumberString - The hymn number as a string
  * @returns {string|null} The full URL or null if not found
  */
-export function getHymnUrl(number) {
-  const data = getHymnData(number);
+export function getHymnUrl(hymnNumberString) {
+  const data = getHymnData(hymnNumberString);
   return data ? data.url : null;
 }

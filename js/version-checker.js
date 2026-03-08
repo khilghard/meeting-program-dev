@@ -23,8 +23,7 @@ async function withRetry(fetchFn, maxRetries = MAX_RETRIES) {
       if (attempt < maxRetries - 1) {
         const delay = RETRY_DELAY_MS * Math.pow(2, attempt);
         await new Promise((resolve) => {
-          const timerId = setTimeout(resolve, delay);
-          createTimer(delay, `retry_${attempt}_${Date.now()}`, timerId);
+          setTimeout(resolve, delay);
         });
       }
     }

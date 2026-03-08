@@ -4,21 +4,21 @@
 // Detect base path from current service worker location
 const BASE_PATH = (() => {
   const swPath = self.location.pathname;
-  
+
   // Determine which deployment this service worker is for
   // Examples:
   // - https://khilghard.github.io/meeting-program-dev/service-worker.js → /meeting-program-dev/
   // - https://khilghard.github.io/meeting-program/service-worker.js → /meeting-program/
   // - http://localhost:8000/service-worker.js → /
-  
-  if (swPath.includes('/meeting-program-dev/')) {
-    return '/meeting-program-dev/';
-  } else if (swPath.includes('/meeting-program/')) {
-    return '/meeting-program/';
+
+  if (swPath.includes("/meeting-program-dev/")) {
+    return "/meeting-program-dev/";
+  } else if (swPath.includes("/meeting-program/")) {
+    return "/meeting-program/";
   }
-  
+
   // Fallback for local testing / root deployment
-  return '/';
+  return "/";
 })();
 
 console.log(`[SW] BASE_PATH detected: "${BASE_PATH}"`);
@@ -70,23 +70,18 @@ const URLS = [
 async function promiseAllSafe(promises, options = {}) {
   const { continueOnError = true, logger = console.warn } = options;
   const results = await Promise.all(
-    promises.map((promise, index) =>
-      promise
-        .then(
-          (data) => ({ success: true, data, index }),
-          (error) => {
-            if (continueOnError) {
-              logger(`Promise ${index} failed:`, error.message);
-              return { success: false, error, index };
-            }
-            throw error;
-          }
-        )
-        .catch((err) => {
-          logger(`Promise ${index} catch failed:`, err.message);
-          return { success: false, error: err, index };
-        })
-    )
+    promises.map(async (promise, index) => {
+      try {
+        const data = await promise;
+        return { success: true, data, index };
+      } catch (error) {
+        if (continueOnError) {
+          logger(`Promise ${index} failed:`, error.message);
+          return { success: false, error, index };
+        }
+        throw error;
+      }
+    })
   );
   return results;
 }
@@ -104,7 +99,7 @@ async function cacheWithTimestamp(cache, request, response) {
 
     // Skip caching for non-http schemes (chrome-extension, etc)
     const url = new URL(request.url);
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
       return;
     }
 
@@ -130,7 +125,7 @@ async function handleStaticCache(req) {
   try {
     // NETWORK-FIRST: Try to fetch fresh content first
     const res = await fetch(req);
-    
+
     if (res.ok) {
       // Update cache with fresh content
       const cache = await caches.open(STATIC_CACHE);
@@ -140,7 +135,7 @@ async function handleStaticCache(req) {
         console.log(`[SW] Serving FRESH main.js from network (${VERSION})`);
       }
     }
-    
+
     return res;
   } catch (fetchErr) {
     // Network failed, fall back to cached version (offline support)
@@ -148,13 +143,15 @@ async function handleStaticCache(req) {
       const cached = await caches.match(req);
       if (cached) {
         const isMainJs = req.url.includes("main.js");
-        console.log(`[SW] ${isMainJs ? "CRITICAL: Serving CACHED main.js (may be outdated)" : "Serving cached"}: ${req.url}`);
+        console.log(
+          `[SW] ${isMainJs ? "CRITICAL: Serving CACHED main.js (may be outdated)" : "Serving cached"}: ${req.url}`
+        );
         return cached;
       }
     } catch (cacheErr) {
       console.warn(`[SW] Cache lookup failed:`, cacheErr);
     }
-    
+
     // Both network and cache failed
     console.error(`[SW] No cached or network response for:`, req.url);
     throw fetchErr;
@@ -304,7 +301,7 @@ self.addEventListener("fetch", (event) => {
     // Create RequestInit without 'navigate' mode (which cannot be set in RequestInit)
     const indexReq = new Request(`${BASE_PATH}index.html`, {
       method: req.method,
-      headers: req.headers,
+      headers: req.headers
     });
     event.respondWith(handleStaticCache(indexReq));
     return;
@@ -377,7 +374,7 @@ self.addEventListener("message", (event) => {
           const deleted = results.filter((r) => r.success).length;
           const failed = results.filter((r) => !r.success).length;
           console.log(`[SW] Cache clear complete: ${deleted} deleted, ${failed} failed`);
-          
+
           if (event.ports[0]) {
             event.ports[0].postMessage({ success: true, deletedCount: deleted });
           }

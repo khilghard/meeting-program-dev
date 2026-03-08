@@ -17,8 +17,6 @@
  * - Proper test isolation and independence
  * - Performance characteristics documented
  * - Traceability to requirements
- *
- * See docs/PWA_UPDATE_TEST_PLAN.md for detailed test plan
  */
 
 import { test, expect, chromium } from "@playwright/test";

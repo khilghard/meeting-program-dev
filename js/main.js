@@ -28,6 +28,7 @@ import { saveProgramHistory, getProgramHistory, cleanupHistory } from "./history
 import { getMetadata, setMetadata } from "./data/IndexedDBManager.js";
 import { initShareUI, promptPWAInstall, openHelpModal } from "./share.js";
 import { checkMigrationRequired } from "./data/MigrationSystem.js";
+import { clearElement, setText, createTextElement } from "./utils/dom-utils.js";
 import { showMigrationBanner } from "./data/MigrationBanner.js";
 import { initTheme, toggleTheme, getTheme, applyTheme } from "./theme.js";
 import { createTimer, clearTimer, clearAllTimers } from "./utils/timer-manager.js";
@@ -1190,7 +1191,7 @@ function renderManageList() {
   if (archivedSection) {
     archivedSection.classList.add("hidden");
     if (archivedList) {
-      archivedList.innerHTML = "";
+      clearElement(archivedList);
     }
   }
 }
@@ -1613,7 +1614,7 @@ function renderHistoryList() {
 
 function loadProgramFromHistory(rows) {
   const main = document.getElementById("main-program");
-  main.innerHTML = "";
+  clearElement(main);
   renderProgram(rows);
   updateTimestamp();
 }
@@ -1700,11 +1701,40 @@ if (typeof globalThis.window !== "undefined" && !globalThis.window.__VITEST__) {
       console.error("[INIT] Fatal initialization error:", err);
       const main = document.getElementById("main-program");
       if (main) {
-        main.innerHTML = `<div style="padding: 20px; color: red; text-align: center; font-family: monospace;">
-          <p><strong>Failed to initialize app</strong></p>
-          <p style="font-size: 12px; white-space: pre-wrap; text-align: left; background: #f0f0f0; padding: 10px; border-radius: 4px; overflow-x: auto;">${err.message}</p>
-          <p style="font-size: 12px;">Check browser console (DevTools) for full error stack</p>
-        </div>`;
+        const errorContainer = createTextElement("div", "", {
+          padding: "20px",
+          color: "red",
+          textAlign: "center",
+          fontFamily: "monospace"
+        });
+
+        const title = document.createElement("p");
+        const titleStrong = document.createElement("strong");
+        titleStrong.textContent = "Failed to initialize app";
+        title.appendChild(titleStrong);
+
+        const errorDetails = createTextElement("p", err.message, {
+          fontSize: "12px",
+          whiteSpace: "pre-wrap",
+          textAlign: "left",
+          background: "#f0f0f0",
+          padding: "10px",
+          borderRadius: "4px",
+          overflowX: "auto"
+        });
+
+        const helpText = createTextElement(
+          "p",
+          "Check browser console (DevTools) for full error stack",
+          {
+            fontSize: "12px"
+          }
+        );
+
+        errorContainer.appendChild(title);
+        errorContainer.appendChild(errorDetails);
+        errorContainer.appendChild(helpText);
+        main.appendChild(errorContainer);
       }
     });
   }

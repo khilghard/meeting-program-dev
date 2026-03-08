@@ -231,10 +231,10 @@ describe("appendRow()", () => {
 // ---------- appendRowHymn ----------
 describe("appendRowHymn()", () => {
   test("renders hymn number and title", () => {
-    appendRowHymn("Opening Hymn", "#12 Be Still", "openingHymn");
+    appendRowHymn("Opening Hymn", "#9999 Be Still", "openingHymn");
 
     const div = document.querySelector("#openingHymn");
-    expect(div.querySelector(".value-on-right").textContent).toBe("🎵 12");
+    expect(div.querySelector(".value-on-right").textContent).toBe("🎵 9999");
     expect(div.querySelector(".hymn-title").textContent).toBe("Be Still");
   });
 });
@@ -997,8 +997,8 @@ describe("Hymn Lookup", () => {
     });
 
     test("handles CS prefix", () => {
-      const result1 = getChildrenSongData("CS 73");
-      const result2 = getChildrenSongData("73");
+      const result1 = getChildrenSongData("CS 2");
+      const result2 = getChildrenSongData("2");
       expect(result1.title).toBe(result2.title);
     });
 

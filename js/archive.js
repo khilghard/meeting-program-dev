@@ -9,6 +9,7 @@ console.log("[Archive] archive.js loaded");
 import * as ArchiveManager from "./data/ArchiveManager.js";
 import { t } from "./i18n/index.js";
 import { renderers } from "./utils/renderers.js";
+import { clearElement, setText } from "./utils/dom-utils.js";
 
 function escapeHtml(str) {
   if (!str) return "";
@@ -146,8 +147,8 @@ async function loadProfileAndArchives() {
 }
 
 function showNoProfileMessage() {
-  elements.archivesList.innerHTML = "";
-  elements.noArchives.textContent = t("noProfileSelected") || "No profile selected";
+  clearElement(elements.archivesList);
+  setText(elements.noArchives, t("noProfileSelected") || "No profile selected");
   elements.noArchives.classList.remove("hidden");
   console.log("[Archive] showNoProfileMessage called");
   console.log("[Archive] currentProfile in showNoProfileMessage:", currentProfile);
@@ -174,9 +175,8 @@ function extractMetadataFromRow(row, info) {
 function extractSpeakers(csvData) {
   const speakers = [];
   csvData.forEach((row) => {
-    // Include rows where the key is "speaker" (multiple rows can have the same key)
-    // or rows that start with "speaker" and have a number (speaker1, speaker2, etc.)
-    if ((row.key === "speaker" || (row.key.startsWith("speaker") && /speaker\d+/i.test(row.key))) && row.value) {
+    // Include rows where the key is "speaker" (sanitizeEntry converts speaker1, speaker2, etc. to "speaker")
+    if (row.key === "speaker" && row.value) {
       speakers.push(row.value);
     }
   });
@@ -218,10 +218,10 @@ async function loadArchives() {
   const archives = await ArchiveManager.getProfileArchives(currentProfile.id);
   console.log("[Archive] Got archives:", archives?.length || 0, archives);
 
-  elements.archivesList.innerHTML = "";
+  clearElement(elements.archivesList);
 
   if (!archives || archives.length === 0) {
-    elements.noArchives.textContent = t("noArchives") || "No archived programs";
+    setText(elements.noArchives, t("noArchives") || "No archived programs");
     elements.noArchives.classList.remove("hidden");
     return;
   }
