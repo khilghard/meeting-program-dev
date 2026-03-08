@@ -6,7 +6,8 @@
 
 import { test, expect } from "@playwright/test";
 import { ConsoleTracker, clearAllStorage } from "../fixtures/index.js";
-import { comprehensiveProgram } from "../helpers/mock-data.js";
+import { comprehensiveProgram, comprehensiveProgramUrl } from "../helpers/mock-data.js";
+import { mockGoogleSheets } from "../helpers/mock-sheets.js";
 import { MainPage } from "../pages/pages/MainPage.js";
 import { ArchivePage } from "../pages/pages/ArchivePage.js";
 
@@ -19,7 +20,16 @@ test.describe("Test 02: Navigation & Comprehensive Data Verification", () => {
     const archivePage = new ArchivePage(page);
     
     await clearAllStorage(page);
+    
+    // Mock Google Sheets to return comprehensive program data
+    await mockGoogleSheets(page, "comprehensiveProgram");
+    
+    // Load program via URL parameter to populate IndexedDB
     await mainPage.goto();
+    await page.goto(`http://localhost:8000/meeting-program/?url=${encodeURIComponent(comprehensiveProgramUrl)}`);
+    
+    // Wait for program to load
+    await page.waitForSelector("#main-program", { timeout: 10000 });
     
     // Wait for app to initialize
     await page.waitForFunction(
@@ -106,6 +116,34 @@ test.describe("Test 02: Navigation & Comprehensive Data Verification", () => {
     
     // Assert all keys are present
     expect(missingKeys.length).toBe(0);
+    
+    // VERIFY HYMN CUSTOM TEXT RENDERING (NEW FEATURE)
+    console.log("\n🎵 VERIFYING HYMN CUSTOM TEXT RENDERING...");
+    
+    // Check opening hymn custom text appears on the page
+    const customTextContent = "Accompanied on the piano by Sister Smith";
+    const customTextLocator = page.locator("text=" + customTextContent);
+    
+    try {
+      await expect(customTextLocator).toBeVisible({ timeout: 3000 });
+      console.log(`✅ Hymn custom text found: "${customTextContent}"`);
+      
+      // Verify it's in the hymn container
+      const openingHymnDiv = page.locator("#openingHymn");
+      const hymnTitleDivs = openingHymnDiv.locator(".hymn-title");
+      const count = await hymnTitleDivs.count();
+      
+      if (count >= 2) {
+        const secondTitleText = await hymnTitleDivs.nth(1).textContent();
+        console.log(`✅ Hymn has 2 .hymn-title divs (URL + custom text): "${secondTitleText}"`);
+        expect(secondTitleText).toContain(customTextContent);
+      } else {
+        console.log(`⚠️ Expected 2 .hymn-title divs (URL + custom), found ${count}`);
+      }
+    } catch (e) {
+      console.log(`❌ Hymn custom text not found: "${customTextContent}"`);
+      throw e;
+    }
     
     // Verify archives button exists
     await expect(page.locator("#view-archives-btn")).toBeVisible();

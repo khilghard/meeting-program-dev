@@ -24,23 +24,18 @@ export async function promiseAllSafe(promises, options = {}) {
   const { continueOnError = true, logger = console.warn } = options;
 
   const results = await Promise.all(
-    promises.map((promise, index) =>
-      promise
-        .then(
-          (data) => ({ success: true, data, index }),
-          (error) => {
-            if (continueOnError) {
-              logger(`Promise ${index} failed:`, error.message);
-              return { success: false, error, index };
-            }
-            throw error;
-          }
-        )
-        .catch((err) => {
-          logger(`Promise ${index} catch failed:`, err.message);
-          return { success: false, error: err, index };
-        })
-    )
+    promises.map(async (promise, index) => {
+      try {
+        const data = await promise;
+        return { success: true, data, index };
+      } catch (error) {
+        if (continueOnError) {
+          logger(`Promise ${index} failed:`, error.message);
+          return { success: false, error, index };
+        }
+        throw error;
+      }
+    })
   );
 
   return results;

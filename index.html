@@ -9,12 +9,12 @@
     <meta name="apple-mobile-web-app-title" content="Sacrament Meeting Program" />
     <link rel="apple-touch-icon" sizes="180x180" href="img/favicon.png" />
     <title>Sacrament Meeting Program</title>
-    
+
     <!-- Global Error Logger (runs before everything) -->
     <script>
       // Capture all errors immediately
       globalThis.allErrors = [];
-      
+
       const captureError = (error, source = "global") => {
         const errorInfo = {
           source,
@@ -25,50 +25,52 @@
         globalThis.allErrors.push(errorInfo);
         console.error(`[ERROR-${source.toUpperCase()}]`, errorInfo);
       };
-      
+
       // Global error handler
       window.addEventListener("error", (e) => {
         captureError(e.error || e.message, "error-event");
       });
-      
+
       // Unhandled promise rejection handler
       window.addEventListener("unhandledrejection", (e) => {
         captureError(e.reason, "unhandledRejection");
       });
     </script>
-    
+
     <!-- Dynamically set manifest based on deployment path -->
     <script>
       (function detectAndSetManifest() {
         const pathname = window.location.pathname;
-        const isDevDeployment = pathname.includes('/meeting-program-dev/');
-        const isProdDeployment = pathname.includes('/meeting-program/') && !isDevDeployment;
-        
-        let manifestHref = '/manifest.webmanifest'; // Default for local testing
-        let deploymentPath = '/';
-        
+        const isDevDeployment = pathname.includes("/meeting-program-dev/");
+        const isProdDeployment = pathname.includes("/meeting-program/") && !isDevDeployment;
+
+        let manifestHref = "/manifest.webmanifest"; // Default for local testing
+        let deploymentPath = "/";
+
         if (isProdDeployment) {
-          manifestHref = '/meeting-program/manifest.prod.webmanifest';
-          deploymentPath = '/meeting-program/';
+          manifestHref = "/meeting-program/manifest.prod.webmanifest";
+          deploymentPath = "/meeting-program/";
         } else if (isDevDeployment) {
-          manifestHref = '/meeting-program-dev/manifest.dev.webmanifest';
-          deploymentPath = '/meeting-program-dev/';
+          manifestHref = "/meeting-program-dev/manifest.dev.webmanifest";
+          deploymentPath = "/meeting-program-dev/";
         }
-        
+
         // Store for service worker and other scripts to use
         window.MANIFEST_PATH = manifestHref;
         window.DEPLOYMENT_PATH = deploymentPath;
-        
+
         // Create and append manifest link (must happen in head, before other scripts)
-        const link = document.createElement('link');
-        link.rel = 'manifest';
+        const link = document.createElement("link");
+        link.rel = "manifest";
         link.href = manifestHref;
         document.head.appendChild(link);
-        
-        console.log(`[Init] Detected deployment: ${deploymentPath}, using manifest: ${manifestHref}`);
+
+        console.log(
+          `[Init] Detected deployment: ${deploymentPath}, using manifest: ${manifestHref}`
+        );
       })();
     </script>
-    
+
     <link id="canonical-link" rel="canonical" />
     <link id="styles-link" rel="stylesheet" href="" />
     <link rel="icon" type="image/png" sizes="32x32" href="img/favicon.png" />
@@ -83,7 +85,7 @@
       import { VERSION } from "./js/version.js";
       globalThis.APP_VERSION = VERSION;
       document.getElementById("styles-link").href = `css/styles.css?v=${VERSION}`;
-      
+
       // Persistent error logger (survives reloads)
       globalThis.errorLog = [];
       window.addEventListener("error", (event) => {
@@ -100,15 +102,17 @@
           time: new Date().toISOString()
         });
       });
-      
+
       // Check for version mismatch - force reload only if different version AND not already reloaded
       const lastLoadedVersion = localStorage.getItem("app_version");
       const versionCheckDone = localStorage.getItem("version_check_done");
-      
+
       if (lastLoadedVersion && lastLoadedVersion !== VERSION && !versionCheckDone) {
-        console.log(`[VERSION] Detected version mismatch: ${lastLoadedVersion} -> ${VERSION}. Clearing cache...`);
+        console.log(
+          `[VERSION] Detected version mismatch: ${lastLoadedVersion} -> ${VERSION}. Clearing cache...`
+        );
         localStorage.setItem("version_check_done", "true");
-        
+
         // Clear all caches
         try {
           if (typeof navigator !== "undefined" && navigator.serviceWorker?.controller) {
@@ -117,31 +121,32 @@
         } catch (err) {
           console.warn("[VERSION] Could not notify service worker:", err);
         }
-        
+
         // Reload with fresh content
-        window.location = window.location.href.split("?")[0] + "?v=" + VERSION + "&nocache=" + Date.now();
+        window.location =
+          window.location.href.split("?")[0] + "?v=" + VERSION + "&nocache=" + Date.now();
       }
-      
+
       // Reset check flag on successful load
       setTimeout(() => {
         localStorage.removeItem("version_check_done");
       }, 5000);
-      
+
       localStorage.setItem("app_version", VERSION);
-      
+
       const mainScript = document.createElement("script");
       mainScript.type = "module";
       mainScript.src = `js/main.js?v=${VERSION}`;
       document.head.appendChild(mainScript);
 
       // Register service worker after version is loaded
-      async function registerServiceWorker() {
+      (async () => {
         try {
           if (typeof navigator === "undefined") {
             console.warn("[SW] Navigator not available, skipping service worker registration");
             return;
           }
-          
+
           if (!("serviceWorker" in navigator)) {
             console.warn("[SW] Service workers not supported");
             return;
@@ -150,7 +155,10 @@
           const swUrl = `service-worker.js?v=${VERSION}`;
 
           try {
-            const registration = await navigator.serviceWorker.register(swUrl);
+            const registration = await navigator.serviceWorker.register(swUrl).catch((err) => {
+              console.error("[SW] Registration failed:", err);
+              throw err;
+            });
             console.log("[SW] Registered successfully");
             registration.onupdatefound = () => {
               const installingWorker = registration.installing;
@@ -172,10 +180,7 @@
           console.error("[SW] Service worker setup failed:", error);
           captureError(error, "sw-setup");
         }
-      }
-
-      // Call the async function
-      registerServiceWorker().catch((err) => console.error("SW registration error:", err));
+      })();
 
       function refreshPage() {
         if (navigator.serviceWorker.controller) {

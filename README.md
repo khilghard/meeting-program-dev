@@ -154,8 +154,8 @@ To provide program content in multiple languages, use the extended CSV format:
 
 ```csv
 key,en,es,fr,swa
-unitName,Riverview Branch,Rama Riverview,Branche Riverview,Tawi la Riverview
-openingHymn,#1001 Come Thou Fount,#1001 Ven Ti Fount,#1001 Venez Source,#1001 Yesu Ni
+unitName,Riverview Branch
+openingHymn,1001
 speaker1,John Smith,Juan Garcia,Jean Dupont,Yohana Mto
 ```
 
@@ -321,7 +321,7 @@ Your sheet should look like:
 | unitName    | Your Ward Name           |
 | unitAddress | 123 Main St, City, State |
 | date        | January 1, 2026          |
-| openingHymn | #62 All Creatures…       |
+| openingHymn | 62                       |
 | …           | …                        |
 
 You can copy/paste the example table below directly into your sheet.
@@ -473,22 +473,39 @@ All optional — include only what your unit uses.
 
 These keys define the main flow of the meeting.
 
-| Key                | Description       | Example Value                           |
-| ------------------ | ----------------- | --------------------------------------- |
-| `openingHymn`      | Opening hymn      | “#62 All Creatures of Our God and King” |
-| `openingPrayer`    | Opening prayer    | “By Invitation”                         |
-| `sacramentHymn`    | Sacrament hymn    | “#188 Thy Will, O Lord, Be Done”        |
-| `speaker1`         | First speaker     | “Sister Johnson”                        |
-| `speaker2`         | Second speaker    | “Elder Brown”                           |
-| `speaker3`         | Third speaker     | “Youth Speaker”                         |
-| `intermediateHymn` | Intermediate hymn | “#228 My Heavenly Father Loves Me”      |
-| `closingHymn`      | Closing hymn      | “#2 Praise to the Lord, the Almighty”   |
-| `closingPrayer`    | Closing prayer    | “By Invitation”                         |
+| Key                | Description       | Example Value      |
+| ------------------ | ----------------- | ------------------ |
+| `openingHymn`      | Opening hymn      | `"62"`            |
+| `openingPrayer`    | Opening prayer    | `"By Invitation"`  |
+| `sacramentHymn`    | Sacrament hymn    | `"188"`           |
+| `speaker1`         | First speaker     | `"Sister Johnson"` |
+| `speaker2`         | Second speaker    | `"Elder Brown"`    |
+| `speaker3`         | Third speaker     | `"Youth Speaker"`  |
+| `intermediateHymn` | Intermediate hymn | `"228|Accompanied by Sister Smith on the Piano"`           |
+| `closingHymn`      | Closing hymn      | `"2"`             |
+| `closingPrayer`    | Closing prayer    | `"By Invitation"`  |
+
+**🎵 Hymn Formatting Guide:**
+
+- **Regular Hymns**: Use with the number only
+  - Example: `62`
+  - Example: `1001`
+  - The app automatically adds a 🎵 emoji and looks up the correct title and generates a working link
+
+- **Children's Songs**: Prepend `CS` with a **space** before the number
+  - Example: `CS 2`
+  - Example: `CS 73a`
+  - **Important**: There must be a space between `CS` and the number
+
+- **Custom Text**: Add a pipe `|` followed by custom text below the hymn
+  - Example: `62|Sung by the Primary Children`
+  - Example: `CS 2|Accompanied on the piano by Sister Smith`
+  - This displays an extra line below the hymn title for notes
 
 **Notes:**
 
 - You can add as many speakers as you want (`speaker1`, `speaker2`, `speaker3`, etc.).
-- Hymns can include numbers, titles, or both.
+- Only the hymn **number** is needed - the app looks up the correct title automatically.
 
 ---
 
@@ -650,9 +667,18 @@ Below is a clear explanation of what **will** work and what **will not** work.
 ### **Hymn formatting**
 
 ```
-#62 All Creatures of Our God and King
-#188 Thy Will~ O Lord, Be Done
+62
+1001
+CS 2
+CS 73a
+62|Sung by the Primary Children
 ```
+
+**Important:**
+
+- Regular hymns: just the number only (e.g., `62`)
+- Children's songs: `CS` + **space** + number (e.g., `CS 2`, `CS 73a`)
+- Custom text: Use `|` to add a note below the hymn (e.g., `|Sung by Primary`)
 
 ### **Leadership formatting**
 
@@ -819,9 +845,11 @@ This guarantees that the program members see on Sunday matches what you intended
 ## 📋 Example Google Sheets Structure
 
 | key              | en                                                                                                                                                                                                                            |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
 | unitName         | Unit Name                                                                                                                                                                                                                     |
 | stakeName        | Stake Name                                                                                                                                                                                                                    |
+| obsolete         | false Name                                                                                                                                                                                                                    |
+| migrationUrl     |  Name                                                                                                                                                                                                                    |
 | unitAddress      | 123 Actual Ave~ City US 123245                                                                                                                                                                                                |
 | link             | Homepage \| <OfficialHomePageLink>                                                                                                                                                                                            |
 | date             | January 1~ 2026                                                                                                                                                                                                               |
@@ -830,17 +858,17 @@ This guarantees that the program members see on Sunday matches what you intended
 | musicDirector    | Person1                                                                                                                                                                                                                       |
 | musicOrganist    | Person2                                                                                                                                                                                                                       |
 | horizontalLine   | Announcements                                                                                                                                                                                                                 |
-| openingHymn      | #62 All Creatures of Our God and King                                                                                                                                                                                         |
+| openingHymn      | 62                                                                                                                                                                                                                            |
 | openingPrayer    | By Invitation                                                                                                                                                                                                                 |
 | horizontalLine   | Branch or Stake Business                                                                                                                                                                                                      |
-| sacramentHymn    | #188 Thy Will~ O Lord~ Be Done                                                                                                                                                                                                |
+| sacramentHymn    | 188                                                                                                                                                                                                                           |
 | horizontalLine   | Ordinance of the Sacrament                                                                                                                                                                                                    |
 | speaker1         | Speaker One                                                                                                                                                                                                                   |
 | speaker2         | Speaker Two                                                                                                                                                                                                                   |
-| intermediateHymn | #228 (CS) My Heavenly Father Loves Me                                                                                                                                                                                         |
+| intermediateHymn | CS 2                                                                                                                                                                                                                          | Sung by the Primary Children |
 | speaker3         | Speaker Three                                                                                                                                                                                                                 |
 | speaker4         | Speaker Four                                                                                                                                                                                                                  |
-| closingHymn      | #2 Praise to the Lord~ the Almighty                                                                                                                                                                                           |
+| closingHymn      | 2                                                                                                                                                                                                                             |
 | closingPrayer    | By Invitation                                                                                                                                                                                                                 |
 | horizontalLine   | Dismiss to Class                                                                                                                                                                                                              |
 | horizontalLine   | Local Leaders                                                                                                                                                                                                                 |
@@ -956,6 +984,7 @@ If the app isn't updating or you're seeing old versions:
 - **Copy another device**: If on a different device, profile data is separate. Reload the program using the share QR code from a neighbor
 
 Still having issues? Open a GitHub issue with:
+
 - Device and browser (e.g., "iPhone 13, Safari")
 - What you were doing when the problem occurred
 - Steps you've already tried
@@ -966,7 +995,7 @@ Still having issues? Open a GitHub issue with:
 For developers looking to contribute or understand the codebase:
 
 - **[FEATURES.md](FEATURES.md)** — Complete list of current features and implementation details
-- **[docs/REQUIREMENTS_*.md](docs/)** — Detailed specifications for each feature area
+- **[docs/REQUIREMENTS\_\*.md](docs/)** — Detailed specifications for each feature area
 - **[js/](js/)** — Main application code
   - `main.js` — App initialization
   - `i18n/` — Internationalization (translations)

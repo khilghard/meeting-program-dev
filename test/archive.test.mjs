@@ -104,18 +104,18 @@ describe("archive.js - Exported Helper Functions", () => {
   describe("extractSpeakers", () => {
     test("should extract all speakers", () => {
       const csvData = [
-        { key: "speaker1", value: "Elder Smith" },
-        { key: "speaker2", value: "Elder Jones" },
-        { key: "speaker3", value: "Elder Brown" }
+        { key: "speaker", value: "Elder Smith" },
+        { key: "speaker", value: "Elder Jones" },
+        { key: "speaker", value: "Elder Brown" }
       ];
       const speakers = extractSpeakers(csvData);
       expect(speakers).toEqual(["Elder Smith", "Elder Jones", "Elder Brown"]);
     });
 
-    test("should skip speaker key without number", () => {
+    test("should skip empty speaker values", () => {
       const csvData = [
-        { key: "speaker", value: "Not a speaker" },
-        { key: "speaker1", value: "Elder Smith" }
+        { key: "speaker", value: "" },
+        { key: "speaker", value: "Elder Smith" }
       ];
       const speakers = extractSpeakers(csvData);
       expect(speakers).toEqual(["Elder Smith"]);
@@ -123,8 +123,8 @@ describe("archive.js - Exported Helper Functions", () => {
 
     test("should skip rows with empty values", () => {
       const csvData = [
-        { key: "speaker1", value: "" },
-        { key: "speaker2", value: "Elder Smith" }
+        { key: "speaker", value: "" },
+        { key: "speaker", value: "Elder Smith" }
       ];
       const speakers = extractSpeakers(csvData);
       expect(speakers).toEqual(["Elder Smith"]);
@@ -143,8 +143,8 @@ describe("archive.js - Exported Helper Functions", () => {
         { key: "conducting", value: "Brother Jones" },
         { key: "programDate", value: "2024-01-15" },
         { key: "unitName", value: "Salem Ward" },
-        { key: "speaker1", value: "Speaker 1" },
-        { key: "speaker2", value: "Speaker 2" }
+        { key: "speaker", value: "Speaker 1" },
+        { key: "speaker", value: "Speaker 2" }
       ];
       const info = extractProgramInfo(csvData);
       expect(info.presiding).toBe("Elder Smith");

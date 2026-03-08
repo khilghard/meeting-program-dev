@@ -56,7 +56,9 @@ function compareMinor(remote, local) {
 }
 
 function comparePatch(remote, local) {
-  return remote[2] > local[2] ? 1 : remote[2] < local[2] ? -1 : 0;
+  if (remote[2] > local[2]) return 1;
+  if (remote[2] < local[2]) return -1;
+  return 0;
 }
 
 function compareVersions(remote, local) {

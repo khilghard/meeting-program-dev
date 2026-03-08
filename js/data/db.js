@@ -11,6 +11,40 @@
 
 import Dexie from "dexie";
 
+const BASE_DB_NAME = "MeetingProgramDB";
+const DB_SCHEMA_VERSION = 4;
+
+function getDeploymentPath() {
+  if (typeof globalThis !== "undefined" && globalThis.window?.DEPLOYMENT_PATH) {
+    return String(globalThis.window.DEPLOYMENT_PATH);
+  }
+
+  if (typeof globalThis !== "undefined" && globalThis.location?.pathname) {
+    const pathname = String(globalThis.location.pathname);
+    if (pathname.includes("/meeting-program-dev/")) return "/meeting-program-dev/";
+    if (pathname.includes("/meeting-program/")) return "/meeting-program/";
+  }
+
+  return "/";
+}
+
+function getDeploymentSuffix() {
+  const deploymentPath = getDeploymentPath().trim();
+  if (!deploymentPath || deploymentPath === "/") {
+    return "";
+  }
+
+  const normalized = deploymentPath
+    .replace(/^\/+/, "")
+    .replace(/\/+$/, "")
+    .replace(/[^a-zA-Z0-9_-]+/g, "_");
+
+  return normalized ? `__${normalized}` : "";
+}
+
+export const DB_NAME = `${BASE_DB_NAME}${getDeploymentSuffix()}`;
+export { DB_SCHEMA_VERSION };
+
 // For compatibility with older test environments, check if databases() is available
 const hasIdbDatabases =
   typeof globalThis !== "undefined" &&
@@ -82,7 +116,7 @@ async function handleLegacyHistoryMigration(tx, legacy) {
   }
 }
 
-export const db = new Dexie("MeetingProgramDB");
+export const db = new Dexie(DB_NAME);
 
 // Define schema with automatic version step-up support
 db.version(1).stores({

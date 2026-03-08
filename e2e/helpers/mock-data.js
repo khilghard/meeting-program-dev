@@ -51,7 +51,7 @@ conducting,Brother Conducting Leader
 musicDirector,Sister Music Director
 musicOrganist,Brother Music Organist
 horizontalLine,Opening
-openingHymn,#97 Lord We Come Before Thee Now
+openingHymn,#97 Lord We Come Before Thee Now | Accompanied on the piano by Sister Smith
 openingPrayer,Sister Opening Prayer
 horizontalLine,Sacrament Service
 sacramentHymn,#169 Bread of Life

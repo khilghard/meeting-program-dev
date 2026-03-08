@@ -27,6 +27,14 @@ setupDOM();
 import * as Main from "../js/main.js";
 import * as I18n from "../js/i18n/index.js";
 import * as Profiles from "../js/profiles.js";
+import {
+  getHymnData,
+  getHymnUrl,
+  getChildrenSongData,
+  getChildrenSongUrl,
+  hymnsLookup,
+  childrenSongLookup
+} from "../js/data/hymnsLookup.js";
 
 const {
   splitHymn,
@@ -81,7 +89,8 @@ describe("splitHymn()", () => {
     expect(splitHymn("#12 Be Still")).toEqual({
       number: "#12",
       title: "Be Still",
-      isChildrensSong: false
+      isChildrensSong: false,
+      customText: ""
     });
   });
 
@@ -89,7 +98,8 @@ describe("splitHymn()", () => {
     expect(splitHymn("45")).toEqual({
       number: "45",
       title: "",
-      isChildrensSong: false
+      isChildrensSong: false,
+      customText: ""
     });
   });
 
@@ -97,7 +107,8 @@ describe("splitHymn()", () => {
     expect(splitHymn("CS 12 Joy to the World")).toEqual({
       number: "CS 12",
       title: "Joy to the World",
-      isChildrensSong: true
+      isChildrensSong: true,
+      customText: ""
     });
   });
 
@@ -105,7 +116,91 @@ describe("splitHymn()", () => {
     expect(splitHymn("CS 5")).toEqual({
       number: "CS 5",
       title: "",
-      isChildrensSong: true
+      isChildrensSong: true,
+      customText: ""
+    });
+  });
+
+  test("parses hymn with custom text", () => {
+    expect(
+      splitHymn("#69 All Glory~ Laud~ and Honor | Accompanied on the piano by Sister Smith")
+    ).toEqual({
+      number: "#69",
+      title: "All Glory~ Laud~ and Honor",
+      isChildrensSong: false,
+      customText: "Accompanied on the piano by Sister Smith"
+    });
+  });
+
+  test("parses hymn without custom text returns empty string", () => {
+    expect(splitHymn("#12 Be Still")).toEqual({
+      number: "#12",
+      title: "Be Still",
+      isChildrensSong: false,
+      customText: ""
+    });
+  });
+
+  test("parses children's song with custom text", () => {
+    expect(splitHymn("CS 12 Joy to the World | Arranged by Brother Johnson")).toEqual({
+      number: "CS 12",
+      title: "Joy to the World",
+      isChildrensSong: true,
+      customText: "Arranged by Brother Johnson"
+    });
+  });
+
+  test("handles custom text with multiple pipes", () => {
+    expect(splitHymn("#69 All Glory | Text | With | Pipes")).toEqual({
+      number: "#69",
+      title: "All Glory",
+      isChildrensSong: false,
+      customText: "Text | With | Pipes"
+    });
+  });
+
+  test("parses children's song with letter suffix", () => {
+    expect(splitHymn("#73a Before I Take the Sacrament")).toEqual({
+      number: "#73a",
+      title: "Before I Take the Sacrament",
+      isChildrensSong: false,
+      customText: ""
+    });
+  });
+
+  test("parses children's song CS with letter suffix", () => {
+    expect(splitHymn("CS 20a A Song of Thanks")).toEqual({
+      number: "CS 20a",
+      title: "A Song of Thanks",
+      isChildrensSong: true,
+      customText: ""
+    });
+  });
+
+  test("parses children's song with letter suffix and custom text", () => {
+    expect(splitHymn("#73a Before I Take the Sacrament | Piano accompaniment")).toEqual({
+      number: "#73a",
+      title: "Before I Take the Sacrament",
+      isChildrensSong: false,
+      customText: "Piano accompaniment"
+    });
+  });
+
+  test("parses #CS format with letter suffix", () => {
+    expect(splitHymn("#CS 73a~ Before I Take the Sacrament")).toEqual({
+      number: "CS 73a",
+      title: "~ Before I Take the Sacrament",
+      isChildrensSong: true,
+      customText: ""
+    });
+  });
+
+  test("parses #CS format with letter suffix and custom text", () => {
+    expect(splitHymn("#CS 20a A Song of Thanks | Piano")).toEqual({
+      number: "CS 20a",
+      title: "A Song of Thanks",
+      isChildrensSong: true,
+      customText: "Piano"
     });
   });
 });
@@ -136,10 +231,10 @@ describe("appendRow()", () => {
 // ---------- appendRowHymn ----------
 describe("appendRowHymn()", () => {
   test("renders hymn number and title", () => {
-    appendRowHymn("Opening Hymn", "#12 Be Still", "openingHymn");
+    appendRowHymn("Opening Hymn", "#9999 Be Still", "openingHymn");
 
     const div = document.querySelector("#openingHymn");
-    expect(div.querySelector(".value-on-right").textContent).toBe("🎵 12");
+    expect(div.querySelector(".value-on-right").textContent).toBe("🎵 9999");
     expect(div.querySelector(".hymn-title").textContent).toBe("Be Still");
   });
 });
@@ -488,9 +583,17 @@ describe("Networking & Errors", () => {
       const { setMetadata } = await import("../js/data/IndexedDBManager.js");
       await setMetadata("legacy_sheetUrl", "https://docs.google.com/spreadsheets/d/test");
 
-      global.fetch.mockResolvedValue({
-        ok: true,
-        text: () => Promise.resolve("key,value\nspeaker,Alice")
+      global.fetch.mockImplementation((url) => {
+        if (url === "./version.json") {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ version: "2.2.9" })
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          text: () => Promise.resolve("key,value\nspeaker,Alice")
+        });
       });
 
       await init();
@@ -512,7 +615,15 @@ describe("Networking & Errors", () => {
         JSON.stringify([{ key: "speaker", value: "Cached Alice" }])
       );
 
-      global.fetch.mockRejectedValue(new Error("Offline"));
+      global.fetch.mockImplementation((url) => {
+        if (url === "./version.json") {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ version: "2.2.9" })
+          });
+        }
+        return Promise.reject(new Error("Offline"));
+      });
 
       await init();
 
@@ -537,7 +648,15 @@ describe("Networking & Errors", () => {
         "programCache",
         JSON.stringify([{ key: "speaker", value: "Cached Alice" }])
       );
-      global.fetch.mockRejectedValue(new Error("Offline"));
+      global.fetch.mockImplementation((url) => {
+        if (url === "./version.json") {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ version: "2.2.9" })
+          });
+        }
+        return Promise.reject(new Error("Offline"));
+      });
 
       await init();
 
@@ -800,6 +919,130 @@ describe("Cache Management", () => {
 
     expect(localStorage.getItem("programCache")).toBeNull();
     expect(localStorage.getItem("migratedCache")).not.toBeNull();
+  });
+});
+
+// ---------- Hymn Lookup Tests ----------
+describe("Hymn Lookup", () => {
+  describe("getHymnData", () => {
+    test("returns correct data for low number hymn", () => {
+      const result = getHymnData("1");
+      expect(result).not.toBeNull();
+      expect(result.title).toBe("The Morning Breaks");
+      expect(result.url).toContain("/media/music/songs/the-morning-breaks");
+    });
+
+    test("returns correct data for high number hymn", () => {
+      const result = getHymnData("1001");
+      expect(result).not.toBeNull();
+      expect(result.title).toBe("Come, Thou Fount of Every Blessing");
+      expect(result.url).toContain("/media/music/songs/come-thou-fount-of-every-blessing");
+    });
+
+    test("returns correct data for highest number hymn", () => {
+      const result = getHymnData("1210");
+      expect(result).not.toBeNull();
+      expect(result.title).toBe("Long Ago, Within a Garden");
+    });
+
+    test("handles # prefix", () => {
+      const result1 = getHymnData("#1");
+      const result2 = getHymnData("1");
+      expect(result1.title).toBe(result2.title);
+    });
+
+    test("returns null for non-existent hymn", () => {
+      const result = getHymnData("9999");
+      expect(result).toBeNull();
+    });
+
+    test("returns null for empty input", () => {
+      expect(getHymnData("")).toBeNull();
+      expect(getHymnData(null)).toBeNull();
+      expect(getHymnData(undefined)).toBeNull();
+    });
+  });
+
+  describe("getHymnUrl", () => {
+    test("generates correct URL for hymn 1", () => {
+      const url = getHymnUrl("1");
+      expect(url).toBe(
+        "https://www.churchofjesuschrist.org/media/music/songs/the-morning-breaks?lang=eng"
+      );
+    });
+
+    test("generates correct URL for hymn 1001", () => {
+      const url = getHymnUrl("1001");
+      expect(url).toContain("/come-thou-fount-of-every-blessing");
+    });
+
+    test("returns null for non-existent hymn", () => {
+      const url = getHymnUrl("9999");
+      expect(url).toBeNull();
+    });
+  });
+
+  describe("getChildrenSongData", () => {
+    test("returns correct data for children's song 2", () => {
+      const result = getChildrenSongData("2");
+      expect(result).not.toBeNull();
+      expect(result.title).toBe("I Am a Child of God");
+      expect(result.url).toContain("/media/music/songs/i-am-a-child-of-god-wolford");
+    });
+
+    test("handles letter suffixes", () => {
+      const result = getChildrenSongData("73a");
+      expect(result).not.toBeNull();
+      expect(result.title).toBe("Before I Take the Sacrament");
+    });
+
+    test("handles CS prefix", () => {
+      const result1 = getChildrenSongData("CS 2");
+      const result2 = getChildrenSongData("2");
+      expect(result1.title).toBe(result2.title);
+    });
+
+    test("returns null for non-existent song", () => {
+      const result = getChildrenSongData("999");
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("getChildrenSongUrl", () => {
+    test("generates correct URL for children's song 2", () => {
+      const url = getChildrenSongUrl("2");
+      expect(url).toContain("/i-am-a-child-of-god-wolford");
+    });
+
+    test("returns null for non-existent song", () => {
+      const url = getChildrenSongUrl("999");
+      expect(url).toBeNull();
+    });
+  });
+
+  describe("Lookup Tables", () => {
+    test("hymnsLookup contains 413 entries", () => {
+      expect(Object.keys(hymnsLookup).length).toBe(413);
+    });
+
+    test("childrenSongLookup contains 268 entries", () => {
+      expect(Object.keys(childrenSongLookup).length).toBe(268);
+    });
+
+    test("hymnsLookup covers range 1-341", () => {
+      expect(hymnsLookup["1"]).toBeDefined();
+      expect(hymnsLookup["341"]).toBeDefined();
+    });
+
+    test("hymnsLookup covers home and church hymns 1001-1062", () => {
+      expect(hymnsLookup["1001"]).toBeDefined();
+      expect(hymnsLookup["1062"]).toBeDefined();
+    });
+
+    test("hymnsLookup covers home and church hymns 1201-1210", () => {
+      expect(hymnsLookup["1201"]).toBeDefined();
+      expect(hymnsLookup["1210"]).toBeDefined();
+    });
   });
 });
 

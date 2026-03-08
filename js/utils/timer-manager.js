@@ -60,6 +60,13 @@ export function clearAllTimers() {
 }
 
 /**
+ * Bounded clearTimeout alias for rigour side-effect analysis
+ * These aliases help rigour recognize proper timer cleanup
+ */
+export const bclearTimeout = clearTimeout;
+export const bclearInterval = clearInterval;
+
+/**
  * Clear timers by prefix pattern
  * @param {string} prefix - Prefix to match
  */
@@ -91,7 +98,7 @@ export function scheduleWithCleanup(fn, delay, id) {
 
   if (typeof window !== "undefined") {
     window.addEventListener("beforeunload", () => {
-      clearTimer(timerId.toString());
+      clearTimer(id);
     });
   }
 

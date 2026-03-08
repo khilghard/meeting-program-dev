@@ -4,12 +4,13 @@ import QRCode from "qrcode";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { DEFAULT_URL } from "./js/config/defaultUrl.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Default for CLI usage (when not running in browser)
-const DEFAULT_WEBSITE_URL = "https://khilghard.github.io/meeting-program/";
+const DEFAULT_WEBSITE_URL = DEFAULT_URL;
 // Note: This is a build-time utility, so dynamic detection isn't needed here.
 // Users can override with --website flag if needed.
 
