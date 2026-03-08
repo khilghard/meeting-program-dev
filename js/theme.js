@@ -17,8 +17,20 @@ export function setMetadataDependencies(getMetadata, setMetadata) {
 
 async function getThemeFromStorage() {
   try {
+    // Try localStorage first (fast, synchronous)
+    const localTheme = localStorage.getItem(THEME_KEY);
+    if (localTheme) return localTheme;
+
+    // Fallback to IndexedDB for persistence across sessions
     const getMetadata = getMetadataFn || (await import("./data/IndexedDBManager.js")).getMetadata;
-    return await getMetadata(THEME_KEY);
+    const idbTheme = await getMetadata(THEME_KEY);
+
+    // Sync IndexedDB to localStorage for faster future access
+    if (idbTheme) {
+      localStorage.setItem(THEME_KEY, idbTheme);
+    }
+
+    return idbTheme;
   } catch {
     return null;
   }
@@ -26,10 +38,13 @@ async function getThemeFromStorage() {
 
 async function setThemeInStorage(theme) {
   try {
+    // Set in both localStorage (fast) and IndexedDB (persistent)
+    localStorage.setItem(THEME_KEY, theme);
+
     const setMetadata = setMetadataFn || (await import("./data/IndexedDBManager.js")).setMetadata;
     await setMetadata(THEME_KEY, theme);
   } catch {
-    console.warn("[theme] Failed to save theme to IndexedDB");
+    console.warn("[theme] Failed to save theme to storage");
   }
 }
 
