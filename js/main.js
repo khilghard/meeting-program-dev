@@ -43,18 +43,16 @@ console.log("[MAIN] main.js module loaded - version from package");
 initTheme();
 
 // Initialize Install Manager
-import("./install-manager.js")
-  .then(async (module) => {
-    try {
-      if (module.init) {
-        await module.init();
-      }
-    } catch (err) {
-      console.warn("[main] Install manager init failed:", err);
+(async () => {
+  try {
+    const module = await import("./install-manager.js");
+    if (module.init) {
+      await module.init();
     }
-  })
-  .catch((err) => console.warn("[main] Install manager import failed:", err))
-  .catch((err) => console.warn("[main] Install manager initialization failed:", err));
+  } catch (err) {
+    console.warn("[main] Install manager initialization failed:", err);
+  }
+})();
 
 function addGlobalCleanup() {
   if (typeof window !== "undefined") {
@@ -97,10 +95,6 @@ function initNetworkStatus() {
   const statusEl = document.getElementById("network-status");
   if (!statusEl) return;
 
-  const iconEl = statusEl.querySelector(".status-icon");
-  const textEl = statusEl.querySelector(".status-text");
-  const lastSyncEl = statusEl.querySelector(".last-sync");
-
   // Timer storage for cleanup
   let statusHideTimer = null;
 
@@ -133,7 +127,6 @@ function initNetworkStatus() {
       statusHideTimer = setTimeout(() => {
         statusEl.classList.add("hidden");
       }, 3000);
-      const statusHide = statusHideTimer;
     } else {
       iconEl.textContent = "📱";
       textEl.textContent = "Working offline";
@@ -235,7 +228,6 @@ function debounce(func, wait) {
     };
     clearTimeout(timeout);
     timeout = setTimeout(later, wait);
-    const debounceTimer = timeout;
   };
 }
 
@@ -243,7 +235,6 @@ function debounce(func, wait) {
 async function fetchWithTimeout(url, timeout) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
-  const fetchTimeoutId = timeoutId;
 
   try {
     const response = await fetch(url, { signal: controller.signal });
@@ -348,7 +339,7 @@ async function handleZeroState() {
   console.log("[INIT] No sheetUrl found, entering zero state.");
   actionBtn.textContent = t("scanProgramQR");
   actionBtn.onclick = () => showScanner();
-  
+
   // Always show reset button on zero state page
   const resetBtn = document.getElementById("reset-data-btn");
   if (resetBtn) {
@@ -382,21 +373,55 @@ function addResetButtonToHelpModal() {
   const resetSection = document.createElement("div");
   resetSection.id = "reset-data-section";
   resetSection.className = "help-section";
-  
-  resetSection.innerHTML = `
-    <h4 style="color: #d32f2f;">⚠️ Delete All Data & Cache</h4>
-    <div style="background: #fff3cd; padding: 12px; border-radius: 4px; margin: 10px 0; border-left: 4px solid #ff9800; color: #333;">
-      <p style="color: #333;"><strong style="color: #333;">WARNING:</strong> This action will:</p>
-      <ul style="margin: 5px 0; padding-left: 20px; color: #333;">
-        <li style="color: #333;">Delete all saved program data</li>
-        <li style="color: #333;">Clear local cache and storage</li>
-        <li style="color: #333;">Force download fresh data from the server</li>
-        <li style="color: #333;">This cannot be undone and is immediate</li>
-      </ul>
-      <p style="margin-top: 10px; font-size: 12px; color: #d32f2f;"><strong>Use only if the app is not working properly.</strong></p>
-    </div>
-    <button id="help-reset-btn" class="qr-action-btn" style="background: #d32f2f; width: 100%; margin-top: 10px;">Delete All Data & Reload</button>
-  `;
+
+  const h4 = document.createElement("h4");
+  h4.style.color = "#d32f2f";
+  h4.textContent = "⚠️ Delete All Data & Cache";
+  resetSection.appendChild(h4);
+
+  const warningBox = document.createElement("div");
+  warningBox.style.cssText =
+    "background: #fff3cd; padding: 12px; border-radius: 4px; margin: 10px 0; border-left: 4px solid #ff9800; color: #333;";
+  const warningP = document.createElement("p");
+  warningP.style.color = "#333";
+  const strong1 = document.createElement("strong");
+  strong1.style.color = "#333";
+  strong1.textContent = "WARNING:";
+  warningP.appendChild(strong1);
+  warningP.appendChild(document.createTextNode(" This action will:"));
+  warningBox.appendChild(warningP);
+
+  const ul = document.createElement("ul");
+  ul.style.cssText = "margin: 5px 0; padding-left: 20px; color: #333;";
+  const warnings = [
+    "Delete all saved program data",
+    "Clear local cache and storage",
+    "Force download fresh data from the server",
+    "This cannot be undone and is immediate"
+  ];
+  warnings.forEach((text) => {
+    const li = document.createElement("li");
+    li.style.color = "#333";
+    li.textContent = text;
+    ul.appendChild(li);
+  });
+  warningBox.appendChild(ul);
+
+  const warningFooter = document.createElement("p");
+  warningFooter.style.cssText = "margin-top: 10px; font-size: 12px; color: #d32f2f;";
+  const strong2 = document.createElement("strong");
+  strong2.textContent = "Use only if the app is not working properly.";
+  warningFooter.appendChild(strong2);
+  warningBox.appendChild(warningFooter);
+
+  resetSection.appendChild(warningBox);
+
+  const createResetBtn = document.createElement("button");
+  createResetBtn.id = "help-reset-btn";
+  createResetBtn.className = "qr-action-btn";
+  createResetBtn.style.cssText = "background: #d32f2f; width: 100%; margin-top: 10px;";
+  createResetBtn.textContent = "Delete All Data & Reload";
+  resetSection.appendChild(createResetBtn);
 
   // Append to help-sections
   helpSections.appendChild(resetSection);
@@ -426,13 +451,13 @@ function setupActiveStateUI() {
 
   actionBtn.textContent = t("useNewQR");
   actionBtn.onclick = () => showScanner();
-  
+
   // Hide reset button from main UI (will be in help modal instead)
   const resetBtn = document.getElementById("reset-data-btn");
   if (resetBtn) {
     resetBtn.classList.add("hidden");
   }
-  
+
   // Add reset button to help modal with warnings
   addResetButtonToHelpModal();
 
@@ -779,17 +804,19 @@ function populateProfileSelector(selector, profiles, currentProfile, isViewingAr
 async function handleCheckForUpdates() {
   try {
     console.log("[CHECK-UPDATE] Force upgrade initiated - clearing static caches only...");
-    
+
     // Clear service worker caches (HTML, CSS, JS, manifestsetc)
     if (typeof caches !== "undefined") {
       const cacheNames = await caches.keys();
       console.log("[CHECK-UPDATE] Found caches:", cacheNames);
-      await Promise.all(cacheNames.map((name) => {
-        console.log("[CHECK-UPDATE] Clearing cache:", name);
-        return caches.delete(name);
-      }));
+      await Promise.all(
+        cacheNames.map((name) => {
+          console.log("[CHECK-UPDATE] Clearing cache:", name);
+          return caches.delete(name);
+        })
+      );
     }
-    
+
     // Notify service worker to clear cache
     if (navigator.serviceWorker?.controller) {
       console.log("[CHECK-UPDATE] Sending clearCache to service worker...");
@@ -805,7 +832,9 @@ async function handleCheckForUpdates() {
               clearTimeout(timeout);
               resolve();
             };
-            navigator.serviceWorker.controller.postMessage({ action: "clearCache" }, [channel.port2]);
+            navigator.serviceWorker.controller.postMessage({ action: "clearCache" }, [
+              channel.port2
+            ]);
           })
         ]);
       } catch (err) {
@@ -821,11 +850,13 @@ async function handleCheckForUpdates() {
     }
 
     // NOTE: NOT clearing IndexedDB or localStorage - user data is preserved
-    console.log("[CHECK-UPDATE] User data and profiles preserved. Reloading page to get fresh static assets...");
-    
+    console.log(
+      "[CHECK-UPDATE] User data and profiles preserved. Reloading page to get fresh static assets..."
+    );
+
     // Give browser time to process cache clears before navigation
     await new Promise((resolve) => globalThis.window.setTimeout(resolve, 500));
-    
+
     // Reload with new static assets
     globalThis.window.location.replace(globalThis.window.location.href);
   } catch (error) {
@@ -838,17 +869,19 @@ async function handleCheckForUpdates() {
 async function handleUpdateClick() {
   try {
     console.log("[UPDATE] Full cache and data reset initiated...");
-    
+
     // Clear all browser caches directly
     if (typeof caches !== "undefined") {
       const cacheNames = await caches.keys();
       console.log("[UPDATE] Found caches:", cacheNames);
-      await Promise.all(cacheNames.map((name) => {
-        console.log("[UPDATE] Clearing cache:", name);
-        return caches.delete(name);
-      }));
+      await Promise.all(
+        cacheNames.map((name) => {
+          console.log("[UPDATE] Clearing cache:", name);
+          return caches.delete(name);
+        })
+      );
     }
-    
+
     // Notify service worker to clear cache
     if (navigator.serviceWorker?.controller) {
       console.log("[UPDATE] Sending clearCache to service worker...");
@@ -864,7 +897,9 @@ async function handleUpdateClick() {
               clearTimeout(timeout);
               resolve();
             };
-            navigator.serviceWorker.controller.postMessage({ action: "clearCache" }, [channel.port2]);
+            navigator.serviceWorker.controller.postMessage({ action: "clearCache" }, [
+              channel.port2
+            ]);
           })
         ]);
       } catch (err) {
@@ -887,21 +922,23 @@ async function handleUpdateClick() {
     } catch (err) {
       console.warn("[UPDATE] Could not clear storage:", err);
     }
-    
+
     // Clear IndexedDB databases
     try {
       if (typeof indexedDB !== "undefined" && indexedDB.databases) {
         const dbs = await indexedDB.databases();
         if (dbs?.length) {
-          await Promise.all(dbs.map((db) => {
-            console.log("[UPDATE] Deleting IndexedDB:", db.name);
-            return new Promise((resolve) => {
-              const req = indexedDB.deleteDatabase(db.name);
-              req.onsuccess = resolve;
-              req.onerror = resolve;
-              req.onblocked = resolve;
-            });
-          }));
+          await Promise.all(
+            dbs.map((db) => {
+              console.log("[UPDATE] Deleting IndexedDB:", db.name);
+              return new Promise((resolve) => {
+                const req = indexedDB.deleteDatabase(db.name);
+                req.onsuccess = resolve;
+                req.onerror = resolve;
+                req.onblocked = resolve;
+              });
+            })
+          );
         }
       }
     } catch (err) {
@@ -910,10 +947,10 @@ async function handleUpdateClick() {
 
     // Hard reload with cache-busting: force network-first for this request
     console.log("[UPDATE] Performing hard reload with cache invalidation...");
-    
+
     // Give browser time to process cache clears before navigation
     await new Promise((resolve) => globalThis.window.setTimeout(resolve, 500));
-    
+
     // Hard reload (bypasses cache, forces network request for index.html)
     globalThis.window.location.replace(globalThis.window.location.href);
   } catch (error) {
@@ -1153,9 +1190,7 @@ function renderManageList() {
   if (archivedSection) {
     archivedSection.classList.add("hidden");
     if (archivedList) {
-      while (archivedList.firstChild) {
-        archivedList.removeChild(archivedList.firstChild);
-      }
+      archivedList.innerHTML = "";
     }
   }
 }
@@ -1463,7 +1498,6 @@ async function handleLanguageSelection(langCode) {
     await updateStaticStrings();
     location.reload();
   }, 50);
-  const langReloadTimer = languageReloadTimer;
 }
 
 function renderLanguageList() {
@@ -1579,9 +1613,7 @@ function renderHistoryList() {
 
 function loadProgramFromHistory(rows) {
   const main = document.getElementById("main-program");
-  while (main.firstChild) {
-    main.removeChild(main.firstChild);
-  }
+  main.innerHTML = "";
   renderProgram(rows);
   updateTimestamp();
 }
@@ -1608,7 +1640,6 @@ if (typeof globalThis.window !== "undefined" && !globalThis.window.__VITEST__) {
         globalThis.window.location.href = newUrl;
         clearTimeout(navRedirectTimer);
       }, 1000);
-      const swNavTimer = navRedirectTimer;
     } else {
       // No SW, just reload with cache-busted URL
       globalThis.window.location.href = newUrl;
@@ -1628,6 +1659,7 @@ if (typeof globalThis.window !== "undefined" && !globalThis.window.__VITEST__) {
     init();
   });
 
+  // Ensure help modal is properly initialized before init()
   if (typeof window !== "undefined") {
     const initializeApp = async () => {
       const mainProgram = document.getElementById("main-program");

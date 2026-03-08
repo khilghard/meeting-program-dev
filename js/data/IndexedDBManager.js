@@ -6,15 +6,68 @@
  * and safe upgrades for existing users.
  */
 
-import db from "./db.js";
+import db, { DB_NAME, DB_SCHEMA_VERSION } from "./db.js";
 
-const DB_NAME = "MeetingProgramDB";
-const DB_VERSION = 3; // Updated to v3: added date index to history, inactive index to profiles
+const DB_VERSION = DB_SCHEMA_VERSION;
 const STORES = ["profiles", "archives", "metadata", "migrations", "history"];
+const DB_VERSION_RECOVERY_KEY = "meeting_program_db_version_recovery_attempted";
+
+function isVersionError(error) {
+  if (!error) return false;
+  const name = String(error.name || "");
+  const message = String(error.message || "");
+  return name === "VersionError" || message.includes("requested version") || message.includes("less than the existing version");
+}
+
+function canReloadWindow() {
+  return typeof globalThis !== "undefined" && !!globalThis.window?.location;
+}
+
+function hasTriedVersionRecovery() {
+  try {
+    if (typeof globalThis === "undefined" || !globalThis.sessionStorage) return false;
+    return globalThis.sessionStorage.getItem(DB_VERSION_RECOVERY_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markVersionRecoveryAttempted() {
+  try {
+    if (typeof globalThis !== "undefined" && globalThis.sessionStorage) {
+      globalThis.sessionStorage.setItem(DB_VERSION_RECOVERY_KEY, "1");
+    }
+  } catch {
+    // Ignore storage failures; fallback behavior still throws original error
+  }
+}
+
+function triggerVersionRecoveryReload() {
+  if (!canReloadWindow()) return;
+
+  const location = globalThis.window.location;
+  const separator = location.search ? "&" : "?";
+  const recoveryUrl = `${location.href}${separator}dbVersionRecovery=1&nocache=${Date.now()}`;
+
+  try {
+    globalThis.window.location.replace(recoveryUrl);
+  } catch {
+    globalThis.window.location.href = recoveryUrl;
+  }
+}
 
 // Open the database - Dexie handles the version check and upgrade automatically
 async function createDatabase() {
-  return db.open();
+  try {
+    return await db.open();
+  } catch (error) {
+    if (isVersionError(error) && canReloadWindow() && !hasTriedVersionRecovery()) {
+      console.error("[IndexedDB] Version mismatch detected. Attempting one-time recovery reload.", error);
+      markVersionRecoveryAttempted();
+      triggerVersionRecoveryReload();
+    }
+    throw error;
+  }
 }
 
 

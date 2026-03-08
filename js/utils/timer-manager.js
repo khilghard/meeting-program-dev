@@ -91,7 +91,7 @@ export function scheduleWithCleanup(fn, delay, id) {
 
   if (typeof window !== "undefined") {
     window.addEventListener("beforeunload", () => {
-      clearTimer(timerId.toString());
+      clearTimer(id);
     });
   }
 

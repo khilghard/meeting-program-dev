@@ -146,9 +146,7 @@ async function loadProfileAndArchives() {
 }
 
 function showNoProfileMessage() {
-  while (elements.archivesList.firstChild) {
-    elements.archivesList.removeChild(elements.archivesList.firstChild);
-  }
+  elements.archivesList.innerHTML = "";
   elements.noArchives.textContent = t("noProfileSelected") || "No profile selected";
   elements.noArchives.classList.remove("hidden");
   console.log("[Archive] showNoProfileMessage called");
@@ -176,7 +174,9 @@ function extractMetadataFromRow(row, info) {
 function extractSpeakers(csvData) {
   const speakers = [];
   csvData.forEach((row) => {
-    if (row.key.startsWith("speaker") && row.key !== "speaker" && row.value) {
+    // Include rows where the key is "speaker" (multiple rows can have the same key)
+    // or rows that start with "speaker" and have a number (speaker1, speaker2, etc.)
+    if ((row.key === "speaker" || (row.key.startsWith("speaker") && /speaker\d+/i.test(row.key))) && row.value) {
       speakers.push(row.value);
     }
   });
@@ -218,9 +218,7 @@ async function loadArchives() {
   const archives = await ArchiveManager.getProfileArchives(currentProfile.id);
   console.log("[Archive] Got archives:", archives?.length || 0, archives);
 
-  while (elements.archivesList.firstChild) {
-    elements.archivesList.removeChild(elements.archivesList.firstChild);
-  }
+  elements.archivesList.innerHTML = "";
 
   if (!archives || archives.length === 0) {
     elements.noArchives.textContent = t("noArchives") || "No archived programs";
@@ -254,23 +252,18 @@ async function loadArchives() {
       content.appendChild(conductingDiv);
     }
 
-    const speakersLabel = document.createElement("div");
-    speakersLabel.className = "profile-card-details";
-    speakersLabel.textContent = "Speakers:";
-    content.appendChild(speakersLabel);
-
     if (info.speakers?.length > 0) {
+      const speakersLabel = document.createElement("div");
+      speakersLabel.className = "profile-card-details";
+      speakersLabel.textContent = "Speakers:";
+      content.appendChild(speakersLabel);
+
       info.speakers.forEach((speaker) => {
         const speakerDiv = document.createElement("div");
         speakerDiv.className = "profile-card-details";
         speakerDiv.textContent = escapeHtml(speaker);
         content.appendChild(speakerDiv);
       });
-    } else {
-      const noSpeakersDiv = document.createElement("div");
-      noSpeakersDiv.className = "profile-card-details";
-      noSpeakersDiv.textContent = "No speakers";
-      content.appendChild(noSpeakersDiv);
     }
 
     card.appendChild(content);

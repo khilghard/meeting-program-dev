@@ -3,6 +3,7 @@ import { t } from "./i18n/index.js";
 import * as Profiles from "./profiles.js";
 import { getMetadata, setMetadata } from "./data/IndexedDBManager.js";
 import { createTimer, clearTimer } from "./utils/timer-manager.js";
+import { DEFAULT_URL } from "./config/defaultUrl.js";
 
 const HELP_SHOWN_KEY = "userPreference_helpShown";
 const INSTALL_PROMPT_KEY = "userPreference_installPrompted";
@@ -144,7 +145,7 @@ async function getSiteUrl() {
   }
 
   // Default fallback
-  return "https://khilghard.github.io/meeting-program/";
+  return DEFAULT_URL;
 }
 
 function getCurrentProfile() {
