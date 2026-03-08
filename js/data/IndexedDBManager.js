@@ -1,7 +1,7 @@
 /**
  * IndexedDBManager.js
  * Wrapper around Dexie for managing profiles, archives, metadata, and migrations.
- * 
+ *
  * Replaced raw IndexedDB with Dexie to enable automatic schema versioning
  * and safe upgrades for existing users.
  */
@@ -10,66 +10,11 @@ import db, { DB_NAME, DB_SCHEMA_VERSION } from "./db.js";
 
 const DB_VERSION = DB_SCHEMA_VERSION;
 const STORES = ["profiles", "archives", "metadata", "migrations", "history"];
-const DB_VERSION_RECOVERY_KEY = "meeting_program_db_version_recovery_attempted";
-
-function isVersionError(error) {
-  if (!error) return false;
-  const name = String(error.name || "");
-  const message = String(error.message || "");
-  return name === "VersionError" || message.includes("requested version") || message.includes("less than the existing version");
-}
-
-function canReloadWindow() {
-  return typeof globalThis !== "undefined" && !!globalThis.window?.location;
-}
-
-function hasTriedVersionRecovery() {
-  try {
-    if (typeof globalThis === "undefined" || !globalThis.sessionStorage) return false;
-    return globalThis.sessionStorage.getItem(DB_VERSION_RECOVERY_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function markVersionRecoveryAttempted() {
-  try {
-    if (typeof globalThis !== "undefined" && globalThis.sessionStorage) {
-      globalThis.sessionStorage.setItem(DB_VERSION_RECOVERY_KEY, "1");
-    }
-  } catch {
-    // Ignore storage failures; fallback behavior still throws original error
-  }
-}
-
-function triggerVersionRecoveryReload() {
-  if (!canReloadWindow()) return;
-
-  const location = globalThis.window.location;
-  const separator = location.search ? "&" : "?";
-  const recoveryUrl = `${location.href}${separator}dbVersionRecovery=1&nocache=${Date.now()}`;
-
-  try {
-    globalThis.window.location.replace(recoveryUrl);
-  } catch {
-    globalThis.window.location.href = recoveryUrl;
-  }
-}
 
 // Open the database - Dexie handles the version check and upgrade automatically
 async function createDatabase() {
-  try {
-    return await db.open();
-  } catch (error) {
-    if (isVersionError(error) && canReloadWindow() && !hasTriedVersionRecovery()) {
-      console.error("[IndexedDB] Version mismatch detected. Attempting one-time recovery reload.", error);
-      markVersionRecoveryAttempted();
-      triggerVersionRecoveryReload();
-    }
-    throw error;
-  }
+  return await db.open();
 }
-
 
 async function getProfile(id) {
   return db.profiles.get(id) || null;
@@ -103,9 +48,10 @@ async function deleteProfile(id) {
   return true;
 }
 
-
 async function getArchive(profileId, programDate) {
-  return db.archives.where("[profileId+programDate]").equals([profileId, programDate]).first() || null;
+  return (
+    db.archives.where("[profileId+programDate]").equals([profileId, programDate]).first() || null
+  );
 }
 
 async function getAllArchives(profileId) {
@@ -137,7 +83,6 @@ async function clearAllArchives() {
   return true;
 }
 
-
 async function getMetadata(key) {
   const entry = await db.metadata.get(key);
   return entry ? entry.value : null;
@@ -156,7 +101,6 @@ async function saveMigration(profileId, migration) {
   await db.migrations.put({ profileId, ...migration });
   return true;
 }
-
 
 async function getStorageInfo() {
   const profiles = await getAllProfiles();
@@ -189,27 +133,23 @@ async function getAllArchivesForAllProfiles() {
 
 async function cleanupOldArchives(days) {
   const cutoffDate = Date.now() - days * 24 * 60 * 60 * 1000;
-  const archives = await db.archives
-    .where("cachedAt")
-    .below(cutoffDate)
-    .toArray();
-  
+  const archives = await db.archives.where("cachedAt").below(cutoffDate).toArray();
+
   let deletedCount = 0;
   for (const archive of archives) {
     await db.archives.delete(archive.id);
     deletedCount++;
   }
-  
+
   return deletedCount;
 }
 
-
 async function calculateChecksum(data) {
   if (!data) return "";
-  
+
   // If data is already a string, use it; otherwise stringify it
   const dataStr = typeof data === "string" ? data : JSON.stringify(data);
-  
+
   const encoder = new TextEncoder();
   const dataBuffer = encoder.encode(dataStr);
   const hashBuffer = await crypto.subtle.digest("SHA-256", dataBuffer);
@@ -280,7 +220,7 @@ async function removeCorruptedArchive(profileId, programDate) {
   if (archiveCheck.valid) {
     console.warn(
       `[IndexedDB] WARNING: Archive ${profileId}||${programDate} appears valid ` +
-      "but was marked for removal. Proceeding with caution."
+        "but was marked for removal. Proceeding with caution."
     );
   }
   // Remove the corrupted archive
@@ -326,5 +266,5 @@ export {
   getArchiveWithValidation,
   getStorageIntegrity,
   removeCorruptedArchive,
-  db  // Export the Dexie instance for direct access if needed
+  db // Export the Dexie instance for direct access if needed
 };
