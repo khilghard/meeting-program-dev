@@ -10,34 +10,128 @@
     <link rel="apple-touch-icon" sizes="180x180" href="img/favicon.png" />
     <title>Sacrament Meeting Program</title>
 
+    <!-- CRITICAL: Loading Modal CSS and HTML - Must be first to prevent flicker -->
+    <style>
+      /* Hide all content while loading */
+      body.loading > *:not(#loading-modal) {
+        visibility: hidden !important;
+      }
+      /* Loading modal styles - visible by default */
+      #loading-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: #ffffff;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 99999;
+        transition:
+          opacity 0.5s ease,
+          visibility 0.5s ease;
+      }
+      #loading-modal.hidden {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+      #loading-modal .loader {
+        height: 80px;
+        aspect-ratio: 1;
+        display: grid;
+      }
+      #loading-modal .loader:before,
+      #loading-modal .loader:after {
+        content: "";
+        --c: no-repeat linear-gradient(#333333 0 0);
+        background: var(--c), var(--c);
+        background-size: 25% 50%;
+        animation: l4 1.5s infinite linear;
+      }
+      #loading-modal .loader:after {
+        transform: scale(-1);
+      }
+      @keyframes l4 {
+        0%,
+        10% {
+          background-position:
+            33.4% 100%,
+            66.6% 100%;
+        }
+        40% {
+          background-position:
+            33.4% 0,
+            100% 100%;
+        }
+        70% {
+          background-position:
+            0 100%,
+            66.6% 0;
+        }
+        100% {
+          background-position:
+            33.4% 100%,
+            66.6% 100%;
+        }
+      }
+      #loading-modal-text {
+        margin-top: 20px;
+        font-size: 1.2rem;
+        color: #333333;
+      }
+      /* Dark mode support */
+      [data-theme="dark"] #loading-modal {
+        background-color: #121212;
+      }
+      [data-theme="dark"] #loading-modal .loader:before,
+      [data-theme="dark"] #loading-modal .loader:after {
+        --c: no-repeat linear-gradient(#e0e0e0 0 0);
+      }
+      [data-theme="dark"] #loading-modal-text {
+        color: #e0e0e0;
+      }
+    </style>
+    <div id="loading-modal">
+      <div class="loader"></div>
+      <div id="loading-modal-text">Loading...</div>
+    </div>
+
     <!-- Apply theme immediately (prevents flash of light theme) -->
     <script src="js/theme-early.js"></script>
 
-    <!-- Global Error Logger (runs before everything) -->
+    <!-- Loading modal timing script -->
     <script>
-      // Capture all errors immediately
-      globalThis.allErrors = [];
+      // Synchronous loading modal logic - runs immediately before body renders
+      // Shows modal for min 2.5s, max 12s
+      // Removes body.loading class after 500ms to allow content rendering
+      (function () {
+        const minDisplayTime = 2500;
+        const maxDisplayTime = 12000;
+        let modalHidden = false;
 
-      const captureError = (error, source = "global") => {
-        const errorInfo = {
-          source,
-          message: error?.message || String(error),
-          stack: error?.stack,
-          timestamp: new Date().toISOString()
+        // Allow content after 500ms minimum
+        setTimeout(() => {
+          document.body.classList.remove("loading");
+        }, 500);
+
+        const hideModal = () => {
+          if (!modalHidden) {
+            modalHidden = true;
+            const modal = document.getElementById("loading-modal");
+            if (modal) {
+              modal.classList.add("hidden");
+            }
+          }
         };
-        globalThis.allErrors.push(errorInfo);
-        console.error(`[ERROR-${source.toUpperCase()}]`, errorInfo);
-      };
 
-      // Global error handler
-      window.addEventListener("error", (e) => {
-        captureError(e.error || e.message, "error-event");
-      });
-
-      // Unhandled promise rejection handler
-      window.addEventListener("unhandledrejection", (e) => {
-        captureError(e.reason, "unhandledRejection");
-      });
+        // Hide after minimum time
+        setTimeout(hideModal, minDisplayTime);
+        // Fallback: force hide at maximum time
+        setTimeout(hideModal, maxDisplayTime);
+      })();
     </script>
 
     <!-- Dynamically set manifest based on deployment path -->
@@ -190,7 +284,12 @@
           navigator.serviceWorker.controller.postMessage({ action: "skipWaiting" });
           const reloadBtn = document.getElementById("reload-btn");
           if (reloadBtn) {
-            reloadBtn.onclick = () => location.reload();
+            reloadBtn.onclick = () => {
+              // Show modal for at least 500ms before reloading
+              setTimeout(() => {
+                location.reload();
+              }, 500);
+            };
           }
         }
       }
@@ -202,7 +301,7 @@
     </script>
   </head>
 
-  <body>
+  <body class="loading">
     <!-- NETWORK STATUS INDICATOR -->
     <output id="network-status" class="network-status hidden" aria-live="polite">
       <span class="status-icon"></span>
@@ -452,6 +551,37 @@
   <footer>
     <div class="footer-container">
       <div id="app-version" class="app-version"></div>
+      <script>
+        // Synchronous loading modal logic - runs immediately before body renders
+        // Shows modal for min 3s, max 12s
+        // Prevents any content from showing until modal has displayed for 500ms
+        (function () {
+          const minDisplayTime = 3000;
+          const maxDisplayTime = 12000;
+          let modalHidden = false;
+
+          // Allow content after 500ms minimum
+          setTimeout(() => {
+            document.body.classList.remove("loading");
+          }, 500);
+
+          const hideModal = () => {
+            if (!modalHidden) {
+              modalHidden = true;
+              const modal = document.getElementById("loading-modal");
+              if (modal) {
+                modal.classList.add("hidden");
+              }
+            }
+          };
+
+          // Hide after minimum time
+          setTimeout(hideModal, minDisplayTime);
+          // Fallback: force hide at maximum time
+          setTimeout(hideModal, maxDisplayTime);
+        })();
+      </script>
+
       <script type="module">
         import { VERSION } from "./js/version.js";
         document.getElementById("app-version").textContent = "v" + VERSION;

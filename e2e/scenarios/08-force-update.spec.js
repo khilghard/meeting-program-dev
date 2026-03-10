@@ -57,8 +57,14 @@ test.describe("Test 08: Force Update Functionality - ISTQB Grade A", () => {
     await page.goto("http://localhost:8000/meeting-program/index.html");
     await swInspector.waitForAppReady();
 
-    // Wait for SW to be fully installed
-    await page.waitForTimeout(2000);
+    // Wait for loading-modal to be hidden before proceeding
+    await page.waitForFunction(
+      () => {
+        const modal = document.getElementById("loading-modal");
+        return modal && modal.classList.contains("hidden");
+      },
+      { timeout: 15000 }
+    );
 
     const initialVersion = await swInspector.getAppVersion();
     console.log(`✓ App loaded at version: ${initialVersion}`);
@@ -273,8 +279,11 @@ test.describe("Test 08: Force Update Functionality - ISTQB Grade A", () => {
     // This ensures the app can load properly
     await page.goto("http://localhost:8000/meeting-program/index.html");
     await page.waitForFunction(
-      () => document.getElementById("program-header")?.classList.contains("hidden") === false,
-      { timeout: 10000 }
+      () => {
+        const modal = document.getElementById("loading-modal");
+        return modal && modal.classList.contains("hidden");
+      },
+      { timeout: 15000 }
     );
 
     // NOW setup the fail-then-succeed mock for version checks
@@ -339,8 +348,11 @@ test.describe("Test 08: Force Update Functionality - ISTQB Grade A", () => {
     // This ensures the app can load properly
     await page.goto("http://localhost:8000/meeting-program/index.html");
     await page.waitForFunction(
-      () => document.getElementById("program-header")?.classList.contains("hidden") === false,
-      { timeout: 10000 }
+      () => {
+        const modal = document.getElementById("loading-modal");
+        return modal && modal.classList.contains("hidden");
+      },
+      { timeout: 15000 }
     );
 
     // NOW setup the always-fail mock for version checks
@@ -396,8 +408,11 @@ test.describe("Test 08: Force Update Functionality - ISTQB Grade A", () => {
     // This ensures the app can load properly
     await page.goto("http://localhost:8000/meeting-program/index.html");
     await page.waitForFunction(
-      () => document.getElementById("program-header")?.classList.contains("hidden") === false,
-      { timeout: 10000 }
+      () => {
+        const modal = document.getElementById("loading-modal");
+        return modal && modal.classList.contains("hidden");
+      },
+      { timeout: 15000 }
     );
 
     // NOW setup the malformed JSON mock
@@ -751,8 +766,11 @@ test.describe("Test 08: Force Update Functionality - ISTQB Grade A", () => {
     await page.goto("http://localhost:8000/meeting-program/index.html");
 
     await page.waitForFunction(
-      () => document.getElementById("program-header")?.classList.contains("hidden") === false,
-      { timeout: 10000 }
+      () => {
+        const modal = document.getElementById("loading-modal");
+        return modal && modal.classList.contains("hidden");
+      },
+      { timeout: 15000 }
     );
 
     // Verify v2.1.0
@@ -825,8 +843,11 @@ test.describe("Test 08: Force Update Functionality - ISTQB Grade A", () => {
     // This ensures the app can load properly
     await page.goto("http://localhost:8000/meeting-program/index.html");
     await page.waitForFunction(
-      () => document.getElementById("program-header")?.classList.contains("hidden") === false,
-      { timeout: 10000 }
+      () => {
+        const modal = document.getElementById("loading-modal");
+        return modal && modal.classList.contains("hidden");
+      },
+      { timeout: 15000 }
     );
 
     console.log(`✓ App loaded successfully`);
@@ -899,8 +920,11 @@ test.describe("Test 08: Force Update Functionality - ISTQB Grade A", () => {
 
     await page.goto("http://localhost:8000/meeting-program/index.html");
     await page.waitForFunction(
-      () => document.getElementById("program-header")?.classList.contains("hidden") === false,
-      { timeout: 10000 }
+      () => {
+        const modal = document.getElementById("loading-modal");
+        return modal && modal.classList.contains("hidden");
+      },
+      { timeout: 15000 }
     );
 
     // Trigger multiple rapid version checks
@@ -980,8 +1004,11 @@ test.describe("Test 08: Force Update Functionality - ISTQB Grade A", () => {
 
     await page.goto("http://localhost:8000/meeting-program/index.html");
     await page.waitForFunction(
-      () => document.getElementById("program-header")?.classList.contains("hidden") === false,
-      { timeout: 10000 }
+      () => {
+        const modal = document.getElementById("loading-modal");
+        return modal && modal.classList.contains("hidden");
+      },
+      { timeout: 15000 }
     );
 
     // Check version - should not be newer
@@ -1020,8 +1047,11 @@ test.describe("Test 08: Force Update Functionality - ISTQB Grade A", () => {
 
     await page.goto("http://localhost:8000/meeting-program/index.html");
     await page.waitForFunction(
-      () => document.getElementById("program-header")?.classList.contains("hidden") === false,
-      { timeout: 10000 }
+      () => {
+        const modal = document.getElementById("loading-modal");
+        return modal && modal.classList.contains("hidden");
+      },
+      { timeout: 15000 }
     );
 
     // Try to parse and handle missing version

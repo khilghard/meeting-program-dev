@@ -1,7 +1,7 @@
 /**
  * 01-migration-login.spec.js
  * Test Case #1: Basic App Initialization
- * 
+ *
  * Flow:
  * - Load app and verify it initializes properly
  * - Verify UI elements are visible and interactive
@@ -28,16 +28,16 @@ test.describe("Test 01: App Loads Successfully", () => {
 
     // Verify page loaded
     await expect(page).toHaveTitle(/meeting program|program/i);
-    
-    // Wait for header to become visible (JS removes .hidden class)
+
+    // Wait for loading-modal to be hidden before proceeding
     await page.waitForFunction(
       () => {
-        const header = document.getElementById("program-header");
-        return header && !header.classList.contains("hidden");
+        const modal = document.getElementById("loading-modal");
+        return modal && modal.classList.contains("hidden");
       },
-      { timeout: 10000 }
+      { timeout: 15000 }
     );
-    
+
     // Close any open modals first
     const helpModal = page.locator("#help-modal");
     if (await helpModal.isVisible()) {
@@ -47,15 +47,15 @@ test.describe("Test 01: App Loads Successfully", () => {
         await page.waitForTimeout(500);
       }
     }
-    
+
     await page.waitForTimeout(500);
-    
+
     // Verify QR button is visible and functional
     await expect(page.locator("#qr-action-btn")).toBeVisible();
-    
+
     // Verify view archives button exists
     await expect(page.locator("#view-archives-btn")).toBeVisible();
-    
+
     // Verify help button exists
     await expect(page.locator("#help-btn")).toBeVisible();
 
