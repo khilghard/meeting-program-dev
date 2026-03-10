@@ -1,8 +1,0 @@
-Generating QR code for:
-  Website: http://khilghard.github.io/meeting-program-dev/
-  Sheet:   https://docs.google.com/spreadsheets/d/1LjwKN5_4bKdc3JvNYBu46ChBv27K7P_ybnnOgzVS3U4/edit?gid=0#gid=0
-  CSV:     https://docs.google.com/spreadsheets/d/1LjwKN5_4bKdc3JvNYBu46ChBv27K7P_ybnnOgzVS3U4/gviz/tq?tqx=out:csv
-  Force Update: true
-  No Cache: true
-  Combined: http://khilghard.github.io/meeting-program-dev?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2F1LjwKN5_4bKdc3JvNYBu46ChBv27K7P_ybnnOgzVS3U4%2Fgviz%2Ftq%3Ftqx%3Dout%3Acsv&forceUpdate=true&nocache=true
-
