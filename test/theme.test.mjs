@@ -1,5 +1,20 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 
+// Mock localStorage globally before any imports
+const mockLocalStorage = {
+  data: {},
+  getItem: vi.fn((key) => mockLocalStorage.data[key] || null),
+  setItem: vi.fn((key, value) => {
+    mockLocalStorage.data[key] = value;
+  }),
+  removeItem: vi.fn((key) => {
+    delete mockLocalStorage.data[key];
+  }),
+  clear: vi.fn(() => {
+    mockLocalStorage.data = {};
+  })
+};
+
 describe("theme.js", () => {
   let initTheme, toggleTheme, getTheme, applyTheme, setMetadataDependencies;
   let mockDocumentElement;
@@ -11,6 +26,11 @@ describe("theme.js", () => {
   let originalWindow;
 
   beforeEach(async () => {
+    // Clear localStorage before each test
+    mockLocalStorage.data = {};
+    mockLocalStorage.getItem.mockClear();
+    mockLocalStorage.setItem.mockClear();
+
     mockMetadata = {};
     mockDocumentElement = { dataset: {} };
     mockToggleBtn = { onclick: null };
@@ -27,13 +47,16 @@ describe("theme.js", () => {
     originalDocument = global.document;
     originalWindow = global.window;
 
+    // Set up mocks BEFORE importing the module
+    global.localStorage = mockLocalStorage;
     global.document = {
       documentElement: mockDocumentElement,
       getElementById: vi.fn((id) => (id === "theme-toggle" ? mockToggleBtn : null))
     };
 
     global.window = {
-      matchMedia: vi.fn((query) => mockMatchMedia)
+      matchMedia: vi.fn((query) => mockMatchMedia),
+      localStorage: mockLocalStorage
     };
 
     const mockGetMetadata = vi.fn((key) => Promise.resolve(mockMetadata[key] || null));
@@ -55,6 +78,7 @@ describe("theme.js", () => {
   afterEach(() => {
     global.document = originalDocument;
     global.window = originalWindow;
+    delete global.localStorage;
     vi.restoreAllMocks();
   });
 

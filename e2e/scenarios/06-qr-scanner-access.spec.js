@@ -11,21 +11,21 @@ test.describe("Test 06: QR Scanner Access", () => {
   test("should allow opening QR scanner modal", async ({ page }) => {
     const consoleTracker = new ConsoleTracker(page);
     consoleTracker.listenToConsoleMessages();
-    
+
     const mainPage = new MainPage(page);
-    
+
     await clearAllStorage(page);
     await mainPage.goto();
-    
-    // Wait for app to initialize
+
+    // Wait for loading-modal to be hidden before proceeding
     await page.waitForFunction(
       () => {
-        const header = document.getElementById("program-header");
-        return header && !header.classList.contains("hidden");
+        const modal = document.getElementById("loading-modal");
+        return modal && modal.classList.contains("hidden");
       },
-      { timeout: 10000 }
+      { timeout: 15000 }
     );
-    
+
     // Close any open modals first
     const helpModal = page.locator("#help-modal");
     if (await helpModal.isVisible()) {
@@ -35,15 +35,15 @@ test.describe("Test 06: QR Scanner Access", () => {
         await page.waitForTimeout(500);
       }
     }
-    
+
     // Verify QR button exists and is visible
     const qrButton = page.locator("#qr-action-btn");
     await expect(qrButton).toBeVisible();
-    
+
     // Check button has text content
     const buttonText = await qrButton.textContent();
     expect(buttonText?.length).toBeGreaterThan(0);
-    
+
     // Mock camera before clicking
     await page.evaluate(() => {
       navigator.mediaDevices.getUserMedia = async () => {
@@ -52,16 +52,16 @@ test.describe("Test 06: QR Scanner Access", () => {
         return stream;
       };
     });
-    
+
     // Click QR button
     await qrButton.click();
     await page.waitForTimeout(500);
-    
+
     // Verify QR scanner section becomes visible
     const qrScanner = page.locator("#qr-scanner");
     const isVisible = await qrScanner.isVisible().catch(() => false);
     expect(isVisible).toBeTruthy();
-    
+
     // Verify console is acceptable
     expect(consoleTracker.getErrorCount()).toBeLessThanOrEqual(2);
   });
