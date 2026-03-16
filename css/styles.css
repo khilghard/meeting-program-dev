@@ -1527,3 +1527,366 @@ footer {
   margin: 0;
   font-weight: bold;
 }
+
+/* =========================================================
+   EDITOR PAGE STYLES
+   ========================================================= */
+
+/* Editor Header */
+.editor-header {
+  background-color: var(--header-bg);
+  color: var(--header-text);
+  padding: 15px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.editor-header.hidden {
+  display: none;
+}
+
+.editor-header-bar {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+
+.editor-title h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.editor-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.editor-btn {
+  background-color: var(--accent-hover);
+  color: var(--header-text);
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color var(--transition-speed);
+}
+
+.editor-btn:hover {
+  background-color: #00356e;
+}
+
+.sign-out-btn {
+  background-color: #d32f2f;
+}
+
+.sign-out-btn:hover {
+  background-color: #b71c1c;
+}
+
+.back-btn {
+  background-color: #555555;
+}
+
+.back-btn:hover {
+  background-color: #444444;
+}
+
+[data-theme="dark"] .back-btn:hover {
+  background-color: #666666;
+}
+
+/* Editor Container */
+.editor-main {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.editor-main.hidden {
+  display: none;
+}
+
+/* Authentication Status */
+.auth-status-container {
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.auth-status-container.hidden {
+  display: none;
+}
+
+.auth-status {
+  background-color: var(--card-bg);
+  border-radius: 8px;
+  padding: 40px 20px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.auth-status span {
+  display: block;
+  margin-bottom: 20px;
+  font-size: 1rem;
+  color: var(--text-color);
+}
+
+.auth-btn {
+  background-color: var(--accent-color);
+  color: var(--accent-text);
+  border: none;
+  padding: 12px 24px;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--transition-speed);
+  margin: 10px;
+}
+
+.auth-btn:hover {
+  background-color: var(--accent-hover);
+}
+
+.auth-btn.hidden {
+  display: none;
+}
+
+.sign-in-btn {
+  background-color: #1f73b7;
+}
+
+.sign-in-btn:hover {
+  background-color: #1565a0;
+}
+
+.retry-btn {
+  background-color: #7cb342;
+}
+
+.retry-btn:hover {
+  background-color: #689f38;
+}
+
+/* Viewer Only Message */
+.viewer-only-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
+  padding: 20px;
+}
+
+.viewer-only-container.hidden {
+  display: none;
+}
+
+.viewer-only-content {
+  background-color: var(--card-bg);
+  border-radius: 8px;
+  padding: 40px;
+  max-width: 500px;
+  text-align: center;
+  border-left: 5px solid var(--accent-color);
+}
+
+.viewer-only-content h2 {
+  color: var(--text-color);
+  margin-top: 0;
+  font-size: 1.8rem;
+}
+
+.viewer-only-content p {
+  color: var(--text-color);
+  line-height: 1.6;
+  margin: 15px 0;
+}
+
+.viewer-only-btn {
+  background-color: var(--accent-color);
+  color: var(--accent-text);
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  margin: 10px;
+  transition: background-color var(--transition-speed);
+}
+
+.viewer-only-btn:hover {
+  background-color: var(--accent-hover);
+}
+
+.viewer-only-btn.secondary {
+  background-color: #7a7a7a;
+}
+
+.viewer-only-btn.secondary:hover {
+  background-color: #666666;
+}
+
+/* Loading Container - hidden by default, shown only via .loading parent class
+   (consolidated with earlier definition in styles.css) */
+
+.spinner {
+  border: 4px solid var(--card-bg);
+  border-top: 4px solid var(--accent-color);
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-text {
+  margin-top: 15px;
+  color: var(--text-color);
+  font-size: 1rem;
+}
+
+/* Update Notification */
+.update-notification {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background-color: #1976d2;
+  color: white;
+  padding: 16px 24px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  animation: slideIn 0.3s ease-out;
+  z-index: 1000;
+}
+
+.update-notification.hidden {
+  display: none;
+}
+
+.update-btn {
+  background-color: white;
+  color: #1976d2;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 3px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.update-btn:hover {
+  background-color: #f0f0f0;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Network Status */
+.network-status {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background-color: var(--offline-bg);
+  color: var(--offline-text);
+  padding: 10px 20px;
+  text-align: center;
+  z-index: 2000;
+  border-bottom: 2px solid var(--offline-text);
+}
+
+.network-status.hidden {
+  display: none;
+}
+
+.network-status .status-icon {
+  margin-right: 10px;
+}
+
+/* Theme Toggle */
+.theme-toggle {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--header-text);
+  padding: 5px;
+  transition: transform var(--transition-speed);
+}
+
+.theme-toggle:hover {
+  transform: scale(1.1);
+}
+
+.theme-toggle.hidden-on-start {
+  display: none;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .editor-header-bar {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .editor-title h1 {
+    font-size: 1.2rem;
+  }
+
+  .editor-controls {
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .editor-btn {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+  }
+
+  .viewer-only-content {
+    padding: 20px;
+  }
+
+  .auth-status {
+    padding: 20px;
+  }
+
+  .update-notification {
+    bottom: 10px;
+    right: 10px;
+    left: 10px;
+    flex-direction: column;
+    text-align: center;
+  }
+}

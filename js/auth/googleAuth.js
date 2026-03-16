@@ -25,7 +25,7 @@ const GoogleAuth = (() => {
   let config = {
     clientId: null,
     redirectUri: null,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"]
   };
 
   // Internal state
@@ -70,17 +70,18 @@ const GoogleAuth = (() => {
 
     // Check if Google GSI library is loaded
     if (typeof google === "undefined" || !google.accounts) {
-      console.error("[AUTH] Google Identity Services library not loaded. Ensure CDN script is included in HTML.");
+      console.error(
+        "[AUTH] Google Identity Services library not loaded. Ensure CDN script is included in HTML."
+      );
       return;
     }
 
-    // Initialize token client for PKCE flow
-    state.tokenClient = google.accounts.oauth2.initCodeClient({
+    // Initialize token client for PKCE flow (use initTokenClient for access token)
+    state.tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: clientId,
       scope: config.scopes.join(" "),
       ux_mode: "popup",
-      callback: handleAuthCallback,
-      redirect_uri: redirectUri, // Required for server-side verification (even if not used)
+      callback: handleAuthCallback
     });
 
     state.initialized = true;
@@ -98,19 +99,52 @@ const GoogleAuth = (() => {
    * Called after user approves/denies permission
    *
    * @private
-   * @param {Object} response - Google auth response
+   * @param {Object} response - Google auth response (with access_token)
    */
   function handleAuthCallback(response) {
     if (response.error) {
       console.error("[AUTH] Authorization failed:", response.error);
       state.authenticated = false;
+      // Resolve the signIn promise if pending
+      if (state._signInResolve) {
+        state._signInResolve(null);
+        state._signInResolve = null;
+      }
       return;
     }
 
-    // In PKCE flow, we get an authorization code (not token directly)
-    // Must exchange it for token via backend
-    // For now: handle basic flow and log
-    console.log("[AUTH] Authorization response received:", response);
+    // Token client returns access_token directly in response
+    if (response.access_token) {
+      state.accessToken = response.access_token;
+
+      // Calculate expiry (typically 1 hour = 3600 seconds)
+      const expiresIn = response.expires_in || 3600;
+      state.expiresAt = Date.now() + expiresIn * 1000;
+      state.authenticated = true;
+
+      // Extract user info from token
+      state.userInfo = {
+        email: extractEmailFromToken(response.access_token),
+        name: "User"
+      };
+
+      // Store in sessionStorage
+      saveSessionToStorage();
+
+      // Schedule refresh
+      scheduleTokenRefresh();
+
+      console.log("[AUTH] Token received, expires in:", expiresIn, "seconds");
+
+      // Resolve the signIn promise if pending
+      if (state._signInResolve) {
+        state._signInResolve({
+          token: state.accessToken,
+          user: state.userInfo
+        });
+        state._signInResolve = null;
+      }
+    }
   }
 
   /**
@@ -174,7 +208,7 @@ const GoogleAuth = (() => {
   }
 
   /**
-   * Sign in with Google using PKCE flow
+   * Sign in with Google using token client flow
    *
    * @returns {Promise<{ token: string; user: { email: string; name: string } } | null>}
    *   Returns auth data on success, null on cancel, throws on error
@@ -193,61 +227,10 @@ const GoogleAuth = (() => {
     }
 
     return new Promise((resolve) => {
-      // For browser PKCE flow, we need to handle implicit/popup flow
-      // Using Google's built-in popup mechanism
+      // Store resolve function to call after callback
+      state._signInResolve = resolve;
 
-      // Store original callback
-      const originalCallback = window.handleGoogleAuthCallback;
-
-      // Set up callback handler
-      window.handleGoogleAuthCallback = (response) => {
-        if (response.access_token) {
-          // Successfully got token
-          state.accessToken = response.access_token;
-
-          // Calculate expiry (typically 1 hour = 3600 seconds)
-          const expiresIn = response.expires_in || 3600;
-          state.expiresAt = Date.now() + expiresIn * 1000;
-          state.authenticated = true;
-
-          // Extract user info from token (if available)
-          // Note: Might need additional API call for full profile
-          state.userInfo = {
-            email: response.email || extractEmailFromToken(response.access_token),
-            name: response.name || "User"
-          };
-
-          // Store in sessionStorage
-          saveSessionToStorage();
-
-          // Schedule refresh
-          scheduleTokenRefresh();
-
-          console.log("[AUTH] Sign-in successful. User:", state.userInfo.email);
-
-          // Restore original callback
-          if (originalCallback) {
-            window.handleGoogleAuthCallback = originalCallback;
-          }
-
-          resolve({
-            token: state.accessToken,
-            user: state.userInfo
-          });
-        } else if (response.error) {
-          console.error("[AUTH] Sign-in error:", response.error);
-
-          // Restore original callback
-          if (originalCallback) {
-            window.handleGoogleAuthCallback = originalCallback;
-          }
-
-          state.authenticated = false;
-          resolve(null);
-        }
-      };
-
-      // Trigger OAuth flow
+      // Trigger OAuth flow - callback will be handleAuthCallback
       if (state.tokenClient) {
         state.tokenClient.requestAccessToken();
       } else {

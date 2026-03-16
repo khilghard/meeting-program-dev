@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Sacrament Meeting Program Editor" />
+    <link rel="apple-touch-icon" sizes="180x180" href="img/favicon.png" />
+    <title>Program Editor - Sacrament Meeting Program</title>
+
+    <!-- Note: Loading modal is NOT used on editor page - only on index.html -->
+    <!-- Editor initializes directly without loading modal -->
+
+    <!-- Apply theme immediately (prevents flash of light theme) -->
+    <script src="js/theme-early.js"></script>
+
+    <!-- Dynamically set manifest based on deployment path -->
+    <script>
+      (function detectAndSetManifest() {
+        const pathname = window.location.pathname;
+        const isDevDeployment = pathname.includes("/meeting-program-dev/");
+        const isProdDeployment = pathname.includes("/meeting-program/") && !isDevDeployment;
+
+        let manifestHref = "/manifest.webmanifest"; // Default for local testing
+        let deploymentPath = "/";
+
+        if (isProdDeployment) {
+          manifestHref = "/meeting-program/manifest.prod.webmanifest";
+          deploymentPath = "/meeting-program/";
+        } else if (isDevDeployment) {
+          manifestHref = "/meeting-program-dev/manifest.dev.webmanifest";
+          deploymentPath = "/meeting-program-dev/";
+        }
+
+        // Store for service worker and other scripts to use
+        window.MANIFEST_PATH = manifestHref;
+        window.DEPLOYMENT_PATH = deploymentPath;
+
+        // Create and append manifest link (must happen in head, before other scripts)
+        const link = document.createElement("link");
+        link.rel = "manifest";
+        link.href = manifestHref;
+        document.head.appendChild(link);
+
+        console.log(
+          `[Editor] Detected deployment: ${deploymentPath}, using manifest: ${manifestHref}`
+        );
+      })();
+    </script>
+
+    <link id="canonical-link" rel="canonical" />
+    <link id="styles-link" rel="stylesheet" href="" />
+    <link rel="icon" type="image/png" sizes="32x32" href="img/favicon.png" />
+    <!-- Google Identity Services for OAuth -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- Google OAuth Client ID -->
+    <script>
+      window.GOOGLE_CLIENT_ID =
+        "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "dexie": "https://cdn.jsdelivr.net/npm/dexie@4.3.0/+esm",
+          "uuid": "https://cdn.jsdelivr.net/npm/uuid@9.0.1/+esm"
+        }
+      }
+    </script>
+    <script type="module">
+      import { VERSION } from "./js/version.js";
+      globalThis.APP_VERSION = VERSION;
+      document.getElementById("styles-link").href = `css/styles.css?v=${VERSION}`;
+
+      // Persistent error logger (survives reloads)
+      globalThis.errorLog = [];
+      window.addEventListener("error", (event) => {
+        globalThis.errorLog.push({
+          type: "error",
+          message: event.message,
+          time: new Date().toISOString()
+        });
+      });
+      window.addEventListener("unhandledrejection", (event) => {
+        globalThis.errorLog.push({
+          type: "unhandledRejection",
+          reason: String(event.reason),
+          time: new Date().toISOString()
+        });
+      });
+
+      // Load editor script
+      const editorScript = document.createElement("script");
+      editorScript.type = "module";
+      editorScript.src = `js/editor.js?v=${VERSION}`;
+      document.head.appendChild(editorScript);
+
+      // Register service worker after version is loaded
+      (async () => {
+        try {
+          if (typeof navigator === "undefined") {
+            console.warn("[SW] Navigator not available, skipping service worker registration");
+            return;
+          }
+
+          if (!("serviceWorker" in navigator)) {
+            console.warn("[SW] Service workers not supported");
+            return;
+          }
+
+          const swUrl = `service-worker.js?v=${VERSION}`;
+
+          try {
+            const registration = await navigator.serviceWorker.register(swUrl).catch((err) => {
+              console.error("[SW] Registration failed:", err);
+              throw err;
+            });
+            console.log("[SW] Registered successfully");
+          } catch (error) {
+            console.error("[SW] Registration failed:", error);
+          }
+        } catch (error) {
+          console.error("[SW] Service worker setup failed:", error);
+        }
+      })();
+    </script>
+  </head>
+
+  <body>
+    <!-- NETWORK STATUS INDICATOR -->
+    <output id="network-status" class="network-status hidden" aria-live="polite">
+      <span class="status-icon"></span>
+      <span class="status-text"></span>
+      <span class="last-sync"></span>
+    </output>
+
+    <!-- EDITOR HEADER -->
+    <header id="editor-header" class="editor-header hidden">
+      <div class="editor-header-bar">
+        <div class="editor-title">
+          <h1>Program Editor</h1>
+        </div>
+        <div class="editor-controls">
+          <button id="theme-toggle" class="theme-toggle" aria-label="Toggle Dark Mode">🌓</button>
+          <button id="sign-out-btn" class="editor-btn sign-out-btn" aria-label="Sign Out">
+            Sign Out
+          </button>
+          <a id="back-to-program-link" href="index.html" class="editor-btn back-btn">
+            ← Back to Program
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <!-- MAIN EDITOR CONTAINER -->
+    <main id="page-container">
+      <!-- Authentication Status -->
+      <div id="auth-status" class="auth-status-container hidden">
+        <div class="auth-status">
+          <span id="auth-message"></span>
+          <button id="sign-in-btn" class="auth-btn sign-in-btn hidden">Sign in with Google</button>
+          <button id="retry-auth-btn" class="auth-btn retry-btn hidden">Retry</button>
+        </div>
+      </div>
+
+      <!-- Viewer Only Message -->
+      <div id="viewer-only-message" class="viewer-only-container hidden">
+        <div class="viewer-only-content">
+          <h2>Viewer Only</h2>
+          <p>You don't have permission to edit this program.</p>
+          <p>Please contact a program administrator to request editing access.</p>
+          <a href="index.html" class="viewer-only-btn">← Back to Program</a>
+          <button id="sign-out-viewer-btn" class="viewer-only-btn secondary">Sign Out</button>
+        </div>
+      </div>
+
+      <!-- Editor Component Container -->
+      <div id="editor-container" class="editor-main hidden"></div>
+
+      <!-- Loading Spinner -->
+      <div class="loading-container" id="editor-loading">
+        <div class="spinner"></div>
+        <div class="loading-text">Initializing editor...</div>
+      </div>
+    </main>
+
+    <!-- Update Notification -->
+    <div id="update-notification" class="update-notification hidden">
+      <span>A new version is available.</span>
+      <button id="reload-btn" class="update-btn">Reload</button>
+    </div>
+  </body>
+</html>

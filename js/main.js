@@ -354,6 +354,12 @@ async function handleZeroState() {
   toggleElementClasses([churchContainer, unitHeader, welcomeText, themeToggle], ["hidden"], []);
   toggleElementClasses(main, ["hidden"], ["loading"]);
 
+  // Also remove loading class from page-container to hide the loading spinner
+  const pageContainer = document.getElementById("page-container");
+  if (pageContainer) {
+    pageContainer.classList.remove("loading");
+  }
+
   const { getMetadata } = await import("./data/IndexedDBManager.js");
   const helpShown = await getMetadata("userPreference_helpShown");
   if (!helpShown) {
@@ -725,9 +731,6 @@ async function init() {
   const main = document.getElementById("main-program");
   const pageContainer = document.getElementById("page-container");
 
-  if (pageContainer) pageContainer.classList.add("loading");
-  if (main) main.classList.add("loading");
-
   // Initialize theme
   initTheme();
   try {
@@ -742,18 +745,56 @@ async function init() {
     const sheetUrl = await determineSheetUrl();
 
     if (!sheetUrl) {
+      // Zero state - don't show loading modal
+      console.log("[INIT] Zero state (no URL) - hiding loading modal");
+      if (pageContainer) pageContainer.classList.remove("loading");
+      if (main) main.classList.remove("loading");
       await handleZeroState();
       return;
     }
 
-    await handleActiveState(sheetUrl);
+    // Active state - show loading modal with proper timing
+    await handleActiveStateWithLoadingModal(sheetUrl, pageContainer, main);
   } finally {
+    // Ensure loading modal is removed at end
     if (main) main.classList.remove("loading");
     if (pageContainer) pageContainer.classList.remove("loading");
     handleVersionVisibility();
   }
 
   globalThis.window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// Helper: Handle active state with loading modal timing
+async function handleActiveStateWithLoadingModal(sheetUrl, pageContainer, main) {
+  // Detect if this is a reload/refresh vs first load
+  const isReload = performance.navigation?.type === 1 || performance.getEntriesByType("navigation")?.[0]?.type === "reload";
+  
+  // For reloads: Show loading with 500ms delay for 2.5 seconds
+  if (isReload) {
+    console.log("[INIT] Page reload detected - showing loading modal with 500ms delay");
+    
+    // Wait 500ms before showing loading
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    
+    // Show loading modal
+    if (pageContainer) pageContainer.classList.add("loading");
+    if (main) main.classList.add("loading");
+    
+    // Auto-hide after 2.5 seconds regardless of load status
+    setTimeout(() => {
+      console.log("[INIT] Auto-hiding loading modal after 2.5 seconds");
+      if (main) main.classList.remove("loading");
+      if (pageContainer) pageContainer.classList.remove("loading");
+    }, 2500);
+  } else {
+    // First load with URL: show loading immediately
+    console.log("[INIT] First load with URL - showing loading modal immediately");
+    if (pageContainer) pageContainer.classList.add("loading");
+    if (main) main.classList.add("loading");
+  }
+  
+  await handleActiveState(sheetUrl);
 }
 
 // ------------------------------------------------------------
@@ -1684,14 +1725,7 @@ if (typeof globalThis.window !== "undefined" && !globalThis.window.__VITEST__) {
       initShareUI();
       promptPWAInstall();
       await updateStaticStrings();
-      // Ensure help modal is properly initialized before init()
-      if (typeof globalThis.window !== "undefined" && !globalThis.window.__VITEST__) {
-        const { getMetadata } = await import("./data/IndexedDBManager.js");
-        const helpShown = await getMetadata("userPreference_helpShown");
-        if (!helpShown) {
-          openHelpModal();
-        }
-      }
+      // Help modal is shown only on zero state by handleZeroState()
       if (!globalThis.window.__VITEST__) {
         await init();
       }
