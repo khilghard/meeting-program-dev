@@ -1412,16 +1412,6 @@ function updateLoadingText() {
 async function updateActionButton() {
   const actionBtn = document.getElementById("qr-action-btn");
   if (actionBtn) {
-    // Hide button if app is already installed
-    const isPWAInstalled = 
-      globalThis.window.matchMedia("(display-mode: standalone)").matches ||
-      globalThis.window.navigator.standalone === true;
-    
-    if (isPWAInstalled) {
-      actionBtn.style.display = "none";
-      return;
-    }
-
     const params = new URLSearchParams(globalThis.window.location.search);
     const { getMetadata } = await import("./data/IndexedDBManager.js");
     const legacyUrl = await getMetadata("legacy_sheetUrl");
