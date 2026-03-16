@@ -1,13 +1,15 @@
+import { getMetadata, setMetadata } from "../data/IndexedDBManager.js";
+
 const SUPPORTED_LANGUAGES = ["en", "es", "fr", "swa"];
 const DEFAULT_LANGUAGE = "en";
-const STORAGE_KEY = "meeting_program_language";
+const STORAGE_KEY = "userPreference_language";
 
 let currentLanguage = DEFAULT_LANGUAGE;
 let translations = {};
 
 const translationsData = {
   en: {
-    churchName: "The Church of Jesus Christ <br> of Latter-day Saints",
+    churchName: "The Church of Jesus Christ of Latter-day Saints",
     sacramentServices: "Sacrament Services",
     welcomeTo: "Welcome to",
     scanProgramQR: "Scan Program QR Code",
@@ -98,7 +100,7 @@ const translationsData = {
     migrationError: "Failed to load new program. Please try again."
   },
   es: {
-    churchName: "La Iglesia de Jesucristo <br> de los Santos de los Últimos Días",
+    churchName: "La Iglesia de Jesucristo de los Santos de los Últimos Días",
     sacramentServices: "Servicios Sacramentales",
     welcomeTo: "Bienvenido a",
     scanProgramQR: "Escanear Código QR del Programa",
@@ -189,7 +191,7 @@ const translationsData = {
     migrationError: "Error al cargar el nuevo programa. Por favor intente de nuevo."
   },
   fr: {
-    churchName: "L'Église de Jésus-Christ <br> des Saints des Derniers Jours",
+    churchName: "L'Église de Jésus-Christ des Saints des Derniers Jours",
     sacramentServices: "Services du Sacrement",
     welcomeTo: "Bienvenue à",
     scanProgramQR: "Scanner le Code QR du Programme",
@@ -281,7 +283,7 @@ const translationsData = {
     migrationError: "Échec du chargement du nouveau programme. Veuillez réessayer."
   },
   swa: {
-    churchName: "Kanisa La Yesu Kristo <br> La Watakatifu wa Siku za Mwisho",
+    churchName: "Kanisa La Yesu Kristo La Watakatifu wa Siku za Mwisho",
     sacramentServices: "Huduma za Sakramenti",
     welcomeTo: "Karibu",
     scanProgramQR: "Chagua QR Code ya Mpango",
@@ -373,15 +375,15 @@ const translationsData = {
   }
 };
 
-export function initI18n() {
-  currentLanguage = getStoredLanguage() || detectBrowserLanguage() || DEFAULT_LANGUAGE;
+export async function initI18n() {
+  currentLanguage = (await getStoredLanguage()) || detectBrowserLanguage() || DEFAULT_LANGUAGE;
   loadTranslations(currentLanguage);
   return currentLanguage;
 }
 
-function getStoredLanguage() {
+async function getStoredLanguage() {
   try {
-    return localStorage.getItem(STORAGE_KEY);
+    return await getMetadata(STORAGE_KEY);
   } catch {
     return null;
   }
@@ -389,17 +391,21 @@ function getStoredLanguage() {
 
 function detectBrowserLanguage() {
   try {
+    if (typeof navigator === "undefined") return null;
     const browserLang = navigator.language || navigator.userLanguage || navigator.browserLanguage;
     if (!browserLang) return null;
 
     const langCode = browserLang.split("-")[0].toLowerCase();
 
-    if (langCode === "en") return "en";
-    if (langCode === "es") return "es";
-    if (langCode === "fr") return "fr";
-    if (langCode === "sw") return "swa";
+    // Map browser language codes to supported app languages
+    const langMap = {
+      en: "en",
+      es: "es",
+      fr: "fr",
+      sw: "swa"
+    };
 
-    return null;
+    return langMap[langCode] || null;
   } catch {
     return null;
   }
@@ -422,11 +428,11 @@ export function loadTranslations(lang) {
   return translations;
 }
 
-function saveLanguagePreference(lang) {
+async function saveLanguagePreference(lang) {
   try {
-    localStorage.setItem(STORAGE_KEY, lang);
+    await setMetadata(STORAGE_KEY, lang);
   } catch {
-    // localStorage not available
+    console.warn("[i18n] Failed to save language preference to IndexedDB");
   }
 }
 

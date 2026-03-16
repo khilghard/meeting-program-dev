@@ -114,7 +114,8 @@ export async function getProfileArchives(profileId) {
 
 export async function getArchiveEntry(profileId, programDate) {
   await initArchiveManager();
-  return await getArchive(profileId, programDate);
+  const result = await getArchive(profileId, programDate);
+  return result || null; // Ensure null is returned for non-existent entries, not undefined
 }
 
 export async function getLatestArchive(profileId) {
@@ -132,7 +133,7 @@ export async function getLatestArchive(profileId) {
 }
 
 export async function verifyArchive(archive) {
-  if (!archive || !archive.id) {
+  if (!archive?.id) {
     return { valid: false, error: "Invalid archive" };
   }
 
@@ -233,5 +234,5 @@ export async function getStorageIntegrityReport() {
   return await getStorageIntegrity();
 }
 
-export { deleteArchive };
+export { deleteArchive } from "./IndexedDBManager.js";
 export { MAX_SIZE_BYTES, WARNING_THRESHOLD_BYTES, MAX_AGE_DAYS };

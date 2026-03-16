@@ -58,66 +58,113 @@ export async function disableQRMock(page) {
  * Mock getUserMedia to allow camera-less scanning in tests
  */
 export async function mockGetUserMedia(page) {
-  await page.evaluate(() => {
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      navigator.mediaDevices.getUserMedia = function (constraints) {
-        // Create a mock MediaStream using the native constructor
-        const canvas = document.createElement("canvas");
-        canvas.width = 640;
-        canvas.height = 480;
-        const ctx = canvas.getContext("2d");
-        ctx.fillStyle = "#000";
-        ctx.fillRect(0, 0, 640, 480);
+  // Setup the scripts needed in page context
+  await page.evaluate(setupMockUserMedia);
+}
 
-        try {
-          const stream = canvas.captureStream(30);
-          return Promise.resolve(stream);
-        } catch (e) {
-          // Fallback: create a mock MediaStream
-          const mockStream = {
-            getTracks: () => [
-              {
-                stop: () => {},
-                enabled: true,
-                readyState: "live"
-              }
-            ],
-            active: true,
-            addTrack: () => {},
-            removeTrack: () => {},
-            getAudioTracks: () => [],
-            getVideoTracks: () => [
-              {
-                stop: () => {},
-                enabled: true,
-                readyState: "live"
-              }
-            ]
-          };
-          return Promise.resolve(mockStream);
-        }
-      };
-    }
+/**
+ * This function is injected into the page context via page.evaluate
+ * It sets up mocks for getUserMedia and video element properties
+ */
+function setupMockUserMedia() {
+  setupGetUserMediaMock();
+  setupVideoElementMocks();
+}
 
-    // Also mock the video element to report ready state
-    Object.defineProperty(HTMLVideoElement.prototype, "readyState", {
-      get: function () {
-        return 4; // HAVE_ENOUGH_DATA
-      },
-      configurable: true
-    });
-    Object.defineProperty(HTMLVideoElement.prototype, "videoWidth", {
-      get: function () {
-        return 640;
-      },
-      configurable: true
-    });
-    Object.defineProperty(HTMLVideoElement.prototype, "videoHeight", {
-      get: function () {
-        return 480;
-      },
-      configurable: true
-    });
+/**
+ * Set up the getUserMedia mock
+ */
+function setupGetUserMediaMock() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    return;
+  }
+
+  navigator.mediaDevices.getUserMedia = createMockGetUserMedia();
+}
+
+/**
+ * Create the mock getUserMedia function
+ */
+function createMockGetUserMedia() {
+  return function (constraints) {
+    const canvas = createBlackCanvas();
+    return getStreamFromCanvas(canvas);
+  };
+}
+
+/**
+ * Create a black canvas for the mock video stream
+ */
+function createBlackCanvas() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 640;
+  canvas.height = 480;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, 640, 480);
+  return canvas;
+}
+
+/**
+ * Get or create a stream from the canvas
+ */
+function getStreamFromCanvas(canvas) {
+  try {
+    const stream = canvas.captureStream(30);
+    return Promise.resolve(stream);
+  } catch (e) {
+    return Promise.resolve(createMockMediaStream());
+  }
+}
+
+/**
+ * Create a fallback mock MediaStream
+ */
+function createMockMediaStream() {
+  return {
+    getTracks: () => [createMockTrack()],
+    active: true,
+    addTrack: () => {},
+    removeTrack: () => {},
+    getAudioTracks: () => [],
+    getVideoTracks: () => [createMockTrack()]
+  };
+}
+
+/**
+ * Create a mock track object
+ */
+function createMockTrack() {
+  return {
+    stop: () => {},
+    enabled: true,
+    readyState: "live"
+  };
+}
+
+/**
+ * Set up video element property mocks
+ */
+function setupVideoElementMocks() {
+  Object.defineProperty(HTMLVideoElement.prototype, "readyState", {
+    get: function () {
+      return 4; // HAVE_ENOUGH_DATA
+    },
+    configurable: true
+  });
+
+  Object.defineProperty(HTMLVideoElement.prototype, "videoWidth", {
+    get: function () {
+      return 640;
+    },
+    configurable: true
+  });
+
+  Object.defineProperty(HTMLVideoElement.prototype, "videoHeight", {
+    get: function () {
+      return 480;
+    },
+    configurable: true
   });
 }
 

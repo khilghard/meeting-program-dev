@@ -2,7 +2,7 @@ import { showScanner, extractSheetUrl } from "./qr.js";
 import * as Profiles from "./profiles.js";
 import { hasLegacyProfiles, migrateLegacyProfiles } from "./data/ProfileManager.js";
 import * as ArchiveManager from "./data/ArchiveManager.js";
-import { getProfileArchives, deleteArchive, initArchiveManager } from "./data/ArchiveManager.js";
+import { initArchiveManager } from "./data/ArchiveManager.js";
 import { t, getLanguage, initI18n, setLanguage } from "./i18n/index.js";
 import { fetchSheet, parseCSV } from "./utils/csv.js";
 import { createWorker } from "./workers/workerInterface.js";
@@ -25,97 +25,90 @@ import {
   renderLinkWithSpace
 } from "./utils/renderers.js";
 import { saveProgramHistory, getProgramHistory, cleanupHistory } from "./history.js";
+import { getMetadata, setMetadata } from "./data/IndexedDBManager.js";
 import { initShareUI, promptPWAInstall, openHelpModal } from "./share.js";
 import { checkMigrationRequired } from "./data/MigrationSystem.js";
-import { showMigrationBanner, resetMigrationBannerSession } from "./data/MigrationBanner.js";
+import { clearElement, setText, createTextElement } from "./utils/dom-utils.js";
+import { showMigrationBanner } from "./data/MigrationBanner.js";
+import { initTheme, toggleTheme, getTheme, applyTheme } from "./theme.js";
+import { createTimer, clearTimer, clearAllTimers } from "./utils/timer-manager.js";
 
+/* global MessageChannel */
+
+// DIAGNOSTIC: Log that main.js has loaded
+console.log("[MAIN] main.js module loaded - version from package");
+
+// ------------------------------------------------------------------
+// Theme & Install Manager Initialization
 // ------------------------------------------------------------
-// 4. Theme Logic
-// ------------------------------------------------------------
-function initTheme() {
-  const savedTheme = localStorage.getItem("theme");
-  const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+initTheme();
 
-  const applyTheme = (theme) => {
-    const validTheme = theme === "dark" || theme === "light" ? theme : "light";
-    document.documentElement.setAttribute("data-theme", validTheme);
-  };
-
-  // 1. Determine initial theme
-  let theme = savedTheme;
-  if (!theme) {
-    theme = mediaQuery.matches ? "dark" : "light";
-  }
-  applyTheme(theme);
-
-  // 2. Setup Toggle Button
-  const toggleBtn = document.getElementById("theme-toggle");
-  if (toggleBtn) {
-    toggleBtn.onclick = () => {
-      const currentTheme = document.documentElement.getAttribute("data-theme");
-      const newTheme = currentTheme === "dark" ? "light" : "dark";
-      applyTheme(newTheme);
-      localStorage.setItem("theme", newTheme);
-    };
-  }
-
-  // 3. Listen for system changes (only if no manual preference set)
-  mediaQuery.addEventListener("change", (e) => {
-    if (!localStorage.getItem("theme")) {
-      applyTheme(e.matches ? "dark" : "light");
+// Initialize Install Manager
+(async () => {
+  try {
+    const module = await import("./install-manager.js");
+    if (module.init) {
+      await module.init();
     }
-  });
-}
+  } catch (err) {
+    console.warn("[main] Install manager initialization failed:", err);
+  }
+})();
 
-// ------------------------------------------------------------
-// 7. UI FUNCTIONS
-// ------------------------------------------------------------
-
-function fetchWithTimeout(url, ms) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), ms);
-
-  return fetch(url, { signal: controller.signal })
-    .then((r) => {
-      if (!r.ok) throw new Error("Network error");
-      return r.text();
-    })
-    .catch((err) => {
-      if (err.name === "AbortError") {
-        throw new Error("Timeout");
-      }
-      throw err;
-    })
-    .finally(() => {
-      clearTimeout(timeoutId);
+function addGlobalCleanup() {
+  if (typeof window !== "undefined") {
+    window.addEventListener("beforeunload", () => {
+      clearAllTimers();
     });
+  }
 }
 
 function showOfflineBanner() {
   const banner = document.getElementById("offline-banner");
   if (!banner) return;
-  banner.innerHTML = `${t("offlineMode")} &nbsp; <a href="#" id="retry-offline" style="color: #fff; text-decoration: underline;">${t("tryNow")}</a>`;
+
+  banner.textContent = "";
+
+  const offlineText = document.createElement("span");
+  offlineText.textContent = t("offlineMode");
+  banner.appendChild(offlineText);
+
+  const nbsp = document.createTextNode(" ");
+  banner.appendChild(nbsp);
+
+  const retryLink = document.createElement("a");
+  retryLink.href = "#";
+  retryLink.id = "retry-offline";
+  retryLink.style.color = "#fff";
+  retryLink.style.textDecoration = "underline";
+  retryLink.textContent = t("tryNow");
+  banner.appendChild(retryLink);
+
   banner.classList.add("visible");
 
-  const retryBtn = document.getElementById("retry-offline");
-  if (retryBtn) {
-    retryBtn.onclick = (e) => {
-      e.preventDefault();
-      init();
-    };
-  }
+  retryLink.onclick = (e) => {
+    e.preventDefault();
+    init();
+  };
 }
 
 function initNetworkStatus() {
   const statusEl = document.getElementById("network-status");
   if (!statusEl) return;
 
-  const iconEl = statusEl.querySelector(".status-icon");
-  const textEl = statusEl.querySelector(".status-text");
-  const lastSyncEl = statusEl.querySelector(".last-sync");
+  // Timer storage for cleanup
+  let statusHideTimer = null;
 
-  const updateStatus = () => {
-    const isOnline = navigator.onLine;
+  const updateStatus = async () => {
+    const statusEl = document.getElementById("network-status");
+    if (!statusEl) return;
+
+    const iconEl = statusEl.querySelector(".status-icon");
+    const textEl = statusEl.querySelector(".status-text");
+    const lastSyncEl = statusEl.querySelector(".last-sync");
+
+    // Guard against navigator not being available
+    const isOnline = typeof navigator !== "undefined" ? navigator.onLine : true;
 
     if (isOnline) {
       iconEl.textContent = "🌐";
@@ -124,14 +117,15 @@ function initNetworkStatus() {
       statusEl.classList.add("online");
       statusEl.classList.remove("hidden");
 
-      const lastUpdated = localStorage.getItem("programLastUpdatedDate");
+      const lastUpdated = await getMetadata("programLastUpdatedDate");
       if (lastUpdated) {
         lastSyncEl.textContent = `Last sync: ${lastUpdated}`;
       } else {
         lastSyncEl.textContent = "";
       }
 
-      setTimeout(() => {
+      if (statusHideTimer) clearTimeout(statusHideTimer);
+      statusHideTimer = setTimeout(() => {
         statusEl.classList.add("hidden");
       }, 3000);
     } else {
@@ -141,7 +135,7 @@ function initNetworkStatus() {
       statusEl.classList.add("offline");
       statusEl.classList.remove("hidden");
 
-      const lastUpdated = localStorage.getItem("programLastUpdatedDate");
+      const lastUpdated = await getMetadata("programLastUpdatedDate");
       if (lastUpdated) {
         lastSyncEl.textContent = `Last updated: ${lastUpdated}`;
       } else {
@@ -150,11 +144,11 @@ function initNetworkStatus() {
     }
   };
 
-  window.addEventListener("online", () => {
+  globalThis.window.addEventListener("online", () => {
     updateStatus();
   });
 
-  window.addEventListener("offline", () => {
+  globalThis.window.addEventListener("offline", () => {
     updateStatus();
   });
 
@@ -166,7 +160,7 @@ function initPrintButton() {
   if (!printBtn) return;
 
   printBtn.addEventListener("click", () => {
-    window.print();
+    globalThis.window.print();
   });
 }
 
@@ -190,7 +184,9 @@ function updateTimestamp() {
 
   // Save specific date for Sunday logic
   const todayKey = now.toISOString().split("T")[0]; // YYYY-MM-DD
-  localStorage.setItem("programLastUpdatedDate", todayKey);
+  setMetadata("programLastUpdatedDate", todayKey).catch((e) =>
+    console.warn("Failed to save update timestamp:", e)
+  );
 }
 
 function handleVersionVisibility() {
@@ -203,7 +199,7 @@ function handleVersionVisibility() {
   function update() {
     ticking = false;
 
-    const scrollBottom = window.innerHeight + window.scrollY;
+    const scrollBottom = globalThis.window.innerHeight + globalThis.window.scrollY;
     const docHeight = document.documentElement.scrollHeight;
 
     const nearBottom = docHeight - scrollBottom <= THRESHOLD;
@@ -217,7 +213,7 @@ function handleVersionVisibility() {
     }
   }
 
-  window.addEventListener("scroll", onScroll, { passive: true });
+  globalThis.window.addEventListener("scroll", onScroll, { passive: true });
   update(); // run once on load
 }
 
@@ -236,26 +232,504 @@ function debounce(func, wait) {
   };
 }
 
-// ------------------------------------------------------------
-// 7. Initialize
-// ------------------------------------------------------------
-async function init() {
-  const main = document.getElementById("main-program");
-  const pageContainer = document.getElementById("page-container");
+// Helper function with timeout for fetching
+async function fetchWithTimeout(url, timeout) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-  // Set canonical URL dynamically from IndexedDB
-  const { getMetadata } = await import("./data/IndexedDBManager.js");
-  const siteUrl = await getMetadata("siteUrl");
-  const canonicalUrl = siteUrl ? `${siteUrl}/` : "https://khilghard.github.io/meeting-program/";
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    return response.text();
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+}
+
+// Helper: Setup initialization prerequisites
+async function initializePrerequisites() {
+  const { getCanonicalUrl } = await import("./config/baseUrl.js");
+  const canonicalUrl = await getCanonicalUrl();
   const canonicalLink = document.querySelector("#canonical-link");
   if (canonicalLink) {
     canonicalLink.href = canonicalUrl;
   }
 
-  // Show spinner
-  if (pageContainer) pageContainer.classList.add("loading");
-  main.classList.add("loading");
+  // Cleanup and migration
+  cleanupHistory();
+  if (await hasLegacyProfiles()) {
+    console.log("[INIT] Found legacy profiles, migrating to IndexedDB...");
+    const result = await migrateLegacyProfiles();
+    if (result.success) {
+      console.log(`[INIT] Migrated ${result.migrated} profiles`);
+    } else {
+      console.warn("[INIT] Migration failed:", result.message);
+    }
+  }
 
+  await initArchiveManager();
+  await Profiles.initProfiles();
+  console.log("[INIT] Profiles loaded:", Profiles.getProfiles().length);
+  initProfileUI();
+}
+
+// Helper: Determine the sheet URL to load
+async function determineSheetUrl() {
+  const params = new URLSearchParams(globalThis.window.location.search);
+  let sheetUrl = params.get("url");
+  const currentProfile = Profiles.getCurrentProfile();
+
+  if (!currentProfile && !sheetUrl) {
+    const { getMetadata } = await import("./data/IndexedDBManager.js");
+    const legacyUrl = await getMetadata("legacy_sheetUrl");
+    if (legacyUrl) sheetUrl = legacyUrl;
+  } else if (currentProfile && !sheetUrl) {
+    sheetUrl = currentProfile.url;
+  }
+
+  if (sheetUrl) {
+    const extractedUrl = extractSheetUrl(sheetUrl);
+    if (extractedUrl) sheetUrl = extractedUrl;
+  }
+
+  return sheetUrl;
+}
+
+// Helper: Cache common DOM elements for state management functions
+function getUIElements() {
+  return {
+    actionBtn: document.getElementById("qr-action-btn"),
+    header: document.getElementById("program-header"),
+    reloadBtn: document.getElementById("reload-btn"),
+    main: document.getElementById("main-program"),
+    churchContainer: document.querySelector(".church-name-container"),
+    welcomeBar: document.querySelector(".welcome-bar"),
+    welcomeText: document.getElementById("welcome-to-text"),
+    themeToggle: document.getElementById("theme-toggle"),
+    unitHeader: document.querySelector(".sacrament-unit-header"),
+    helpBtn: document.getElementById("help-btn")
+  };
+}
+
+// Helper: Toggle CSS classes on multiple elements
+function toggleElementClasses(elements, classesToAdd = [], classesToRemove = []) {
+  const elementList = Array.isArray(elements) ? elements : [elements];
+  elementList.forEach((el) => {
+    if (!el) return;
+    classesToAdd.forEach((cls) => el.classList.add(cls));
+    classesToRemove.forEach((cls) => el.classList.remove(cls));
+  });
+}
+
+// Helper: Handle zero state (no program loaded)
+async function handleZeroState() {
+  const ui = getUIElements();
+  const {
+    actionBtn,
+    header,
+    main,
+    churchContainer,
+    welcomeBar,
+    welcomeText,
+    themeToggle,
+    unitHeader,
+    helpBtn
+  } = ui;
+
+  console.log("[INIT] No sheetUrl found, entering zero state.");
+  actionBtn.textContent = t("scanProgramQR");
+  actionBtn.onclick = () => showScanner();
+
+  // Always show reset button on zero state page
+  const resetBtn = document.getElementById("reset-data-btn");
+  if (resetBtn) {
+    resetBtn.classList.remove("hidden");
+    resetBtn.onclick = handleUpdateClick;
+    console.log("[INIT] Reset button visible on zero state page.");
+  }
+
+  toggleElementClasses(header, [], ["hidden"]);
+  toggleElementClasses([welcomeBar, helpBtn], [], ["hidden"]);
+  toggleElementClasses([churchContainer, unitHeader, welcomeText, themeToggle], ["hidden"], []);
+  toggleElementClasses(main, ["hidden"], ["loading"]);
+
+  const { getMetadata } = await import("./data/IndexedDBManager.js");
+  const helpShown = await getMetadata("userPreference_helpShown");
+  if (!helpShown) {
+    openHelpModal();
+  }
+}
+
+// Helper: Add reset button to help modal with warnings
+function addResetButtonToHelpModal() {
+  const helpSections = document.querySelector(".help-sections");
+  if (!helpSections) return;
+
+  // Check if reset section already exists to avoid duplicates
+  if (document.getElementById("reset-data-section")) {
+    return;
+  }
+
+  const resetSection = document.createElement("div");
+  resetSection.id = "reset-data-section";
+  resetSection.className = "help-section";
+
+  const h4 = document.createElement("h4");
+  h4.style.color = "#d32f2f";
+  h4.textContent = "⚠️ Delete All Data & Cache";
+  resetSection.appendChild(h4);
+
+  const warningBox = document.createElement("div");
+  warningBox.style.cssText =
+    "background: #fff3cd; padding: 12px; border-radius: 4px; margin: 10px 0; border-left: 4px solid #ff9800; color: #333;";
+  const warningP = document.createElement("p");
+  warningP.style.color = "#333";
+  const strong1 = document.createElement("strong");
+  strong1.style.color = "#333";
+  strong1.textContent = "WARNING:";
+  warningP.appendChild(strong1);
+  warningP.appendChild(document.createTextNode(" This action will:"));
+  warningBox.appendChild(warningP);
+
+  const ul = document.createElement("ul");
+  ul.style.cssText = "margin: 5px 0; padding-left: 20px; color: #333;";
+  const warnings = [
+    "Delete all saved program data",
+    "Clear local cache and storage",
+    "Force download fresh data from the server",
+    "This cannot be undone and is immediate"
+  ];
+  warnings.forEach((text) => {
+    const li = document.createElement("li");
+    li.style.color = "#333";
+    li.textContent = text;
+    ul.appendChild(li);
+  });
+  warningBox.appendChild(ul);
+
+  const warningFooter = document.createElement("p");
+  warningFooter.style.cssText = "margin-top: 10px; font-size: 12px; color: #d32f2f;";
+  const strong2 = document.createElement("strong");
+  strong2.textContent = "Use only if the app is not working properly.";
+  warningFooter.appendChild(strong2);
+  warningBox.appendChild(warningFooter);
+
+  resetSection.appendChild(warningBox);
+
+  const createResetBtn = document.createElement("button");
+  createResetBtn.id = "help-reset-btn";
+  createResetBtn.className = "qr-action-btn";
+  createResetBtn.style.cssText = "background: #d32f2f; width: 100%; margin-top: 10px;";
+  createResetBtn.textContent = "Delete All Data & Reload";
+  resetSection.appendChild(createResetBtn);
+
+  // Append to help-sections
+  helpSections.appendChild(resetSection);
+
+  // Attach click handler
+  const resetBtn = document.getElementById("help-reset-btn");
+  if (resetBtn) {
+    resetBtn.onclick = handleUpdateClick;
+  }
+}
+
+// Helper: Handle active state (program loaded)
+// Helper: Setup UI when a program sheet is loaded
+function setupActiveStateUI() {
+  const ui = getUIElements();
+  const {
+    actionBtn,
+    header,
+    reloadBtn,
+    main,
+    churchContainer,
+    welcomeBar,
+    welcomeText,
+    themeToggle,
+    unitHeader
+  } = ui;
+
+  actionBtn.textContent = t("useNewQR");
+  actionBtn.onclick = () => showScanner();
+
+  // Hide reset button from main UI (will be in help modal instead)
+  const resetBtn = document.getElementById("reset-data-btn");
+  if (resetBtn) {
+    resetBtn.classList.add("hidden");
+  }
+
+  // Add reset button to help modal with warnings
+  addResetButtonToHelpModal();
+
+  // Show UI elements
+  toggleElementClasses(
+    [header, churchContainer, welcomeBar, welcomeText, themeToggle, unitHeader, main, reloadBtn],
+    [],
+    ["hidden"]
+  );
+
+  reloadBtn.onclick = () => {
+    const urlParams = new URLSearchParams(globalThis.window.location.search);
+    urlParams.set("t", Date.now().toString());
+    urlParams.set("force", "true");
+    const newUrl = globalThis.window.location.pathname + "?" + urlParams.toString();
+    globalThis.window.location.href = newUrl;
+  };
+}
+
+// Helper: Sync current profile to UI selector
+function syncCurrentProfileToSelector() {
+  const currentProfile = Profiles.getCurrentProfile();
+  if (currentProfile) {
+    const selector = document.getElementById("profile-selector");
+    if (selector) selector.value = currentProfile.id;
+  }
+}
+
+async function handleActiveState(sheetUrl) {
+  console.log("[INIT] sheetUrl identified:", sheetUrl);
+  setupActiveStateUI();
+  syncCurrentProfileToSelector();
+  await loadAndRenderProgram(sheetUrl);
+}
+
+// Helper: Load and render program from network
+async function loadAndRenderProgram(sheetUrl) {
+  try {
+    const csv = await fetchWithTimeout(sheetUrl, 8000);
+    const rows = await createWorker("parseCSV", csv, { language: getLanguage() });
+    await processAndRenderProgram(rows, sheetUrl);
+  } catch (err) {
+    console.warn("Failed to fetch sheet:", err);
+    await tryLoadCachedProgram();
+  }
+}
+
+// Helper: Process program data and render
+// Helper: Create profile from URL if none exists
+async function ensureProfileExists(sheetUrl, unitName, stakeName) {
+  try {
+    const { setMetadata } = await import("./data/IndexedDBManager.js");
+    const currentUrl = globalThis.window.location.href;
+    const parsedCurrent = new URL(currentUrl);
+    let siteUrl = `${parsedCurrent.protocol}//${parsedCurrent.host}${parsedCurrent.pathname}`;
+    if (siteUrl.endsWith("/")) siteUrl = siteUrl.slice(0, -1);
+    await setMetadata("siteUrl", siteUrl);
+  } catch (e) {
+    console.warn("Failed to store site URL:", e);
+  }
+
+  await Profiles.addProfile(sheetUrl, unitName, stakeName);
+  initProfileUI();
+}
+
+// Helper: Cache program data
+async function cacheProgramData(rowsToCache) {
+  const profileToCache = Profiles.getCurrentProfile();
+  if (profileToCache) {
+    try {
+      const { setMetadata } = await import("./data/IndexedDBManager.js");
+      await setMetadata(`programCache_${profileToCache.id}`, rowsToCache);
+    } catch (e) {
+      console.warn("[Cache] IndexedDB write failed:", e);
+    }
+  }
+}
+
+// Helper: Handle archive view for loaded profile
+function updateArchiveViewForProfile() {
+  const loadedProfile = Profiles.getCurrentProfile();
+  if (loadedProfile?.archived) {
+    document.body.classList.add("archive-view");
+  } else {
+    document.body.classList.remove("archive-view");
+  }
+}
+
+// Helper: Find a row value by key from CSV data
+function findRowValue(rows, key, defaultValue = "") {
+  return rows.find((r) => r.key === key)?.value || defaultValue;
+}
+
+// Helper: Handle auto-archive and history
+async function handleAutoArchiveAndHistory(rows) {
+  const loadedProfile = Profiles.getCurrentProfile();
+  const programDate = findRowValue(rows, "date");
+
+  if (loadedProfile && programDate) {
+    const archiveResult = await ArchiveManager.autoArchive(loadedProfile.id, programDate, rows, {
+      profileUrl: loadedProfile.url
+    });
+    if (archiveResult.archived) {
+      console.log(
+        `Program auto-archived: ${programDate} (${archiveResult.updated ? "updated" : "new"})`
+      );
+    }
+
+    saveProgramHistory(loadedProfile.id, programDate, rows, { isFromCache: false });
+  }
+}
+
+async function processAndRenderProgram(rows, sheetUrl) {
+  const currentProfile = Profiles.getCurrentProfile();
+  const unitName = findRowValue(rows, "unitName", "Unknown Unit");
+  const stakeName = findRowValue(rows, "stakeName");
+
+  // Update profile metadata
+  if (currentProfile) {
+    await Profiles.addProfile(currentProfile.url, unitName, stakeName);
+    initProfileUI();
+  }
+
+  // Create profile from URL if needed
+  if (!currentProfile && sheetUrl) {
+    await ensureProfileExists(sheetUrl, unitName, stakeName);
+  }
+
+  // Cache program data
+  await cacheProgramData(rows);
+
+  // Archive handling
+  updateArchiveViewForProfile();
+
+  // Auto-archive if program date exists
+  const programDate = findRowValue(rows, "date");
+  console.log("[Archive] Program date:", programDate);
+  await handleAutoArchiveAndHistory(rows);
+
+  // Check for migration requirement
+  const loadedProfile = Profiles.getCurrentProfile();
+  if (loadedProfile) {
+    const migrationCheck = await checkMigrationRequired(loadedProfile.id, rows);
+    if (migrationCheck.required && migrationCheck.url) {
+      showMigrationBanner(loadedProfile.id, migrationCheck.url);
+    }
+  }
+
+  // Render the program
+  const main = document.getElementById("main-program");
+  main.textContent = "";
+  renderProgram(rows);
+
+  updateTimestamp();
+}
+
+// Helper: Load cached program from IndexedDB
+async function loadIndexedDBCache(cachedProfile) {
+  try {
+    const { getMetadata } = await import("./data/IndexedDBManager.js");
+    return await getMetadata(`programCache_${cachedProfile.id}`);
+  } catch (e) {
+    console.warn("Failed to load cached program from IndexedDB:", e);
+    return null;
+  }
+}
+
+// Helper: Load and migrate legacy localStorage cache
+async function loadLegacyCache(cachedProfile) {
+  const legacy = localStorage.getItem("programCache");
+  if (!legacy) return null;
+
+  try {
+    const cachedRows = JSON.parse(legacy);
+    if (cachedProfile) {
+      try {
+        const { setMetadata } = await import("./data/IndexedDBManager.js");
+        await setMetadata(`programCache_${cachedProfile.id}`, cachedRows);
+        localStorage.removeItem("programCache");
+        console.log("[Cache] Migrated legacy programCache to IndexedDB");
+      } catch (e) {
+        console.warn("[Cache] Failed to migrate legacy cache:", e);
+      }
+    }
+    return cachedRows;
+  } catch (e) {
+    console.warn("Failed to parse legacy cache:", e);
+    return null;
+  }
+}
+
+// Helper: Render cached program and handle archive/history
+async function renderCachedProgram(cachedRows, cachedProfile) {
+  const main = document.getElementById("main-program");
+  main.textContent = "";
+  renderProgram(cachedRows);
+
+  if (cachedProfile?.archived) {
+    document.body.classList.add("archive-view");
+  } else {
+    document.body.classList.remove("archive-view");
+  }
+
+  updateTimestamp();
+  showOfflineBanner();
+
+  const cachedDate = findRowValue(cachedRows, "date");
+  if (cachedProfile && cachedDate) {
+    const archiveResult = await ArchiveManager.autoArchive(
+      cachedProfile.id,
+      cachedDate,
+      cachedRows,
+      { profileUrl: cachedProfile.url }
+    );
+    if (archiveResult.archived) {
+      console.log(`Cached program auto-archived: ${cachedDate}`);
+    }
+  }
+
+  if (cachedProfile && cachedDate) {
+    saveProgramHistory(cachedProfile.id, cachedDate, cachedRows, { isFromCache: true });
+  }
+}
+
+// Helper: Try loading cached program with fallbacks
+async function tryLoadCachedProgram() {
+  const main = document.getElementById("main-program");
+  const cachedProfile = Profiles.getCurrentProfile();
+
+  let cachedRows = null;
+  if (cachedProfile) {
+    cachedRows = await loadIndexedDBCache(cachedProfile);
+  }
+
+  if (!cachedRows) {
+    cachedRows = await loadLegacyCache(cachedProfile);
+  }
+
+  if (cachedRows) {
+    await renderCachedProgram(cachedRows, cachedProfile);
+  } else {
+    main.textContent = "";
+
+    const wrapper = document.createElement("div");
+    wrapper.style.textAlign = "center";
+    wrapper.style.padding = "20px";
+
+    const paragraph = document.createElement("p");
+    paragraph.textContent = t("unableToLoad");
+    wrapper.appendChild(paragraph);
+
+    const retryBtn = document.createElement("button");
+    retryBtn.className = "qr-action-btn";
+    retryBtn.textContent = t("retry");
+    retryBtn.onclick = () => location.reload();
+    wrapper.appendChild(retryBtn);
+
+    main.appendChild(wrapper);
+  }
+}
+
+// Main initialization function
+async function init() {
+  const main = document.getElementById("main-program");
+  const pageContainer = document.getElementById("page-container");
+
+  if (pageContainer) pageContainer.classList.add("loading");
+  if (main) main.classList.add("loading");
+
+  // Initialize theme
+  initTheme();
   try {
     // Load and log version
     const versionResponse = await fetch("./version.json");
@@ -263,301 +737,229 @@ async function init() {
     console.log(`[VERSION] App running version: ${versionData.version}`);
 
     console.log("[INIT] Starting initialization...");
+    await initializePrerequisites();
 
-    // 0. Cleanup old history entries
-    cleanupHistory();
+    const sheetUrl = await determineSheetUrl();
 
-    // 0b. Migrate legacy localStorage profiles to IndexedDB
-    if (await hasLegacyProfiles()) {
-      console.log("[INIT] Found legacy profiles, migrating to IndexedDB...");
-      const result = await migrateLegacyProfiles();
-      if (result.success) {
-        console.log(`[INIT] Migrated ${result.migrated} profiles`);
-      } else {
-        console.warn("[INIT] Migration failed:", result.message);
-      }
-    }
-
-    // 0c. Initialize archive manager
-    await initArchiveManager();
-
-    // 1. Initialize profiles from IndexedDB (including migrated data)
-    await Profiles.initProfiles();
-    console.log("[INIT] Profiles loaded:", Profiles.getProfiles().length);
-
-    // 2. Setup UI for Profiles (dropdown population)
-    initProfileUI();
-
-    // 2. Determine URL to load
-    const params = new URLSearchParams(window.location.search);
-    let sheetUrl = params.get("url");
-    let currentProfile = Profiles.getCurrentProfile();
-
-    // Migration logic for legacy localStorage
-    if (!currentProfile && !sheetUrl) {
-      const legacyUrl = localStorage.getItem("sheetUrl");
-      if (legacyUrl) {
-        sheetUrl = legacyUrl;
-      }
-    } else if (currentProfile && !sheetUrl) {
-      sheetUrl = currentProfile.url;
-    }
-
-    // Extract sheet URL from app URL if needed
-    if (sheetUrl) {
-      const extractedUrl = extractSheetUrl(sheetUrl);
-      if (extractedUrl) {
-        sheetUrl = extractedUrl;
-      }
-    }
-
-    // 3. Setup UI Selectors
-    const actionBtn = document.getElementById("qr-action-btn");
-    const header = document.getElementById("program-header");
-    const reloadBtn = document.getElementById("reload-btn");
-
-    // New structure selectors
-    const churchContainer = document.querySelector(".church-name-container");
-    const welcomeBar = document.querySelector(".welcome-bar");
-    const welcomeText = document.getElementById("welcome-to-text");
-    const themeToggle = document.getElementById("theme-toggle");
-    const unitHeader = document.querySelector(".sacrament-unit-header");
-
-    // --- ZERO STATE (No sheetUrl found) ---
     if (!sheetUrl) {
-      console.log("[INIT] No sheetUrl found, entering zero state.");
-
-      actionBtn.textContent = t("scanProgramQR");
-      actionBtn.onclick = () => showScanner();
-
-      // Show header container so the language selector is visible
-      header.classList.remove("hidden");
-
-      // Keep only the Welcome Bar (container for language) visible
-      if (welcomeBar) welcomeBar.classList.remove("hidden");
-
-      // Hide everything else
-      if (churchContainer) churchContainer.classList.add("hidden");
-      if (unitHeader) unitHeader.classList.add("hidden");
-      if (welcomeText) welcomeText.classList.add("hidden");
-      if (themeToggle) themeToggle.classList.add("hidden");
-      if (reloadBtn) reloadBtn.classList.add("hidden");
-      // Make sure help button is visible in zero state
-      const helpBtn = document.getElementById("help-btn");
-      if (helpBtn) helpBtn.classList.remove("hidden");
-
-      // Hide main program area and clean up loading state
-      main.classList.add("hidden");
-      main.classList.remove("loading");
-      if (pageContainer) pageContainer.classList.remove("loading");
-
-      // Show help modal on first load if not previously dismissed
-      const helpShown = localStorage.getItem("meeting_program_help_shown");
-      if (!helpShown) {
-        openHelpModal();
-      }
-
+      await handleZeroState();
       return;
     }
 
-    // --- ACTIVE STATE (Program loaded) ---
-    console.log("[INIT] sheetUrl identified:", sheetUrl);
-
-    actionBtn.textContent = t("useNewQR");
-    actionBtn.onclick = () => showScanner();
-
-    // Show all header components
-    header.classList.remove("hidden");
-    if (churchContainer) churchContainer.classList.remove("hidden");
-    if (welcomeBar) welcomeBar.classList.remove("hidden");
-    if (welcomeText) welcomeText.classList.remove("hidden");
-    if (themeToggle) themeToggle.classList.remove("hidden");
-    if (unitHeader) unitHeader.classList.remove("hidden");
-
-    reloadBtn.classList.remove("hidden");
-    reloadBtn.onclick = () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      // Add cache-busting parameters: t=timestamp and force=true
-      urlParams.set("t", Date.now().toString());
-      urlParams.set("force", "true");
-      const newUrl = window.location.pathname + "?" + urlParams.toString();
-      window.location.href = newUrl;
-    };
-
-    // Ensure main program area is visible
-    main.classList.remove("hidden");
-
-    // 4. Update Selector State for Profiles
-    if (currentProfile) {
-      const selector = document.getElementById("profile-selector");
-      if (selector) selector.value = currentProfile.id;
-    }
-
-    // 5. Fetch & Render Logic
-    try {
-      const csv = await fetchWithTimeout(sheetUrl, 8000);
-      const rows = await createWorker("parseCSV", csv, { language: getLanguage() });
-
-      // Identify Unit/Stake from fresh data
-      const unitName = rows.find((r) => r.key === "unitName")?.value || "Unknown Unit";
-      const stakeName = rows.find((r) => r.key === "stakeName")?.value || "";
-
-      // UPDATE METADATA for current profile
-      if (currentProfile) {
-        await Profiles.addProfile(currentProfile.url, unitName, stakeName);
-        initProfileUI();
-      }
-
-      // Handle Profile Creation from URL param or legacy localStorage
-      if (!currentProfile && sheetUrl) {
-        // Extract and set the site URL from the current page location
-        // This handles both app-format URLs and direct sheet URL scans
-        try {
-          const { setMetadata } = await import("./data/IndexedDBManager.js");
-
-          // Get the site URL from current window location (works for both hosted and local)
-          const currentUrl = window.location.href;
-          const parsedCurrent = new URL(currentUrl);
-
-          // Build the base site URL (without query params)
-          let siteUrl = `${parsedCurrent.protocol}//${parsedCurrent.host}${parsedCurrent.pathname}`;
-
-          // Remove trailing slash for consistency
-          if (siteUrl.endsWith("/")) {
-            siteUrl = siteUrl.slice(0, -1);
-          }
-
-          // Store the site URL in IndexedDB
-          await setMetadata("siteUrl", siteUrl);
-
-          // Also store in localStorage for quick access (share.js uses this)
-          localStorage.setItem("meeting_program_site_url", siteUrl);
-        } catch (e) {
-          console.warn("Failed to store site URL:", e);
-        }
-
-        await Profiles.addProfile(sheetUrl, unitName, stakeName);
-        localStorage.removeItem("sheetUrl");
-        initProfileUI();
-      }
-
-      localStorage.setItem("programCache", JSON.stringify(rows));
-      main.innerHTML = "";
-      renderProgram(rows);
-
-      // Add archive view class if viewing archived program
-      const loadedProfile = Profiles.getCurrentProfile();
-      if (loadedProfile && loadedProfile.archived) {
-        document.body.classList.add("archive-view");
-      } else {
-        document.body.classList.remove("archive-view");
-      }
-
-      // Auto-archive if program date exists
-      const programDate = rows.find((r) => r.key === "date")?.value || "";
-      console.log("[Archive] Program date:", programDate);
-      let archiveResult = null;
-      if (loadedProfile && programDate) {
-        console.log("[Archive] Auto-archiving:", loadedProfile.id, programDate);
-        // Archive the program data with the profile URL
-        archiveResult = await ArchiveManager.autoArchive(loadedProfile.id, programDate, rows, {
-          profileUrl: loadedProfile.url
-        });
-        console.log("[Archive] Result:", archiveResult);
-        if (archiveResult.archived) {
-          console.log(
-            `Program auto-archived: ${programDate} (${archiveResult.updated ? "updated" : "new"})`
-          );
-        } else {
-          console.log(`Program not archived: ${archiveResult.reason}`);
-        }
-      } else {
-        console.log(
-          "[Archive] Not archiving - loadedProfile:",
-          loadedProfile,
-          "programDate:",
-          programDate
-        );
-      }
-
-      // Check for migration requirement
-      if (loadedProfile) {
-        const migrationCheck = await checkMigrationRequired(loadedProfile.id, rows);
-        if (migrationCheck.required && migrationCheck.url) {
-          showMigrationBanner(loadedProfile.id, migrationCheck.url);
-        }
-      }
-
-      // Save to history (not from cache - this is fresh network fetch)
-      if (loadedProfile && programDate) {
-        saveProgramHistory(loadedProfile.id, programDate, rows, { isFromCache: false });
-      }
-
-      updateTimestamp();
-    } catch (err) {
-      console.warn("Failed to fetch sheet:", err);
-
-      if (localStorage.getItem("sheetUrl") === sheetUrl) {
-        localStorage.removeItem("sheetUrl");
-      }
-
-      const cached = localStorage.getItem("programCache");
-      if (cached) {
-        main.innerHTML = "";
-        const cachedRows = JSON.parse(cached);
-        renderProgram(cachedRows);
-
-        // Add archive view class if viewing archived program
-        const cachedProfile = Profiles.getCurrentProfile();
-        if (cachedProfile && cachedProfile.archived) {
-          document.body.classList.add("archive-view");
-        } else {
-          document.body.classList.remove("archive-view");
-        }
-
-        updateTimestamp();
-        showOfflineBanner();
-
-        const cachedDate = cachedRows.find((r) => r.key === "date")?.value || "";
-        let cachedArchiveResult = null;
-        if (cachedProfile && cachedDate) {
-          // Auto-archive the cached program data with the profile URL
-          cachedArchiveResult = await ArchiveManager.autoArchive(
-            cachedProfile.id,
-            cachedDate,
-            cachedRows,
-            { profileUrl: cachedProfile.url }
-          );
-          if (cachedArchiveResult.archived) {
-            console.log(
-              `Cached program auto-archived: ${cachedDate} (${cachedArchiveResult.updated ? "updated" : "new"})`
-            );
-          }
-        }
-
-        // Optionally save cached version to history
-        if (cachedProfile && cachedDate) {
-          saveProgramHistory(cachedProfile.id, cachedDate, cachedRows, { isFromCache: true });
-        }
-      } else {
-        main.innerHTML = `<div style="text-align:center; padding: 20px;">
-           <p>${t("unableToLoad")}</p>
-           <button onclick="location.reload()" class="qr-action-btn">${t("retry")}</button>
-          </div>`;
-      }
-    }
+    await handleActiveState(sheetUrl);
   } finally {
-    main.classList.remove("loading");
+    if (main) main.classList.remove("loading");
     if (pageContainer) pageContainer.classList.remove("loading");
     handleVersionVisibility();
   }
 
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  globalThis.window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 // ------------------------------------------------------------
 // 8. Profile Management UI
 // ------------------------------------------------------------
+
+async function handleBackToHome() {
+  const activeProfiles = Profiles.getActiveProfiles();
+  if (activeProfiles.length > 0) {
+    activeProfiles.sort((a, b) => b.lastUsed - a.lastUsed);
+    await Profiles.selectProfile(activeProfiles[0].id);
+    location.reload();
+  } else {
+    await Profiles.selectProfile(null);
+    globalThis.window.history.replaceState({}, document.title, globalThis.window.location.pathname);
+    location.reload();
+  }
+}
+
+function populateProfileSelector(selector, profiles, currentProfile, isViewingArchive) {
+  selector.textContent = "";
+  profiles.forEach((p) => {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    const stakeNameDisplay = p.stakeName ? ` (${p.stakeName})` : "";
+    opt.textContent = `${p.unitName}${stakeNameDisplay}`;
+    selector.appendChild(opt);
+  });
+
+  if (isViewingArchive) {
+    const opt = document.createElement("option");
+    opt.value = currentProfile.id;
+    opt.textContent = `${currentProfile.unitName} (Archived)`;
+    opt.selected = true;
+    selector.appendChild(opt);
+    selector.disabled = true;
+  } else {
+    selector.value = Profiles.getSelectedProfileId();
+    selector.disabled = false;
+  }
+
+  selector.onchange = async (e) => {
+    const newId = e.target.value;
+    await Profiles.selectProfile(newId);
+    location.reload();
+  };
+}
+
+async function handleCheckForUpdates() {
+  try {
+    console.log("[CHECK-UPDATE] Force upgrade initiated - clearing static caches only...");
+
+    // Clear service worker caches (HTML, CSS, JS, manifestsetc)
+    if (typeof caches !== "undefined") {
+      const cacheNames = await caches.keys();
+      console.log("[CHECK-UPDATE] Found caches:", cacheNames);
+      await Promise.all(
+        cacheNames.map((name) => {
+          console.log("[CHECK-UPDATE] Clearing cache:", name);
+          return caches.delete(name);
+        })
+      );
+    }
+
+    // Notify service worker to clear cache
+    if (navigator.serviceWorker?.controller) {
+      console.log("[CHECK-UPDATE] Sending clearCache to service worker...");
+      try {
+        await Promise.race([
+          new Promise((resolve) => {
+            const channel = new MessageChannel();
+            const timeout = setTimeout(() => {
+              console.warn("[CHECK-UPDATE] SW clearCache timeout - proceeding anyway");
+              resolve();
+            }, 2000);
+            channel.port1.onmessage = () => {
+              clearTimeout(timeout);
+              resolve();
+            };
+            navigator.serviceWorker.controller.postMessage({ action: "clearCache" }, [
+              channel.port2
+            ]);
+          })
+        ]);
+      } catch (err) {
+        console.warn("[CHECK-UPDATE] SW message failed:", err);
+      }
+    }
+
+    // Unregister all service worker registrations
+    const registrations = await navigator.serviceWorker?.getRegistrations?.();
+    if (registrations?.length) {
+      console.log("[CHECK-UPDATE] Unregistering service workers:", registrations.length);
+      await Promise.all(registrations.map((reg) => reg.unregister()));
+    }
+
+    // NOTE: NOT clearing IndexedDB or localStorage - user data is preserved
+    console.log(
+      "[CHECK-UPDATE] User data and profiles preserved. Reloading page to get fresh static assets..."
+    );
+
+    // Give browser time to process cache clears before navigation
+    await new Promise((resolve) => globalThis.window.setTimeout(resolve, 500));
+
+    // Reload with new static assets
+    globalThis.window.location.replace(globalThis.window.location.href);
+  } catch (error) {
+    console.error("[CHECK-UPDATE] Force upgrade failed:", error);
+    // Force reload as fallback
+    globalThis.window.location.replace(globalThis.window.location.href);
+  }
+}
+
+async function handleUpdateClick() {
+  try {
+    console.log("[UPDATE] Full cache and data reset initiated...");
+
+    // Clear all browser caches directly
+    if (typeof caches !== "undefined") {
+      const cacheNames = await caches.keys();
+      console.log("[UPDATE] Found caches:", cacheNames);
+      await Promise.all(
+        cacheNames.map((name) => {
+          console.log("[UPDATE] Clearing cache:", name);
+          return caches.delete(name);
+        })
+      );
+    }
+
+    // Notify service worker to clear cache
+    if (navigator.serviceWorker?.controller) {
+      console.log("[UPDATE] Sending clearCache to service worker...");
+      try {
+        await Promise.race([
+          new Promise((resolve) => {
+            const channel = new MessageChannel();
+            const timeout = setTimeout(() => {
+              console.warn("[UPDATE] SW clearCache timeout - proceeding anyway");
+              resolve();
+            }, 2000);
+            channel.port1.onmessage = () => {
+              clearTimeout(timeout);
+              resolve();
+            };
+            navigator.serviceWorker.controller.postMessage({ action: "clearCache" }, [
+              channel.port2
+            ]);
+          })
+        ]);
+      } catch (err) {
+        console.warn("[UPDATE] SW message failed:", err);
+      }
+    }
+
+    // Unregister all service worker registrations
+    const registrations = await navigator.serviceWorker?.getRegistrations?.();
+    if (registrations?.length) {
+      console.log("[UPDATE] Unregistering service workers:", registrations.length);
+      await Promise.all(registrations.map((reg) => reg.unregister()));
+    }
+
+    // Clear all storage (localStorage, sessionStorage, IndexedDB)
+    try {
+      sessionStorage.clear();
+      localStorage.clear();
+      console.log("[UPDATE] Cleared sessionStorage and localStorage");
+    } catch (err) {
+      console.warn("[UPDATE] Could not clear storage:", err);
+    }
+
+    // Clear IndexedDB databases
+    try {
+      if (typeof indexedDB !== "undefined" && indexedDB.databases) {
+        const dbs = await indexedDB.databases();
+        if (dbs?.length) {
+          await Promise.all(
+            dbs.map((db) => {
+              console.log("[UPDATE] Deleting IndexedDB:", db.name);
+              return new Promise((resolve) => {
+                const req = indexedDB.deleteDatabase(db.name);
+                req.onsuccess = resolve;
+                req.onerror = resolve;
+                req.onblocked = resolve;
+              });
+            })
+          );
+        }
+      }
+    } catch (err) {
+      console.warn("[UPDATE] Could not clear IndexedDB:", err);
+    }
+
+    // Hard reload with cache-busting: force network-first for this request
+    console.log("[UPDATE] Performing hard reload with cache invalidation...");
+
+    // Give browser time to process cache clears before navigation
+    await new Promise((resolve) => globalThis.window.setTimeout(resolve, 500));
+
+    // Hard reload (bypasses cache, forces network request for index.html)
+    globalThis.window.location.replace(globalThis.window.location.href);
+  } catch (error) {
+    console.error("[UPDATE] Cache clear failed:", error);
+    // Force hard reload as fallback
+    globalThis.window.location.replace(globalThis.window.location.href);
+  }
+}
 
 function initProfileUI() {
   const container = document.getElementById("profile-selector-container");
@@ -569,23 +971,12 @@ function initProfileUI() {
 
   const profiles = Profiles.getActiveProfiles();
   const currentProfile = Profiles.getCurrentProfile();
-  const isViewingArchive = currentProfile && currentProfile.archived;
+  const isViewingArchive = currentProfile?.archived;
 
   if (backToHomeBtn) {
     if (isViewingArchive) {
       backToHomeBtn.classList.remove("hidden");
-      backToHomeBtn.onclick = async () => {
-        const activeProfiles = Profiles.getActiveProfiles();
-        if (activeProfiles.length > 0) {
-          activeProfiles.sort((a, b) => b.lastUsed - a.lastUsed);
-          await Profiles.selectProfile(activeProfiles[0].id);
-          location.reload();
-        } else {
-          localStorage.removeItem("meeting_program_selected_id");
-          window.history.replaceState({}, document.title, window.location.pathname);
-          location.reload();
-        }
-      };
+      backToHomeBtn.onclick = handleBackToHome;
     } else {
       backToHomeBtn.classList.add("hidden");
     }
@@ -595,32 +986,7 @@ function initProfileUI() {
     container.classList.add("hidden");
   } else {
     container.classList.remove("hidden");
-
-    selector.innerHTML = "";
-    profiles.forEach((p) => {
-      const opt = document.createElement("option");
-      opt.value = p.id;
-      opt.textContent = `${p.unitName} ${p.stakeName ? `(${p.stakeName})` : ""}`;
-      selector.appendChild(opt);
-    });
-
-    if (isViewingArchive) {
-      const opt = document.createElement("option");
-      opt.value = currentProfile.id;
-      opt.textContent = `${currentProfile.unitName} (Archived)`;
-      opt.selected = true;
-      selector.appendChild(opt);
-      selector.disabled = true;
-    } else {
-      selector.value = Profiles.getSelectedProfileId();
-      selector.disabled = false;
-    }
-
-    selector.onchange = async (e) => {
-      const newId = e.target.value;
-      await Profiles.selectProfile(newId);
-      location.reload();
-    };
+    populateProfileSelector(selector, profiles, currentProfile, isViewingArchive);
   }
 
   if (manageBtn) {
@@ -630,27 +996,13 @@ function initProfileUI() {
   const viewArchivesBtn = document.getElementById("view-archives-btn");
   if (viewArchivesBtn) {
     viewArchivesBtn.onclick = () => {
-      window.location.href = "archive.html";
+      globalThis.window.location.href = "archive.html";
     };
   }
 
   const updateBtn = document.getElementById("update-btn");
   if (updateBtn) {
-    updateBtn.onclick = () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      urlParams.delete("forceUpdate");
-      urlParams.delete("nocache");
-      urlParams.set("t", Date.now().toString());
-      const newUrl = window.location.pathname + "?" + urlParams.toString();
-      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({ action: "skipWaiting" });
-        setTimeout(() => {
-          window.location.href = newUrl;
-        }, 1000);
-      } else {
-        window.location.href = newUrl;
-      }
-    };
+    updateBtn.onclick = handleCheckForUpdates;
   }
 
   renderProfileCards();
@@ -666,18 +1018,25 @@ function renderProfileCards() {
   const profiles = Profiles.getProfiles();
   const currentProfile = Profiles.getCurrentProfile();
 
-  container.innerHTML = "";
+  container.textContent = "";
 
   // First card: Scan for New Program
   const addCard = document.createElement("div");
   addCard.className = "profile-card add-profile-card";
   addCard.setAttribute("role", "button");
   addCard.setAttribute("tabindex", "0");
-  addCard.innerHTML = `
-    <div class="profile-card-content" style="text-align: center;">
-      <div class="profile-card-name">+ Scan for New Program</div>
-    </div>
-  `;
+
+  const addCardContent = document.createElement("div");
+  addCardContent.className = "profile-card-content";
+  addCardContent.style.textAlign = "center";
+
+  const addCardName = document.createElement("div");
+  addCardName.className = "profile-card-name";
+  addCardName.textContent = "+ Scan for New Program";
+  addCardContent.appendChild(addCardName);
+
+  addCard.appendChild(addCardContent);
+
   addCard.addEventListener("click", () => showScanner());
   addCard.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") {
@@ -775,137 +1134,7 @@ function createProfileCard(profile, isSelected, isInactive) {
   return card;
 }
 
-function filterProfiles(query) {
-  const container = document.getElementById("profile-cards-container");
-  if (!container) return;
-
-  const cards = container.querySelectorAll(".profile-card");
-  const lowerQuery = query.toLowerCase();
-
-  cards.forEach((card) => {
-    const name = card.querySelector(".profile-card-name")?.textContent?.toLowerCase() || "";
-    const details = card.querySelector(".profile-card-details")?.textContent?.toLowerCase() || "";
-
-    if (name.includes(lowerQuery) || details.includes(lowerQuery)) {
-      card.style.display = "flex";
-    } else {
-      card.style.display = "none";
-    }
-  });
-}
-
-async function openArchivesModal() {
-  const modal = document.getElementById("view-archives-modal");
-  const closeBtn = document.getElementById("close-archives-modal-btn");
-  const list = document.getElementById("archived-programs-list");
-
-  if (!modal || !list) return;
-
-  // Initialize archive manager
-  await initArchiveManager();
-
-  // Get archives for current profile
-  const currentProfile = Profiles.getCurrentProfile();
-  if (!currentProfile) {
-    list.innerHTML = "<li style='justify-content:center;opacity:0.6;'>No profile selected</li>";
-    modal.showModal();
-    if (closeBtn) {
-      closeBtn.onclick = () => modal.close();
-    }
-    return;
-  }
-
-  const archivedPrograms = await getProfileArchives(currentProfile.id);
-
-  list.innerHTML = "";
-
-  if (!archivedPrograms || archivedPrograms.length === 0) {
-    list.innerHTML += "<li style='justify-content:center;opacity:0.6;'>No archived programs</li>";
-  } else {
-    archivedPrograms.forEach((archive) => {
-      const li = document.createElement("li");
-      li.className = "archive-item";
-
-      const info = document.createElement("div");
-      info.className = "archive-info";
-
-      const date = document.createElement("span");
-      date.className = "archive-date";
-      date.textContent = archive.programDate || "Unknown Date";
-
-      info.appendChild(date);
-
-      const actions = document.createElement("div");
-      actions.className = "archive-actions";
-
-      const loadBtn = document.createElement("button");
-      loadBtn.className = "primary-btn";
-      loadBtn.style.padding = "6px 12px";
-      loadBtn.style.fontSize = "0.85rem";
-      loadBtn.textContent = "View";
-      loadBtn.onclick = async () => {
-        // Load the archive directly in the modal
-        const rows = archive.csvData;
-        if (!rows || !Array.isArray(rows)) {
-          alert("Archive data is corrupted or missing");
-          return;
-        }
-
-        // Re-sanitize archive data for defense in depth
-        const sanitizeEntry = (await import("./sanitize.js")).sanitizeEntry;
-        const sanitizedRows = rows
-          .map((row) => sanitizeEntry(row.key, row.value))
-          .filter((row) => row !== null);
-
-        // Clear existing program content
-        document.getElementById("main-program").innerHTML = "";
-        renderProgram(sanitizedRows);
-
-        // Update header info
-        document.getElementById("unitname").textContent = archive.unitName || "Unknown Unit";
-        document.getElementById("unitaddress").textContent = archive.unitAddress || "";
-        document.getElementById("date").textContent = archive.programDate;
-
-        // Show the program view
-        document.body.classList.add("archive-view");
-
-        // Close the modal and reload to show the archive properly
-        modal.close();
-        // Note: The archive-view class will be cleaned up by the init() call
-      };
-
-      const deleteBtn = document.createElement("button");
-      deleteBtn.className = "secondary-btn";
-      deleteBtn.style.padding = "6px 12px";
-      deleteBtn.style.fontSize = "0.85rem";
-      deleteBtn.textContent = "Delete";
-      deleteBtn.onclick = async () => {
-        if (confirm(`Delete archive for ${archive.programDate}?`)) {
-          await deleteArchive(currentProfile.id, archive.programDate);
-          openArchivesModal(); // Refresh
-        }
-      };
-
-      actions.appendChild(loadBtn);
-      actions.appendChild(deleteBtn);
-
-      li.appendChild(info);
-      li.appendChild(actions);
-      list.appendChild(li);
-    });
-  }
-
-  modal.showModal();
-
-  if (closeBtn) {
-    closeBtn.onclick = () => {
-      modal.close();
-      // Clean up archive view - reload the current program
-      document.body.classList.remove("archive-view");
-      init();
-    };
-  }
-}
+// Archive-related functions removed - functionality moved to archive.html page
 
 function openManageModal() {
   const modal = document.getElementById("manage-profiles-modal");
@@ -935,10 +1164,14 @@ function renderManageList() {
   const profiles = Profiles.getProfiles();
   const currentProfile = Profiles.getCurrentProfile();
 
-  list.innerHTML = "";
+  list.textContent = "";
 
   if (profiles.length === 0) {
-    list.innerHTML = `<li style="justify-content:center; opacity:0.6;">${t("noSavedPrograms")}</li>`;
+    const li = document.createElement("li");
+    li.style.justifyContent = "center";
+    li.style.opacity = "0.6";
+    li.textContent = t("noSavedPrograms") || "No saved programs";
+    list.appendChild(li);
   } else {
     // Show current profile first (no delete button - cannot delete active profile)
     if (currentProfile) {
@@ -957,7 +1190,9 @@ function renderManageList() {
   // Hide archived section - we no longer separate inactive profiles
   if (archivedSection) {
     archivedSection.classList.add("hidden");
-    if (archivedList) archivedList.innerHTML = "";
+    if (archivedList) {
+      clearElement(archivedList);
+    }
   }
 }
 
@@ -1004,220 +1239,222 @@ function createProfileListItem(p, currentProfile, canDelete) {
   return li;
 }
 
+// Helper: Handle adding a new program via QR code
+async function handleNewProgramFromQR(url, unitName, stakeName) {
+  const modal = document.getElementById("confirm-program-modal");
+  const nameEl = document.getElementById("new-program-name");
+  const addBtn = document.getElementById("confirm-add-btn");
+  const cancelBtn = document.getElementById("cancel-add-btn");
+
+  if (modal) {
+    console.log("[MAIN] Modal found, showing...");
+    const stakeNameDisplay = stakeName ? ` (${stakeName})` : "";
+    nameEl.textContent = `${unitName}${stakeNameDisplay}`;
+
+    addBtn.onclick = async () => {
+      await Profiles.addProfile(url, unitName, stakeName);
+      modal.close();
+      location.reload();
+    };
+
+    cancelBtn.onclick = () => {
+      modal.close();
+      location.reload();
+    };
+
+    modal.showModal();
+    console.log("[MAIN] modal.showModal() called");
+  } else if (confirm(`Add Program: ${unitName}?`)) {
+    // Fallback
+    await Profiles.addProfile(url, unitName, stakeName);
+    location.reload();
+  } else {
+    location.reload();
+  }
+}
+
+// Helper: Parse QR code data
+async function parseQRCodeData(url) {
+  const csv = await fetchWithTimeout(url, 5000);
+  const rows = await createWorker("parseCSV", csv, { language: getLanguage() });
+  return rows;
+}
+
+// Helper: Process scanned QR code and handle profile switching/creation
+async function handleQRCodeScanned(url) {
+  const { setMetadata } = await import("./data/IndexedDBManager.js");
+  const rows = await parseQRCodeData(url);
+  const unitName = findRowValue(rows, "unitName", "Unknown Unit");
+  const stakeName = findRowValue(rows, "stakeName");
+
+  // Check if profile already exists
+  const profiles = Profiles.getProfiles();
+  const existingProfile = profiles.find((p) => p.url === url);
+
+  // Skip onboarding help modal when switching profiles via QR
+  await setMetadata("userPreference_helpShown", "true");
+
+  if (existingProfile) {
+    // Profile exists - just switch to it without modal
+    await Profiles.selectProfile(existingProfile.id);
+    location.reload();
+    return;
+  }
+
+  // Show Confirm Modal for new profile
+  await handleNewProgramFromQR(url, unitName, stakeName);
+}
+
 // Global listener for QR Scanned
-window.addEventListener("qr-scanned", async (e) => {
+globalThis.window.addEventListener("qr-scanned", async (e) => {
   const url = e.detail.url;
   if (!url) return;
 
-  // Ensure profiles are initialized before accessing
   await Profiles.initProfiles();
 
   try {
-    const csv = await fetchWithTimeout(url, 5000);
-    const rows = await createWorker("parseCSV", csv, { language: getLanguage() });
-
-    const unitName = rows.find((r) => r.key === "unitName")?.value || "Unknown Unit";
-    const stakeName = rows.find((r) => r.key === "stakeName")?.value || "";
-
-    // Check if profile already exists
-    const profiles = Profiles.getProfiles();
-    const existingProfile = profiles.find((p) => p.url === url);
-
-    // Skip onboarding help modal when switching profiles via QR
-    localStorage.setItem("meeting_program_help_shown", "true");
-
-    if (existingProfile) {
-      // Profile exists - just switch to it without modal
-      await Profiles.selectProfile(existingProfile.id);
-      location.reload();
-      return;
-    }
-
-    // 2. Show Confirm Modal for new profile
-    const modal = document.getElementById("confirm-program-modal");
-    const nameEl = document.getElementById("new-program-name");
-    const addBtn = document.getElementById("confirm-add-btn");
-    const cancelBtn = document.getElementById("cancel-add-btn");
-
-    if (modal) {
-      console.log("[MAIN] Modal found, showing...");
-      nameEl.textContent = `${unitName} ${stakeName ? `(${stakeName})` : ""}`;
-      // ... setup buttons
-      addBtn.onclick = async () => {
-        await Profiles.addProfile(url, unitName, stakeName);
-        modal.close();
-        location.reload();
-      };
-      cancelBtn.onclick = () => {
-        modal.close();
-        location.reload();
-      };
-
-      modal.showModal();
-      console.log("[MAIN] modal.showModal() called");
-    } else {
-      // Fallback ...
-      if (confirm(`Add Program: ${unitName}?`)) {
-        await Profiles.addProfile(url, unitName, stakeName);
-        location.reload();
-      } else {
-        location.reload();
-      }
-    }
+    await handleQRCodeScanned(url);
   } catch (err) {
-    console.error("QR Scan Fetch Failed:", err);
+    console.error("QR Scan Failed:", err);
     alert("Could not load program from that QR code. Please try again.");
     location.reload();
   }
 });
 
-async function updateStaticStrings() {
-  const sacramentTitle = document.getElementById("sacrament-services-title");
-  if (sacramentTitle) {
-    sacramentTitle.textContent = t("sacramentServices");
-  }
+function updateElementText(elementId, translationKey) {
+  const el = document.getElementById(elementId);
+  if (el) el.textContent = t(translationKey);
+}
 
-  const churchNameDisplay = document.getElementById("church-name-display");
-  if (churchNameDisplay) {
-    churchNameDisplay.innerHTML = t("churchName");
-  }
+function updateElementHTML(elementId, translationKey) {
+  const el = document.getElementById(elementId);
+  if (el) el.textContent = t(translationKey);
+}
 
-  const reloadBtn = document.getElementById("reload-btn");
-  if (reloadBtn) {
-    reloadBtn.textContent = t("reloadProgram");
-  }
+function updateElementAriaLabel(elementId, translationKey) {
+  const el = document.getElementById(elementId);
+  if (el) el.setAttribute("aria-label", t(translationKey));
+}
 
+function updateBasicStrings() {
+  updateElementText("sacrament-services-title", "sacramentServices");
+  updateElementHTML("church-name-display", "churchName");
+  updateElementText("reload-btn", "reloadProgram");
+  updateElementAriaLabel("manage-profiles-btn", "managePrograms");
+  updateElementText("add-new-program-btn", "scanNewProgram");
+  updateElementText("close-modal-btn", "close");
+  updateElementAriaLabel("theme-toggle", "toggleDarkMode");
+  updateElementText("welcome-to-text", "welcomeTo");
+  updateElementText("manage-profiles-title", "managePrograms");
+  updateElementText("confirm-program-title", "addProgram");
+  updateElementText("language-modal-title", "selectLanguage");
+  updateElementText("close-language-modal-btn", "close");
+  updateElementText("history-modal-title", "programHistory");
+  updateElementText("close-history-modal-btn", "close");
+  updateElementText("found-label", "found");
+  updateElementText("confirm-add-btn", "add");
+  updateElementText("cancel-add-btn", "cancel");
+}
+
+function updateUpdateNotification() {
   const updateNotification = document.getElementById("update-notification");
   if (updateNotification && !updateNotification.hidden) {
-    updateNotification.innerHTML = `${t("updateAvailable")} <button onclick="refreshPage()">${t("update")}</button>`;
-  }
+    updateNotification.textContent = "";
 
-  const manageBtn = document.getElementById("manage-profiles-btn");
-  if (manageBtn) {
-    manageBtn.setAttribute("aria-label", t("managePrograms"));
-  }
+    const updateText = document.createElement("span");
+    updateText.textContent = t("updateAvailable");
+    updateNotification.appendChild(updateText);
 
-  const addNewProgramBtn = document.getElementById("add-new-program-btn");
-  if (addNewProgramBtn) {
-    addNewProgramBtn.textContent = t("scanNewProgram");
-  }
+    const nbsp = document.createTextNode(" ");
+    updateNotification.appendChild(nbsp);
 
-  const closeModalBtn = document.getElementById("close-modal-btn");
-  if (closeModalBtn) {
-    closeModalBtn.textContent = t("close");
+    const updateBtn = document.createElement("button");
+    updateBtn.textContent = t("update");
+    updateBtn.onclick = () => refreshPage();
+    updateNotification.appendChild(updateBtn);
   }
+}
 
-  const themeToggle = document.getElementById("theme-toggle");
-  if (themeToggle) {
-    themeToggle.setAttribute("aria-label", t("toggleDarkMode"));
-  }
-
-  const welcomeToText = document.getElementById("welcome-to-text");
-  if (welcomeToText) {
-    welcomeToText.textContent = t("welcomeTo");
-  }
-
-  const manageTitle = document.getElementById("manage-profiles-title");
-  if (manageTitle) {
-    manageTitle.textContent = t("managePrograms");
-  }
-
-  const confirmTitle = document.getElementById("confirm-program-title");
-  if (confirmTitle) {
-    confirmTitle.textContent = t("addProgram");
-  }
-
-  const languageModalTitle = document.getElementById("language-modal-title");
-  if (languageModalTitle) {
-    languageModalTitle.textContent = t("selectLanguage");
-  }
-
-  const closeLanguageModalBtn = document.getElementById("close-language-modal-btn");
-  if (closeLanguageModalBtn) {
-    closeLanguageModalBtn.textContent = t("close");
-  }
-
-  const historyModalTitle = document.getElementById("history-modal-title");
-  if (historyModalTitle) {
-    historyModalTitle.textContent = t("programHistory");
-  }
-
-  const closeHistoryModalBtn = document.getElementById("close-history-modal-btn");
-  if (closeHistoryModalBtn) {
-    closeHistoryModalBtn.textContent = t("close");
-  }
-
+function updateOfflineBanner() {
   const offlineBanner = document.getElementById("offline-banner");
   if (offlineBanner) {
-    // Preserving the retry link structure
-    offlineBanner.innerHTML = `${t("offlineMode")} &nbsp; <a href="#" id="retry-offline" style="color: inherit; text-decoration: underline">${t("tryNow")}</a>`;
-    const retryBtn = document.getElementById("retry-offline");
-    if (retryBtn) {
-      retryBtn.onclick = (e) => {
-        e.preventDefault();
-        location.reload();
-      };
-    }
-  }
+    offlineBanner.textContent = "";
 
+    const offlineText = document.createElement("span");
+    offlineText.textContent = t("offlineMode");
+    offlineBanner.appendChild(offlineText);
+
+    const nbsp = document.createTextNode(" ");
+    offlineBanner.appendChild(nbsp);
+
+    const retryLink = document.createElement("a");
+    retryLink.href = "#";
+    retryLink.id = "retry-offline";
+    retryLink.style.color = "inherit";
+    retryLink.style.textDecoration = "underline";
+    retryLink.textContent = t("tryNow");
+    offlineBanner.appendChild(retryLink);
+
+    retryLink.onclick = (e) => {
+      e.preventDefault();
+      location.reload();
+    };
+  }
+}
+
+function updateLoadingText() {
   const loadingText = document.querySelector(".loading-text");
   if (loadingText) {
     loadingText.textContent = t("loading");
   }
+}
 
+async function updateActionButton() {
   const actionBtn = document.getElementById("qr-action-btn");
   if (actionBtn) {
-    const params = new URLSearchParams(window.location.search);
-    const hasUrl =
-      params.get("url") || Profiles.getCurrentProfile() || localStorage.getItem("sheetUrl");
+    const params = new URLSearchParams(globalThis.window.location.search);
+    const { getMetadata } = await import("./data/IndexedDBManager.js");
+    const legacyUrl = await getMetadata("legacy_sheetUrl");
+    const hasUrl = params.get("url") || Profiles.getCurrentProfile() || legacyUrl;
     actionBtn.textContent = hasUrl ? t("useNewQR") : t("scanProgramQR");
   }
+}
 
-  const foundLabel = document.getElementById("found-label");
-  if (foundLabel) {
-    foundLabel.textContent = t("found");
-  }
-
-  const confirmAddBtn = document.getElementById("confirm-add-btn");
-  if (confirmAddBtn) {
-    confirmAddBtn.textContent = t("add");
-  }
-
-  const cancelAddBtn = document.getElementById("cancel-add-btn");
-  if (cancelAddBtn) {
-    cancelAddBtn.textContent = t("cancel");
-  }
-
+function updateChurchSvgName() {
   const churchSvgText = document.getElementById("church-svg-text");
-  if (churchSvgText) {
-    const tspans = churchSvgText.getElementsByTagName("tspan");
-    if (tspans.length >= 2) {
-      // Logic to split churchName if it contains "of" or similar?
-      // For now, let's just use the full string if it fits or hardcode split for known languages.
-      // Better yet, just use t("churchName") and handle it more gracefully.
-      const fullChurchName = t("churchName");
-      if (fullChurchName.length > 30) {
-        // Simple attempt to split at "of" or "de" or "la" etc
-        const splitters = ["of ", " de ", " la ", " La "];
-        let splitIdx = -1;
-        for (const s of splitters) {
-          splitIdx = fullChurchName.indexOf(s);
-          if (splitIdx !== -1) {
-            tspans[0].textContent = fullChurchName.substring(0, splitIdx).trim();
-            tspans[1].textContent = fullChurchName.substring(splitIdx).trim();
-            break;
-          }
-        }
-        if (splitIdx === -1) {
-          tspans[0].textContent = fullChurchName;
-          tspans[1].textContent = "";
-        }
-      } else {
-        tspans[0].textContent = fullChurchName;
-        tspans[1].textContent = "";
-      }
+  if (!churchSvgText) return;
+
+  const tspans = churchSvgText.getElementsByTagName("tspan");
+  if (tspans.length < 2) return;
+
+  const fullChurchName = t("churchName");
+  if (fullChurchName.length <= 30) {
+    tspans[0].textContent = fullChurchName;
+    tspans[1].textContent = "";
+    return;
+  }
+
+  const splitters = ["of ", " de ", " la ", " La "];
+  for (const splitter of splitters) {
+    const splitIdx = fullChurchName.indexOf(splitter);
+    if (splitIdx !== -1) {
+      tspans[0].textContent = fullChurchName.substring(0, splitIdx).trim();
+      tspans[1].textContent = fullChurchName.substring(splitIdx).trim();
+      return;
     }
   }
+
+  tspans[0].textContent = fullChurchName;
+  tspans[1].textContent = "";
+}
+
+async function updateStaticStrings() {
+  updateBasicStrings();
+  updateUpdateNotification();
+  updateOfflineBanner();
+  updateLoadingText();
+  await updateActionButton();
+  updateChurchSvgName();
 }
 
 function initLanguageSelector() {
@@ -1252,6 +1489,18 @@ function openLanguageModal() {
   }
 }
 
+// Helper: Handle language selection
+let languageReloadTimer = null;
+
+async function handleLanguageSelection(langCode) {
+  await setLanguage(langCode);
+  if (languageReloadTimer) clearTimeout(languageReloadTimer);
+  languageReloadTimer = setTimeout(async () => {
+    await updateStaticStrings();
+    location.reload();
+  }, 50);
+}
+
 function renderLanguageList() {
   const list = document.getElementById("language-list");
   if (!list) return;
@@ -1264,19 +1513,12 @@ function renderLanguageList() {
   ];
 
   const currentLang = getLanguage();
-  list.innerHTML = "";
+  list.textContent = "";
 
   languages.forEach((lang) => {
     const li = document.createElement("li");
     li.className = "language-item";
-    li.onclick = () => {
-      setLanguage(lang.code).then(() => {
-        setTimeout(() => {
-          updateStaticStrings();
-          location.reload();
-        }, 50);
-      });
-    };
+    li.onclick = () => handleLanguageSelection(lang.code);
 
     const nameSpan = document.createElement("span");
     nameSpan.className = "language-name";
@@ -1322,18 +1564,26 @@ function renderHistoryList() {
 
   const currentProfile = Profiles.getCurrentProfile();
   if (!currentProfile) {
-    list.innerHTML = `<li style="justify-content:center; opacity:0.6;">${t("noHistory")}</li>`;
+    const li = document.createElement("li");
+    li.style.justifyContent = "center";
+    li.style.opacity = "0.6";
+    li.textContent = t("noHistory") || "No history available";
+    list.appendChild(li);
     return;
   }
 
   const history = getProgramHistory(currentProfile.id);
 
   if (history.length === 0) {
-    list.innerHTML = `<li style="justify-content:center; opacity:0.6;">${t("noHistory")}</li>`;
+    const li = document.createElement("li");
+    li.style.justifyContent = "center";
+    li.style.opacity = "0.6";
+    li.textContent = t("noHistory") || "No history available";
+    list.appendChild(li);
     return;
   }
 
-  list.innerHTML = "";
+  list.textContent = "";
 
   history.forEach((entry) => {
     const li = document.createElement("li");
@@ -1364,14 +1614,14 @@ function renderHistoryList() {
 
 function loadProgramFromHistory(rows) {
   const main = document.getElementById("main-program");
-  main.innerHTML = "";
+  clearElement(main);
   renderProgram(rows);
   updateTimestamp();
 }
 
-if (typeof window !== "undefined" && !window.__VITEST__) {
+if (typeof globalThis.window !== "undefined" && !globalThis.window.__VITEST__) {
   // Check for force update parameter
-  const urlParams = new URLSearchParams(window.location.search);
+  const urlParams = new URLSearchParams(globalThis.window.location.search);
   const forceUpdate = urlParams.get("forceUpdate") === "true";
   const nocache = urlParams.get("nocache") === "true";
 
@@ -1383,24 +1633,25 @@ if (typeof window !== "undefined" && !window.__VITEST__) {
     // Add timestamp to bust any browser cache
     urlParams.set("t", Date.now().toString());
 
-    const newUrl = window.location.pathname + "?" + urlParams.toString();
+    const newUrl = globalThis.window.location.pathname + "?" + urlParams.toString();
 
-    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+    if (navigator.serviceWorker?.controller) {
       navigator.serviceWorker.controller.postMessage({ action: "skipWaiting" });
-      setTimeout(() => {
-        window.location.href = newUrl;
+      const navRedirectTimer = setTimeout(() => {
+        globalThis.window.location.href = newUrl;
+        clearTimeout(navRedirectTimer);
       }, 1000);
     } else {
       // No SW, just reload with cache-busted URL
-      window.location.href = newUrl;
+      globalThis.window.location.href = newUrl;
     }
   }
 
   const debouncedHandleVisibility = debounce(handleVersionVisibility, 100);
-  window.addEventListener("scroll", debouncedHandleVisibility);
-  window.addEventListener("resize", debouncedHandleVisibility);
+  globalThis.window.addEventListener("scroll", debouncedHandleVisibility);
+  globalThis.window.addEventListener("resize", debouncedHandleVisibility);
 
-  window.addEventListener("online", () => {
+  globalThis.window.addEventListener("online", () => {
     const banner = document.getElementById("offline-banner");
     if (banner) {
       banner.classList.remove("visible");
@@ -1409,34 +1660,87 @@ if (typeof window !== "undefined" && !window.__VITEST__) {
     init();
   });
 
-  document.getElementById("main-program").classList.add("loading");
-
-  // after renderProgram(...)
-  document.getElementById("main-program").classList.remove("loading");
-
-  // Run once on load
-  handleVersionVisibility();
-
-  initTheme();
-  initI18n();
-  initNetworkStatus();
-  initPrintButton();
-  initLanguageSelector();
-  initHistoryUI();
-  initShareUI();
-  promptPWAInstall();
-  updateStaticStrings();
   // Ensure help modal is properly initialized before init()
-  if (typeof window !== "undefined" && !window.__VITEST__) {
-    // Check if we're in zero state and help modal should be shown
-    const helpShown = localStorage.getItem("meeting_program_help_shown");
-    if (!helpShown) {
-      openHelpModal();
-    }
+  if (typeof window !== "undefined") {
+    const initializeApp = async () => {
+      const mainProgram = document.getElementById("main-program");
+      if (mainProgram) {
+        mainProgram.classList.add("loading");
+      }
+
+      // after renderProgram(...)
+      if (mainProgram) {
+        mainProgram.classList.remove("loading");
+      }
+
+      // Run once on load
+      handleVersionVisibility();
+
+      await initI18n();
+      initNetworkStatus();
+      initPrintButton();
+      initLanguageSelector();
+      initHistoryUI();
+      initShareUI();
+      promptPWAInstall();
+      await updateStaticStrings();
+      // Ensure help modal is properly initialized before init()
+      if (typeof globalThis.window !== "undefined" && !globalThis.window.__VITEST__) {
+        const { getMetadata } = await import("./data/IndexedDBManager.js");
+        const helpShown = await getMetadata("userPreference_helpShown");
+        if (!helpShown) {
+          openHelpModal();
+        }
+      }
+      if (!globalThis.window.__VITEST__) {
+        await init();
+      }
+    };
+
+    initializeApp().catch((err) => {
+      console.error("[INIT] Fatal initialization error:", err);
+      const main = document.getElementById("main-program");
+      if (main) {
+        const errorContainer = createTextElement("div", "", {
+          padding: "20px",
+          color: "red",
+          textAlign: "center",
+          fontFamily: "monospace"
+        });
+
+        const title = document.createElement("p");
+        const titleStrong = document.createElement("strong");
+        titleStrong.textContent = "Failed to initialize app";
+        title.appendChild(titleStrong);
+
+        const errorDetails = createTextElement("p", err.message, {
+          fontSize: "12px",
+          whiteSpace: "pre-wrap",
+          textAlign: "left",
+          background: "#f0f0f0",
+          padding: "10px",
+          borderRadius: "4px",
+          overflowX: "auto"
+        });
+
+        const helpText = createTextElement(
+          "p",
+          "Check browser console (DevTools) for full error stack",
+          {
+            fontSize: "12px"
+          }
+        );
+
+        errorContainer.appendChild(title);
+        errorContainer.appendChild(errorDetails);
+        errorContainer.appendChild(helpText);
+        main.appendChild(errorContainer);
+      }
+    });
   }
-  init();
 }
 
+// Re-export from utils/renderers.js
 export {
   splitHymn,
   splitLeadership,
@@ -1449,13 +1753,15 @@ export {
   renderLink,
   renderLinkWithSpace,
   renderProgram,
-  init,
-  fetchSheet,
-  parseCSV,
-  fetchWithTimeout,
   renderLineBreak,
   renderDate,
   renderUnitAddress,
   renderUnitName,
   renderers
-};
+} from "./utils/renderers.js";
+
+// Re-export from utils/csv.js
+export { fetchSheet, parseCSV } from "./utils/csv.js";
+
+// Keep local exports
+export { init, fetchWithTimeout };

@@ -1,10 +1,16 @@
 import { t, getLanguage } from "../i18n/index.js";
 import { translateHonorifics } from "../i18n/honorifics.js";
 import { isSafeUrl } from "../sanitize.js";
+import { getChildrenSongData, getChildrenSongUrl, getHymnData } from "../data/hymnsLookup.js";
+
+// Helper: Render a role with translated name (speaker, prayer, etc.)
+function renderHonorificRole(name, labelKey, className) {
+  const translatedName = translateHonorifics(name, getLanguage());
+  appendRow(t(labelKey), translatedName, className);
+}
 
 function renderSpeaker(name) {
-  const translatedName = translateHonorifics(name, getLanguage());
-  appendRow(t("speaker"), translatedName, "speaker");
+  renderHonorificRole(name, "speaker", "speaker");
 }
 
 function renderIntermediateHymn(name) {
@@ -28,33 +34,27 @@ function renderSacramentHymn(name) {
 }
 
 function renderOpeningPrayer(name) {
-  const translatedName = translateHonorifics(name, getLanguage());
-  appendRow(t("openingPrayer"), translatedName, "openingPrayer");
+  renderHonorificRole(name, "openingPrayer", "openingPrayer");
 }
 
 function renderClosingPrayer(name) {
-  const translatedName = translateHonorifics(name, getLanguage());
-  appendRow(t("closingPrayer"), translatedName, "closingPrayer");
+  renderHonorificRole(name, "closingPrayer", "closingPrayer");
 }
 
 function renderPresiding(name) {
-  const translatedName = translateHonorifics(name, getLanguage());
-  appendRow(t("presiding"), translatedName, "presiding");
+  renderHonorificRole(name, "presiding", "presiding");
 }
 
 function renderConducting(name) {
-  const translatedName = translateHonorifics(name, getLanguage());
-  appendRow(t("conducting"), translatedName, "conducting");
+  renderHonorificRole(name, "conducting", "conducting");
 }
 
 function renderMusicDirector(name) {
-  const translatedName = translateHonorifics(name, getLanguage());
-  appendRow(t("musicDirector"), translatedName, "musicDirector");
+  renderHonorificRole(name, "musicDirector", "musicDirector");
 }
 
 function renderOrganist(name) {
-  const translatedName = translateHonorifics(name, getLanguage());
-  appendRow(t("organist"), translatedName, "musicOrganist");
+  renderHonorificRole(name, "organist", "musicOrganist");
 }
 
 function renderLeader(value) {
@@ -174,7 +174,7 @@ function renderLinkWithSpace(value) {
   const inner = document.createElement("div");
   inner.className = "link-with-space-inner";
 
-  if (imgLinkRaw && imgLinkRaw.toUpperCase() !== "NONE" && isSafeUrl(imgLinkRaw)) {
+  if (imgLinkRaw?.toUpperCase() !== "NONE" && isSafeUrl(imgLinkRaw)) {
     const img = document.createElement("img");
     img.src = imgLinkRaw;
     img.className = "link-icon";
@@ -225,8 +225,27 @@ function appendRowHymn(label, value, id) {
   const div = document.createElement("div");
   div.id = id;
 
-  const { number, title, isChildrensSong } = splitHymn(value);
-  const hymnUrl = getHymnUrl(number, isChildrensSong, title);
+  const { number, title, isChildrensSong, customText } = splitHymn(value);
+
+  // Get URL and potentially correct title from lookup
+  let hymnUrl = null;
+  let displayTitle = title;
+
+  if (isChildrensSong) {
+    const lookupData = getChildrenSongData(number);
+    if (lookupData) {
+      hymnUrl = lookupData.url;
+      displayTitle = lookupData.title;
+    }
+  } else {
+    const hymnData = getHymnData(number);
+    if (hymnData) {
+      hymnUrl = hymnData.url;
+      displayTitle = hymnData.title;
+    } else {
+      hymnUrl = getHymnUrl(number, isChildrensSong, title);
+    }
+  }
 
   const row = document.createElement("div");
   row.className = "leader-of-dots hymn-row";
@@ -255,14 +274,22 @@ function appendRowHymn(label, value, id) {
     link.target = "_blank";
     link.rel = "noopener noreferrer";
     link.className = "hymn-link";
-    link.textContent = title;
+    link.textContent = displayTitle;
     titleDiv.appendChild(link);
   } else {
-    titleDiv.textContent = title;
+    titleDiv.textContent = displayTitle;
   }
 
   div.appendChild(row);
   div.appendChild(titleDiv);
+
+  // Add custom text line if provided
+  if (customText) {
+    const customTextDiv = document.createElement("div");
+    customTextDiv.className = "hymn-title";
+    customTextDiv.textContent = customText;
+    div.appendChild(customTextDiv);
+  }
 
   container.appendChild(div);
 }
@@ -273,27 +300,43 @@ function getHymnUrl(number, isChildrensSong, title) {
   const cleanNumber = number.replace("#", "");
 
   if (isChildrensSong) {
+    // Use lookup table for accurate URL
+    const url = getChildrenSongUrl(cleanNumber);
+    if (url) return url;
+
+    // Fallback to title-based slug if not found in lookup
     const slug = title
       .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, "")
-      .replace(/\s+/g, "-")
-      .replace(/-+/g, "-")
+      .replaceAll(/[^a-z0-9\s-]/g, "")
+      .replaceAll(/\s+/g, "-")
+      .replaceAll(/-+/g, "-")
+      .replaceAll(/^-+|-+$/g, "")
       .trim();
-    return slug ? `https://www.churchofjesuschrist.org/music/library/children/${slug}` : null;
+    return slug ? `https://www.churchofjesuschrist.org/media/music/songs/${slug}?lang=eng` : null;
   }
 
-  return `https://www.churchofjesuschrist.org/music/library/hymns/${cleanNumber}`;
+  // Use lookup table for regular hymns
+  const hymnData = getHymnData(cleanNumber);
+  if (hymnData) return hymnData.url;
+
+  // Fallback to collection page if not found in lookup
+  return `https://www.churchofjesuschrist.org/media/music/collections/hymns?lang=eng`;
 }
 
 function splitHymn(value) {
-  const csMatch = value.match(/^CS\s*(\d+)\s*(.*)$/i);
+  // Split on first pipe to separate hymn name from custom text
+  const parts = value.split("|");
+  const hymnPart = parts[0].trim();
+  const customText = parts.length > 1 ? parts.slice(1).join("|").trim() : "";
+
+  const csMatch = hymnPart.match(/^#?CS\s*(\d+[a-z]?)\s*(.*)$/i);
   if (csMatch) {
-    return { number: `CS ${csMatch[1]}`, title: csMatch[2], isChildrensSong: true };
+    return { number: `CS ${csMatch[1]}`, title: csMatch[2], isChildrensSong: true, customText };
   }
 
-  const match = value.match(/^(#?\d+)\s*(.*)$/);
-  if (!match) return { number: "", title: value, isChildrensSong: false };
-  return { number: match[1], title: match[2], isChildrensSong: false };
+  const match = hymnPart.match(/^(#?(\d+[a-z]?))\s*(.*)$/);
+  if (!match) return { number: "", title: hymnPart, isChildrensSong: false, customText };
+  return { number: match[1], title: match[3], isChildrensSong: false, customText };
 }
 
 function splitLeadership(value) {
@@ -322,7 +365,7 @@ function renderLineBreak(value) {
   const hr = document.createElement("hr");
   hr.className = "hr-text";
   if (value) {
-    hr.setAttribute("data-content", value);
+    hr.dataset.content = value;
   }
   container.appendChild(hr);
 }

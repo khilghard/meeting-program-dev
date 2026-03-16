@@ -101,6 +101,16 @@ describe("isNewer", () => {
       expect(isNewer("1.0.1", "1.0.0")).toBe(true);
     });
 
+    it("handles two-digit patch versions numerically", () => {
+      expect(isNewer("2.2.10", "2.2.9")).toBe(true);
+      expect(isNewer("2.1.10", "2.1.9")).toBe(true);
+    });
+
+    it("does not use lexical ordering for patch versions", () => {
+      expect(isNewer("2.2.9", "2.2.10")).toBe(false);
+      expect(isNewer("2.1.10", "2.1.11")).toBe(false);
+    });
+
     it("returns false when remote patch < local patch", () => {
       expect(isNewer("1.0.0", "1.0.1")).toBe(false);
     });

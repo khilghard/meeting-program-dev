@@ -1,27 +1,35 @@
+// ------------------------------------------------------------
+// CONFIG - Auto-detect deployment path for backwards compatibility
+// ------------------------------------------------------------
 // Detect base path from current service worker location
 const BASE_PATH = (() => {
   const swPath = self.location.pathname;
-  
+
   // Determine which deployment this service worker is for
-  if (swPath.includes('/meeting-program-dev/')) {
-    return '/meeting-program-dev/';
-  } else if (swPath.includes('/meeting-program/')) {
-    return '/meeting-program/';
+  // Examples:
+  // - https://khilghard.github.io/meeting-program-dev/service-worker.js → /meeting-program-dev/
+  // - https://khilghard.github.io/meeting-program/service-worker.js → /meeting-program/
+  // - http://localhost:8000/service-worker.js → /
+
+  if (swPath.includes("/meeting-program-dev/")) {
+    return "/meeting-program-dev/";
+  } else if (swPath.includes("/meeting-program/")) {
+    return "/meeting-program/";
   }
-  
-  return '/meeting-program/'; // Default for backwards compatibility
+
+  // Fallback for local testing / root deployment
+  return "/";
 })();
 
-// CONFIG
-// NOTE: Keep VERSION in sync with js/version.js
-const MPPATH = BASE_PATH;
+console.log(`[SW] BASE_PATH detected: "${BASE_PATH}"`);
+
+// Legacy support - keep old MPPATH for existing users
+const MPPATH = BASE_PATH || "/meeting-program-dev";
 const APP_PREFIX = "smpwa";
-const VERSION = "2.1.13"; // Updated to v2.1.10
+const VERSION = "2.2.11";
 const CACHE_NAME = `${APP_PREFIX}-${VERSION}`;
 
-console.log(`[SW] BASE_PATH detected: "${BASE_PATH}"`, `VERSION: ${VERSION}`);
-
-// Separate caches for different content types - now versioned
+// All users now on 2.2.x - single unified cache scheme
 const STATIC_CACHE = `meeting-program-static-v${VERSION}`;
 const DYNAMIC_CACHE = `meeting-program-dynamic-v${VERSION}`;
 const MAX_DYNAMIC_CACHE = 50;
@@ -30,112 +38,249 @@ const MAX_CACHE_AGE_DAYS = 30;
 // Cache expiration for Google Sheets (24 hours in milliseconds)
 const SHEET_CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000;
 
-const MAX_CACHES_TO_KEEP = 5; // Increased to support cache versioning
+const MAX_CACHES_TO_KEEP = 5; // Increased to support dual cache schemes
 
-// Files to precache - note: manifest detection happens in index.html
+// Files to precache - use BASE_PATH for new deployments, MPPATH for legacy
 const URLS = [
-  `${MPPATH}index.html?v=${VERSION}`,
-  `${MPPATH}css/styles.css?v=${VERSION}`,
-  `${MPPATH}js/version.js?v=${VERSION}`,
-  `${MPPATH}js/version-parser.js?v=${VERSION}`,
-  `${MPPATH}js/version-checker.js?v=${VERSION}`,
-  `${MPPATH}js/service-worker-manager.js?v=${VERSION}`,
-  `${MPPATH}js/update-manager.js?v=${VERSION}`,
-  `${MPPATH}js/main.js?v=${VERSION}`,
-  `${MPPATH}js/qr.js?v=${VERSION}`,
-  `${MPPATH}js/sanitize.js?v=${VERSION}`,
-  `${MPPATH}js/profiles.js?v=${VERSION}`,
-  `${MPPATH}js/i18n/index.js?v=${VERSION}`,
-  `${MPPATH}js/i18n/honorifics.js?v=${VERSION}`,
-  `${MPPATH}js/history.js?v=${VERSION}`,
-  `${MPPATH}js/auto-archive.js?v=${VERSION}`,
-  `${MPPATH}js/archive.js?v=${VERSION}`,
-  `${MPPATH}archive.html?v=${VERSION}`,
-  `${MPPATH}js/utils/csv.js?v=${VERSION}`,
-  `${MPPATH}js/utils/renderers.js?v=${VERSION}`,
-  `${MPPATH}img/icon.png`,
-  `${MPPATH}img/favicon.png`,
-  `${MPPATH}manifest.prod.webmanifest`,
-  "https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"
+  `${BASE_PATH || MPPATH}/index.html?v=${VERSION}`,
+  `${BASE_PATH || MPPATH}/css/styles.css?v=${VERSION}`,
+  `${BASE_PATH || MPPATH}/js/version.js?v=${VERSION}`,
+  `${BASE_PATH || MPPATH}/js/version-parser.js?v=${VERSION}`,
+  `${BASE_PATH || MPPATH}/js/version-checker.js?v=${VERSION}`,
+  `${BASE_PATH || MPPATH}/js/service-worker-manager.js?v=${VERSION}`,
+  `${BASE_PATH || MPPATH}/js/main.js?v=${VERSION}`,
+  `${BASE_PATH || MPPATH}/js/qr.js?v=${VERSION}`,
+  `${BASE_PATH || MPPATH}/js/sanitize.js?v=${VERSION}`,
+  `${BASE_PATH || MPPATH}/js/profiles.js?v=${VERSION}`,
+  `${BASE_PATH || MPPATH}/js/i18n/index.js?v=${VERSION}`,
+  `${BASE_PATH || MPPATH}/js/i18n/honorifics.js?v=${VERSION}`,
+  `${BASE_PATH || MPPATH}/js/history.js?v=${VERSION}`,
+  `${BASE_PATH || MPPATH}/js/archive.js?v=${VERSION}`,
+  `${BASE_PATH || MPPATH}/archive.html?v=${VERSION}`,
+  `${BASE_PATH || MPPATH}/img/icon.png`,
+  `${BASE_PATH || MPPATH}/img/favicon.png`,
+  `${BASE_PATH || MPPATH}/manifest.webmanifest`,
+  "https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js",
+  "https://cdn.jsdelivr.net/npm/dexie@4.3.0/+esm"
 ];
 
 // ------------------------------------------------------------
-// INSTALL — Precache App Shell
+// Helper: Execute Promise.all with individual error handling
 // ------------------------------------------------------------
-self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => {
-      console.log("Installing static cache:", STATIC_CACHE);
-
-      return Promise.all(
-        URLS.map((url) => cache.add(url).catch((err) => console.warn("Failed to cache:", url, err)))
-      );
+async function promiseAllSafe(promises, options = {}) {
+  const { continueOnError = true, logger = console.warn } = options;
+  const results = await Promise.all(
+    promises.map(async (promise, index) => {
+      try {
+        const data = await promise;
+        return { success: true, data, index };
+      } catch (error) {
+        if (continueOnError) {
+          logger(`Promise ${index} failed:`, error.message);
+          return { success: false, error, index };
+        }
+        throw error;
+      }
     })
   );
-
-  self.skipWaiting();
-});
+  return results;
+}
 
 // ------------------------------------------------------------
-// ACTIVATE — Clean Old Caches
+// Helper: Cache operation with timestamp
+// Only cache http/https requests (skip chrome-extension, etc)
 // ------------------------------------------------------------
-self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) => {
-      // Filter to only our app's caches
-      const appCaches = keys
-        .filter((key) => key.startsWith(`${APP_PREFIX}-`))
-        .sort()
-        .reverse();
+async function cacheWithTimestamp(cache, request, response) {
+  try {
+    // Only cache successful responses (2xx status)
+    if (!response.ok) {
+      return;
+    }
 
-      // Keep only the most recent MAX_CACHES_TO_KEEP caches
-      const cachesToDelete = appCaches.slice(MAX_CACHES_TO_KEEP);
+    // Skip caching for non-http schemes (chrome-extension, etc)
+    const url = new URL(request.url);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return;
+    }
 
-      console.log(`[SW] Current caches: ${appCaches.length}, keeping: ${MAX_CACHES_TO_KEEP}`);
+    const resClone = response.clone();
+    const cacheWithTimestamp = new Response(resClone.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: new Headers({
+        ...Object.fromEntries(response.headers.entries()),
+        "cached-at": Date.now().toString()
+      })
+    });
+    await cache.put(request, cacheWithTimestamp);
+  } catch (e) {
+    console.warn("[SW] Failed to create cached response:", e);
+  }
+}
 
-      return Promise.all(
-        cachesToDelete.map((key) => {
-          console.log("[SW] Deleting old cache:", key);
-          return caches.delete(key);
-        })
-      );
-    })
-  );
-
-  // Take control immediately
-  clients.claim();
-});
-
-// Helper: Handle static content with network-first strategy
+// ------------------------------------------------------------
+// Helper: Static cache handler (network-first, falls back to cache)
+// This ensures refresh (F5) shows fresh content while supporting offline
 async function handleStaticCache(req) {
   try {
     // NETWORK-FIRST: Try to fetch fresh content first
     const res = await fetch(req);
-    
+
     if (res.ok) {
       // Update cache with fresh content
       const cache = await caches.open(STATIC_CACHE);
-      cache.put(req, res.clone());
+      await cacheWithTimestamp(cache, req, res);
+      const isMainJs = req.url.includes("main.js");
+      if (isMainJs) {
+        console.log(`[SW] Serving FRESH main.js from network (${VERSION})`);
+      }
     }
-    
+
     return res;
   } catch (fetchErr) {
     // Network failed, fall back to cached version (offline support)
     try {
       const cached = await caches.match(req);
       if (cached) {
-        console.log(`[SW] Network unavailable, serving cached: ${req.url.substring(req.url.lastIndexOf('/') + 1)}`);
+        const isMainJs = req.url.includes("main.js");
+        console.log(
+          `[SW] ${isMainJs ? "CRITICAL: Serving CACHED main.js (may be outdated)" : "Serving cached"}: ${req.url}`
+        );
         return cached;
       }
     } catch (cacheErr) {
       console.warn(`[SW] Cache lookup failed:`, cacheErr);
     }
-    
+
     // Both network and cache failed
     console.error(`[SW] No cached or network response for:`, req.url);
     throw fetchErr;
   }
 }
+
+// ------------------------------------------------------------
+// Helper: Google Sheets network-first handler
+// ------------------------------------------------------------
+async function handleGoogleSheets(req) {
+  try {
+    const res = await fetch(req);
+    if (res.ok && res.body) {
+      const dynamicCache = await caches.open(DYNAMIC_CACHE);
+      await cacheWithTimestamp(dynamicCache, req, res);
+    }
+    return res;
+  } catch (err) {
+    console.warn("[SW] Google Sheets fetch failed:", err);
+    throw err;
+  }
+}
+
+// ------------------------------------------------------------
+// Helper: Dynamic cache with fallback
+// ------------------------------------------------------------
+async function handleDynamicCache(req, url) {
+  try {
+    const res = await fetch(req);
+    if (res.ok && res.body) {
+      const dynamicCache = await caches.open(DYNAMIC_CACHE);
+      await cacheWithTimestamp(dynamicCache, req, res);
+    }
+    return res;
+  } catch (fetchErr) {
+    console.warn("[SW] Fetch failed:", fetchErr);
+    const cache = await caches.open(DYNAMIC_CACHE);
+    const cachedResponse = await cache.match(req);
+    if (cachedResponse) {
+      const cachedAt = cachedResponse.headers.get("cached-at");
+      if (cachedAt) {
+        const age = Date.now() - Number.parseInt(cachedAt, 10);
+        if (url?.hostname?.includes("docs.google.com") && age > SHEET_CACHE_EXPIRY_MS) {
+          console.log("[SW] Google Sheet cache expired but offline - serving stale cache");
+          return cachedResponse;
+        }
+      }
+      return cachedResponse;
+    }
+    throw fetchErr;
+  }
+}
+
+// ------------------------------------------------------------
+// INSTALL — Precache App Shell
+// ------------------------------------------------------------
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        console.log("[SW] Installing static cache:", STATIC_CACHE);
+        const cache = await caches.open(STATIC_CACHE);
+        const results = await promiseAllSafe(
+          URLS.map((url) => cache.add(url)),
+          { logger: (msg) => console.warn("[SW]", msg) }
+        );
+        const failed = results.filter((r) => !r.success).length;
+        if (failed > 0) {
+          console.warn(`[SW] ${failed} URLs failed to cache`);
+        }
+      } catch (err) {
+        console.error("[SW] Installation failed:", err);
+        throw err;
+      }
+    })()
+  );
+
+  globalThis.skipWaiting();
+});
+
+// ------------------------------------------------------------
+// Helper: Clean versioned caches
+// ------------------------------------------------------------
+async function cleanVersionedCaches() {
+  try {
+    const keys = await caches.keys();
+    const allCaches = keys
+      .filter((k) => k.startsWith(APP_PREFIX) && k !== CACHE_NAME && k !== STATIC_CACHE)
+      .sort((a, b) => a.localeCompare(b))
+      .reverse();
+
+    const toDelete = allCaches.slice(MAX_CACHES_TO_KEEP);
+
+    console.log(`[SW] Found ${allCaches.length} app caches, deleting ${toDelete.length} oldest`);
+
+    const results = await promiseAllSafe(
+      toDelete.map((key) => {
+        console.log("[SW] Deleting old cache:", key);
+        return caches.delete(key);
+      }),
+      { logger: (msg) => console.warn("[SW]", msg) }
+    );
+
+    const failed = results.filter((r) => !r.success).length;
+    if (failed > 0) {
+      console.warn(`[SW] ${failed} cache deletions failed`);
+    }
+  } catch (err) {
+    console.warn("[SW] Cache keys failed:", err);
+  }
+}
+
+// ------------------------------------------------------------
+// ACTIVATE — Clean Old Caches
+// ------------------------------------------------------------
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        await Promise.all([cleanVersionedCaches(), cleanupOldCaches()]);
+      } catch (err) {
+        console.error("[SW] Activation failed:", err);
+        throw err;
+      }
+    })()
+  );
+
+  clients.claim();
+});
 
 // ------------------------------------------------------------
 // FETCH — Different strategies based on content type
@@ -144,30 +289,36 @@ self.addEventListener("fetch", (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // Only handle GET requests
   if (req.method !== "GET") return;
 
-  // Cache-only for: App manifest and icons
+  // Handle requests to deployment root (e.g., /meeting-program/ → /meeting-program/index.html)
+  // This handles cases where users access the path without index.html
   if (
-    url.pathname.includes("manifest.") ||
-    url.pathname.includes("/img/") ||
-    url.pathname.includes("favicon")
+    url.pathname === BASE_PATH ||
+    url.pathname === `${BASE_PATH}` ||
+    (BASE_PATH !== "/" && url.pathname === `${BASE_PATH.slice(0, -1)}`)
   ) {
-    event.respondWith(
-      caches.match(req).then((cached) => {
-        if (cached) return cached;
-        return fetch(req).then((res) => {
-          return caches.open(STATIC_CACHE).then((cache) => {
-            cache.put(req, res.clone());
-            return res;
-          });
-        });
-      })
-    );
+    // Create RequestInit without 'navigate' mode (which cannot be set in RequestInit)
+    const indexReq = new Request(`${BASE_PATH}index.html`, {
+      method: req.method,
+      headers: req.headers
+    });
+    event.respondWith(handleStaticCache(indexReq));
     return;
   }
 
-  // NETWORK-FIRST for: /index.html, /css/*.css, /js/*.js (fresh content on refresh)
+  if (
+    url.pathname.includes("manifest") ||
+    url.pathname.includes("manifest.webmanifest") ||
+    url.pathname.includes(".prod.webmanifest") ||
+    url.pathname.includes(".dev.webmanifest") ||
+    url.pathname.includes("/img/") ||
+    url.pathname.includes("favicon")
+  ) {
+    event.respondWith(handleStaticCache(req));
+    return;
+  }
+
   if (
     url.pathname.endsWith("/index.html") ||
     url.pathname.includes("/css/") ||
@@ -178,109 +329,63 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Network-first for: Google Sheets URLs (migration validation)
   if (url.hostname.includes("docs.google.com")) {
-    event.respondWith(
-      fetch(req)
-        .then((res) => {
-          // Cache the fresh response
-          if (res.ok) {
-            const resClone = res.clone();
-            const cacheWithTimestamp = new Response(resClone.body, {
-              status: res.status,
-              statusText: res.statusText,
-              headers: new Headers({
-                ...Object.fromEntries(res.headers.entries()),
-                "cached-at": Date.now().toString()
-              })
-            });
-            caches.open(DYNAMIC_CACHE).then((cache) => {
-              cache.put(req, cacheWithTimestamp);
-            });
-          }
-          return res;
-        })
-        .catch(() => caches.match(req))
-    );
+    event.respondWith(handleGoogleSheets(req));
     return;
   }
 
-  // Check for cache-bust parameter (reload button adds t=timestamp)
-  const forceRefresh = url.searchParams.has("t") && url.searchParams.get("force") === "true";
-
-  // Dynamic cache with expiration for other requests
-  event.respondWith(
-    fetch(req)
-      .then((res) => {
-        // Cache successful responses in dynamic cache (only for http/https)
-        if (res.ok && (url.protocol === 'http:' || url.protocol === 'https:')) {
-          const resClone = res.clone();
-          const cacheWithTimestamp = new Response(resClone.body, {
-            status: res.status,
-            statusText: res.statusText,
-            headers: new Headers({
-              ...Object.fromEntries(res.headers.entries()),
-              "cached-at": Date.now().toString()
-            })
-          });
-          caches.open(DYNAMIC_CACHE).then((cache) => {
-            cache.put(req, cacheWithTimestamp);
-          });
-        }
-        return res;
-      })
-      .catch(() => {
-        // Fallback to cache
-        return caches.open(DYNAMIC_CACHE).then((cache) => {
-          return cache.match(req).then((cachedResponse) => {
-            if (cachedResponse) {
-              // Check if cache has expired (24 hours for Google Sheets)
-              const cachedAt = cachedResponse.headers.get("cached-at");
-              if (cachedAt) {
-                const age = Date.now() - parseInt(cachedAt, 10);
-                if (url.hostname.includes("docs.google.com") && age > SHEET_CACHE_EXPIRY_MS) {
-                  console.log("[SW] Google Sheet cache expired but offline - serving stale cache");
-                  // Return stale cache when offline even if expired
-                  return cachedResponse;
-                }
-              }
-              return cachedResponse;
-            }
-            return new Response("Offline", { status: 503 });
-          });
-        });
-      })
-  );
+  event.respondWith(handleDynamicCache(req, url));
 });
 
 // ------------------------------------------------------------
 // MESSAGE — Allow manual skipWaiting(), clearCache, and version queries
 // ------------------------------------------------------------
 self.addEventListener("message", (event) => {
-  if (event.data && event.data.action === "skipWaiting") {
-    self.skipWaiting();
+  if (event.origin !== self.location.origin && event.origin !== "null") {
+    console.warn("[SW] Message from unauthorized origin:", event.origin);
+    return;
   }
 
-  if (event.data && event.data.action === "getVersion") {
-    event.ports[0].postMessage({ version: VERSION });
+  if (event.data?.action === "skipWaiting") {
+    globalThis.skipWaiting();
   }
 
-  if (event.data && event.data.action === "clearCache") {
+  if (event.data?.action === "getVersion") {
+    event.ports[0].postMessage({
+      version: VERSION
+    });
+  }
+
+  if (event.data?.action === "clearCache") {
     event.waitUntil(
-      caches
-        .keys()
-        .then((keys) => {
-          return Promise.all(
+      (async () => {
+        try {
+          const keys = await caches.keys();
+          console.log("[SW] clearCache: Found caches:", keys);
+          const results = await promiseAllSafe(
             keys.map((key) => {
-              if (key.startsWith(APP_PREFIX)) {
-                return caches.delete(key);
-              }
-            })
+              // Clear ALL caches, not just those with APP_PREFIX
+              console.log("[SW] Deleting cache:", key);
+              return caches.delete(key);
+            }),
+            { logger: (msg) => console.warn("[SW]", msg) }
           );
-        })
-        .then(() => {
-          event.ports[0].postMessage({ success: true });
-        })
+
+          const deleted = results.filter((r) => r.success).length;
+          const failed = results.filter((r) => !r.success).length;
+          console.log(`[SW] Cache clear complete: ${deleted} deleted, ${failed} failed`);
+
+          if (event.ports[0]) {
+            event.ports[0].postMessage({ success: true, deletedCount: deleted });
+          }
+        } catch (err) {
+          console.error("[SW] Clear cache failed:", err);
+          if (event.ports[0]) {
+            event.ports[0].postMessage({ success: false, error: err.message });
+          }
+          throw err;
+        }
+      })()
     );
   }
 });
@@ -291,9 +396,9 @@ self.addEventListener("message", (event) => {
 self.addEventListener("sync", (event) => {
   if (event.tag === "migration-check") {
     event.waitUntil(
-      // Migration check will be triggered from the main app
-      // This is a placeholder for background sync functionality
-      console.log("[SW] Background sync: migration-check")
+      (async () => {
+        console.log("[SW] Background sync: migration-check");
+      })()
     );
   }
 });
@@ -301,32 +406,37 @@ self.addEventListener("sync", (event) => {
 // ------------------------------------------------------------
 // PERIODIC CACHE CLEANUP
 // ------------------------------------------------------------
+async function findOldestCacheTimestamp(cache, requests) {
+  let oldestTimestamp = Date.now();
+  for (const request of requests) {
+    const response = await cache.match(request);
+    if (response) {
+      const date = response.headers.get("date");
+      if (date) {
+        const timestamp = new Date(date).getTime();
+        if (timestamp < oldestTimestamp) {
+          oldestTimestamp = timestamp;
+        }
+      }
+    }
+  }
+  return oldestTimestamp;
+}
+
+async function shouldDeleteCache(key, maxAge) {
+  const cache = await caches.open(key);
+  const requests = await cache.keys();
+  const oldestTimestamp = await findOldestCacheTimestamp(cache, requests);
+  return Date.now() - oldestTimestamp > maxAge;
+}
+
 async function cleanupOldCaches() {
   const keys = await caches.keys();
-  const now = Date.now();
   const maxAge = MAX_CACHE_AGE_DAYS * 24 * 60 * 60 * 1000;
 
   for (const key of keys) {
     if (key.startsWith(APP_PREFIX)) {
-      // Check if cache is older than MAX_CACHE_AGE_DAYS
-      const cache = await caches.open(key);
-      const requests = await cache.keys();
-
-      let oldestTimestamp = now;
-      for (const request of requests) {
-        const response = await cache.match(request);
-        if (response) {
-          const date = response.headers.get("date");
-          if (date) {
-            const timestamp = new Date(date).getTime();
-            if (timestamp < oldestTimestamp) {
-              oldestTimestamp = timestamp;
-            }
-          }
-        }
-      }
-
-      if (now - oldestTimestamp > maxAge) {
+      if (await shouldDeleteCache(key, maxAge)) {
         await caches.delete(key);
         console.log("[SW] Deleted old cache:", key);
       }
@@ -334,7 +444,6 @@ async function cleanupOldCaches() {
   }
 }
 
-// Run cleanup on activate
 self.addEventListener("activate", (event) => {
   event.waitUntil(cleanupOldCaches());
 });

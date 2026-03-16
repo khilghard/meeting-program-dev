@@ -36,9 +36,8 @@ const HONORIFIC_PATTERNS = {
   swa: ["Ndugu", "Sista", "Elder", "Askofu", "Raisi"]
 };
 
-export function getHonorificTranslation(targetLang) {
-  const lang = targetLang || "en";
-  return HONORIFICS[lang] || HONORIFICS.en;
+export function getHonorificTranslation(targetLang = "en") {
+  return HONORIFICS[targetLang] || HONORIFICS.en;
 }
 
 export function translateHonorifics(text, targetLang) {

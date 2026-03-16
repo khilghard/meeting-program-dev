@@ -1527,3 +1527,14 @@ footer {
   margin: 0;
   font-weight: bold;
 }
+
+/* =========================================================
+   11. PWA INSTALLED MODE
+   ========================================================= */
+
+/* Hide install button when app is installed/running in standalone mode */
+@media (display-mode: standalone) {
+  #qr-action-btn {
+    display: none;
+  }
+}
