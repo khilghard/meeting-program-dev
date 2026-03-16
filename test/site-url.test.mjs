@@ -1,5 +1,8 @@
-import { describe, test, expect, beforeEach, vi } from "vitest";
+import { describe, test, expect, beforeEach, afterAll, vi } from "vitest";
 import { getMetadata, setMetadata } from "../js/data/IndexedDBManager.js";
+
+// Import IndexedDB polyfill for testing
+import "fake-indexeddb/auto";
 
 // Mock IndexedDB for testing
 const mockDB = {

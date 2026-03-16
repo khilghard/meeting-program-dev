@@ -26,6 +26,8 @@ import {
   minimalProgram,
   DB_NAME
 } from "../helpers/mock-data.js";
+import { ConsoleTracker } from "../helpers/console-tracker.js";
+import { injectV211Storage } from "./data/v211-localstorage.js";
 
 const BASE_URL = "http://localhost:8000/meeting-program/";
 
@@ -370,9 +372,59 @@ openingHymn,#1 The Morning Breaks`
   }
 };
 
+/**
+ * Fixture: v211 Migration state
+ * Pre-loads realistic 2.1.1 user data for migration testing
+ */
+const withV211MigrationFixture = {
+  ...baseFixture,
+  storage: async ({ page }, use) => {
+    await clearAllStorage(page);
+    
+    // Inject v211 data
+    await injectV211Storage(page);
+    
+    // Reload to let app detect the state
+    await page.reload();
+    await page.waitForLoadState("load");
+    
+    // Close help modal if visible
+    try {
+      const helpModal = page.locator("#help-modal");
+      if (await helpModal.isVisible({ timeout: 1000 })) {
+        await page.click("#close-help-modal-btn");
+      }
+    } catch (e) {
+      // Ignore
+    }
+
+    await page.waitForTimeout(1000);
+    await use({});
+
+    await clearAllStorage(page);
+  }
+};
+
+/**
+ * Fixture: Console tracking
+ * Enables automatic console error/warning tracking for hybrid validation
+ */
+const withConsoleTrackingFixture = {
+  consoleTracker: async ({ page }, use) => {
+    const tracker = new ConsoleTracker(page);
+    tracker.listenToConsoleMessages();
+    
+    // Allow tests to ignore known safe patterns
+    tracker.ignorePattern("Non-Error promise rejection caught");
+    
+    await use(tracker);
+  }
+};
+
 // Create the test fixture with all extensions
 export const test = base.extend({
-  ...baseFixture
+  ...baseFixture,
+  ...withConsoleTrackingFixture
 });
 
 // Export parameterized fixtures
@@ -385,6 +437,8 @@ export const withTheme = (theme) => test.extend(withThemeFixture(theme));
 export const withOfflineNetwork = test.extend(withOfflineNetworkFixture);
 export const withArchivedPrograms = test.extend(withArchivedProgramsFixture);
 export const withMigrationAvailable = test.extend(withMigrationAvailableFixture);
+export const withV211Migration = test.extend(withV211MigrationFixture);
+export const withConsoleTracking = test.extend(withConsoleTrackingFixture);
 
 // Re-export helpers for use in tests
 export {
@@ -397,7 +451,9 @@ export {
   enableQRMock,
   mockGetUserMedia,
   startQRScanner,
-  clearAllStorage
+  clearAllStorage,
+  ConsoleTracker,
+  expect
 };
 
 // Export BASE_URL for direct navigation

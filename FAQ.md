@@ -224,6 +224,46 @@ Make sure regular members only have "view" access to the QR code link.
 
 ---
 
+### How do I view past programs (history)?
+
+The app automatically saves programs you load, so you can view them later:
+
+1. Look for the **📜 (scroll) icon** in the header
+2. Tap it to open the **Program History** modal
+3. Select any past program from the list
+4. The app loads that program for you
+
+**Note:** History is saved per profile (per unit). Each unit's history is stored separately. Programs from the last 1-2 years are kept, depending on data size.
+
+---
+
+### How do I manage multiple programs?
+
+If you have multiple units or wards, you can save each one:
+
+1. Tap the **profile dropdown** (shows current program name at top)
+2. Tap **"Manage Programs"** (⚙️ icon)
+3. You can:
+   - **Switch** between saved programs
+   - **Delete** unused programs
+   - **Add** new programs by scanning a QR code
+
+**Note:** You cannot delete the currently active program. Switch to a different one first.
+
+---
+
+### Can I restore a deleted program?
+
+Yes! If you delete a program by mistake:
+
+1. Tap the **profile dropdown**
+2. Look for **inactive programs** (shown as "archived" or grayed out)
+3. Tap **"Reactivate"** to bring it back
+
+This only works if you're still in the same browser/device. If you clear app data, cannot recover deleted programs.
+
+---
+
 ## Privacy & Security
 
 ### Is my data private?
@@ -236,11 +276,26 @@ The Google Sheet is only accessible to people who have the QR code link.
 
 ### What data does the app collect?
 
-The app does not collect any personal data. It only stores:
+The app does not collect any personal data. It only stores on your device:
 
-- Google Sheet URLs (on your device only)
-- Program names (on your device only)
-- Theme preference (on your device only)
+- Google Sheet URLs (for saved programs)
+- Program content (displayed in the meetinghouse)
+- Program history (past programs you loaded)
+- Theme preference (light or dark mode)
+- Language preference (English, Spanish, French, or Swahili)
+- Installation status (for PWA on home screen)
+
+**Everything is stored locally** in your browser using IndexedDB. Nothing is sent to our servers or any third party.
+
+---
+
+### How is my data protected?
+
+- All program data is **sanitized** before displaying to prevent malicious scripts
+- Only secure `https://` URLs are allowed
+- No external scripts or tracking software
+- No ads or analytics
+- Your Google Sheet URL is private — only people with the QR code can access it
 
 ---
 

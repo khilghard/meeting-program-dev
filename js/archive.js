@@ -8,21 +8,22 @@ console.log("[Archive] archive.js loaded");
 
 import * as ArchiveManager from "./data/ArchiveManager.js";
 import { t } from "./i18n/index.js";
+import { renderers } from "./utils/renderers.js";
+import { clearElement, setText } from "./utils/dom-utils.js";
 
 function escapeHtml(str) {
   if (!str) return "";
   return str
     .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+    .replaceAll(/</g, "&lt;")
+    .replaceAll(/>/g, "&gt;")
+    .replaceAll(/"/g, "&quot;")
+    .replaceAll(/'/g, "&#039;");
 }
 
 let initTheme, toggleTheme;
 let Profiles;
 let currentProfile = null;
-let currentArchive = null;
 
 // DOM Elements
 const elements = {
@@ -89,16 +90,20 @@ async function init() {
     // Setup event listeners
     setupEventListeners();
 
-    // Load profile and archives
     await loadProfileAndArchives();
   } catch (err) {
-    console.error("[Archive] Error in init:", err);
-  } finally {
-    // Hide loading spinner
+    console.error("[Archive] Init failed:", err);
     const loadingContainer = document.querySelector(".loading-container");
     if (loadingContainer) {
       loadingContainer.classList.add("hidden");
     }
+    return;
+  }
+
+  // Hide loading spinner
+  const loadingContainer = document.querySelector(".loading-container");
+  if (loadingContainer) {
+    loadingContainer.classList.add("hidden");
   }
 }
 
@@ -106,7 +111,7 @@ async function loadProfileAndArchives() {
   console.log("[Archive] loadProfileAndArchives called");
 
   // Ensure Profiles module is initialized
-  if (!Profiles || !Profiles.getCurrentProfile) {
+  if (!Profiles?.getCurrentProfile) {
     console.warn("[Archive] Profiles module not initialized");
     return;
   }
@@ -114,13 +119,13 @@ async function loadProfileAndArchives() {
   currentProfile = await Profiles.getCurrentProfile();
   console.log("[Archive] Current profile:", currentProfile);
   console.log("[Archive] currentProfile variable type:", typeof currentProfile);
-  console.log("[Archive] currentProfile is defined:", typeof currentProfile !== "undefined");
+  console.log("[Archive] currentProfile is defined:", currentProfile !== undefined);
 
   // If no profile selected but there are profiles, select the first one
   if (!currentProfile) {
     const profiles = await Profiles.getActiveProfiles();
     console.log("[Archive] Active profiles:", profiles);
-    if (profiles && profiles.length > 0) {
+    if (profiles?.length > 0) {
       await Profiles.selectProfile(profiles[0].id);
       currentProfile = await Profiles.getCurrentProfile();
       console.log("[Archive] Auto-selected profile:", currentProfile);
@@ -142,37 +147,51 @@ async function loadProfileAndArchives() {
 }
 
 function showNoProfileMessage() {
-  elements.archivesList.innerHTML = "";
-  elements.noArchives.textContent = "No profile selected";
+  clearElement(elements.archivesList);
+  setText(elements.noArchives, t("noProfileSelected") || "No profile selected");
   elements.noArchives.classList.remove("hidden");
   console.log("[Archive] showNoProfileMessage called");
   console.log("[Archive] currentProfile in showNoProfileMessage:", currentProfile);
-  console.log("[Archive] currentProfile is defined:", typeof currentProfile !== "undefined");
+  console.log("[Archive] currentProfile is defined:", currentProfile !== undefined);
 }
 
-function extractArchiveInfo(csvData) {
+// Helper: Extract metadata from CSV row
+function extractMetadataFromRow(row, info) {
+  const metadataMap = {
+    presiding: "presiding",
+    conducting: "conducting",
+    programDate: "programDate",
+    date: "date",
+    unitName: "unitName",
+    unitAddress: "unitAddress"
+  };
+
+  if (row.key in metadataMap && row.value) {
+    info[metadataMap[row.key]] = row.value;
+  }
+}
+
+// Helper: Extract speakers from CSV data
+function extractSpeakers(csvData) {
+  const speakers = [];
+  csvData.forEach((row) => {
+    // Include rows where the key is "speaker" (sanitizeEntry converts speaker1, speaker2, etc. to "speaker")
+    if (row.key === "speaker" && row.value) {
+      speakers.push(row.value);
+    }
+  });
+  return speakers;
+}
+
+function extractProgramInfo(csvData) {
   if (!csvData || !Array.isArray(csvData)) return {};
 
   const info = {};
-  const speakers = [];
-
   csvData.forEach((row) => {
-    if (row.key === "presiding" && row.value) info.presiding = row.value;
-    if (row.key === "conducting" && row.value) info.conducting = row.value;
-    if (row.key === "programDate" && row.value) info.programDate = row.value;
-    if (row.key === "date" && row.value) info.date = row.value;
-    if (row.key === "unitName" && row.value) info.unitName = row.value;
-    if (row.key === "unitAddress" && row.value) info.unitAddress = row.value;
-
-    // Extract speakers
-    if (row.key.startsWith("speaker") && row.key !== "speaker") {
-      const speakerNum = row.key.replace("speaker", "");
-      if (row.value) {
-        speakers.push(row.value);
-      }
-    }
+    extractMetadataFromRow(row, info);
   });
 
+  const speakers = extractSpeakers(csvData);
   if (speakers.length > 0) {
     info.speakers = speakers;
   }
@@ -183,14 +202,14 @@ function extractArchiveInfo(csvData) {
 async function loadArchives() {
   console.log("[Archive] loadArchives called, profile:", currentProfile?.id);
   console.log("[Archive] currentProfile in loadArchives:", currentProfile);
-  console.log("[Archive] currentProfile is defined:", typeof currentProfile !== "undefined");
+  console.log("[Archive] currentProfile is defined:", currentProfile !== undefined);
   if (!currentProfile) {
     console.log("[Archive] No profile, cannot load archives");
     return;
   }
 
   // Set the unit name display
-  if (elements.archiveUnitName && currentProfile.unitName) {
+  if (elements.archiveUnitName && currentProfile?.unitName) {
     elements.archiveUnitName.textContent = currentProfile.unitName;
     elements.archiveUnitName.classList.remove("hidden");
   }
@@ -199,10 +218,10 @@ async function loadArchives() {
   const archives = await ArchiveManager.getProfileArchives(currentProfile.id);
   console.log("[Archive] Got archives:", archives?.length || 0, archives);
 
-  elements.archivesList.innerHTML = "";
+  clearElement(elements.archivesList);
 
   if (!archives || archives.length === 0) {
-    elements.noArchives.textContent = "No archived programs";
+    setText(elements.noArchives, t("noArchives") || "No archived programs");
     elements.noArchives.classList.remove("hidden");
     return;
   }
@@ -210,24 +229,44 @@ async function loadArchives() {
   elements.noArchives.classList.add("hidden");
 
   archives.forEach((archive) => {
-    const info = extractArchiveInfo(archive.csvData);
+    const info = extractProgramInfo(archive.csvData);
 
     const card = document.createElement("div");
     card.className = "profile-card";
 
     const date = escapeHtml(archive.programDate) || "Unknown Date";
     const conducting = escapeHtml(info.conducting) || "";
-    const presiding = escapeHtml(info.presiding) || "";
 
-    card.innerHTML = `
-      <div class="profile-card-content">
-        <div class="profile-card-name">${date}</div>
-        <div class="profile-card-details">${conducting ? `Conducting: ${conducting}` : ""}</div>
-        <div class="profile-card-details">Speakers:</div>
-        ${info.speakers && info.speakers.length > 0 ? info.speakers.map((speaker) => `<div class="profile-card-details">${escapeHtml(speaker)}</div>`).join("") : "<div class=\"profile-card-details\">No speakers</div>"}
-      </div>
-    `;
+    const content = document.createElement("div");
+    content.className = "profile-card-content";
 
+    const dateDiv = document.createElement("div");
+    dateDiv.className = "profile-card-name";
+    dateDiv.textContent = date;
+    content.appendChild(dateDiv);
+
+    if (conducting) {
+      const conductingDiv = document.createElement("div");
+      conductingDiv.className = "profile-card-details";
+      conductingDiv.textContent = `Conducting: ${conducting}`;
+      content.appendChild(conductingDiv);
+    }
+
+    if (info.speakers?.length > 0) {
+      const speakersLabel = document.createElement("div");
+      speakersLabel.className = "profile-card-details";
+      speakersLabel.textContent = "Speakers:";
+      content.appendChild(speakersLabel);
+
+      info.speakers.forEach((speaker) => {
+        const speakerDiv = document.createElement("div");
+        speakerDiv.className = "profile-card-details";
+        speakerDiv.textContent = escapeHtml(speaker);
+        content.appendChild(speakerDiv);
+      });
+    }
+
+    card.appendChild(content);
     card.onclick = () => viewArchive(archive);
 
     elements.archivesList.appendChild(card);
@@ -236,19 +275,16 @@ async function loadArchives() {
 
 function viewArchive(archive) {
   console.log("[Archive] viewArchive called, currentProfile:", currentProfile);
-  console.log("[Archive] currentProfile is defined:", typeof currentProfile !== "undefined");
-  currentArchive = archive;
+  console.log("[Archive] currentProfile is defined:", currentProfile !== undefined);
 
   // Extract archive info for display
-  const info = extractArchiveInfo(archive.csvData);
+  const info = extractProgramInfo(archive.csvData);
 
   // Use renderers to properly format unit information
-  if (elements.unitName && info.unitName) renderers.unitName(info.unitName);
-  if (elements.unitAddress && info.unitAddress) renderers.unitAddress(info.unitAddress);
-  if (elements.date && archive.programDate) renderers.date(archive.programDate);
+  renderArchiveInfo(info, archive.programDate);
 
   // Render program data
-  elements.mainProgram.innerHTML = "";
+  elements.mainProgram.textContent = "";
   renderProgram(archive.csvData);
 
   // Show program view, hide list view
@@ -259,16 +295,23 @@ function viewArchive(archive) {
   document.body.classList.add("archive-view");
 }
 
-import { renderers } from "./utils/renderers.js";
+// Helper: Render archive metadata in UI
+function renderArchiveInfo(info, programDate) {
+  if (elements.unitName && info.unitName) renderers.unitName(info.unitName);
+  if (elements.unitAddress && info.unitAddress) renderers.unitAddress(info.unitAddress);
+  if (elements.date && programDate) renderers.date(programDate);
+}
 
 function renderProgram(rows) {
   if (!rows || !Array.isArray(rows)) {
-    elements.mainProgram.innerHTML = "<p>" + t("noProgramDataAvailable") + "</p>";
+    const paragraph = document.createElement("p");
+    paragraph.textContent = t("noProgramDataAvailable") || "No program data available";
+    elements.mainProgram.appendChild(paragraph);
     return;
   }
 
   // Clear existing content
-  elements.mainProgram.innerHTML = "";
+  elements.mainProgram.textContent = "";
 
   // Use the same rendering logic as the main application
   rows.forEach(({ key, value }) => {
@@ -282,15 +325,6 @@ function renderProgram(rows) {
   });
 }
 
-async function deleteArchive(archive) {
-  if (!confirm(`Delete archive for ${archive.programDate}?`)) {
-    return;
-  }
-
-  await ArchiveManager.deleteArchive(currentProfile.id, archive.programDate);
-  await loadArchives();
-}
-
 function setupEventListeners() {
   console.log("[Archive] Setting up event listeners");
 
@@ -300,7 +334,7 @@ function setupEventListeners() {
   if (backToHomeBtn) {
     backToHomeBtn.onclick = () => {
       console.log("[Archive] Back to home clicked");
-      window.location.href = "index.html";
+      globalThis.window.location.href = "index.html";
     };
   }
 
@@ -334,3 +368,6 @@ if (document.readyState === "loading") {
 } else {
   runInit();
 }
+
+// Export helper functions for testing
+export { escapeHtml, extractMetadataFromRow, extractSpeakers, extractProgramInfo };

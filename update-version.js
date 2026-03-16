@@ -2,7 +2,7 @@
 
 /**
  * Version Update Script
- * 
+ *
  * Usage: node update-version.js <new-version>
  * Example: node update-version.js 2.2.3
  */
@@ -51,7 +51,13 @@ const filesToUpdate = [
     name: "version.json",
     path: path.join(projectRoot, "version.json"),
     update: (content) => {
-      const json = JSON.parse(content);
+      let json;
+      try {
+        json = JSON.parse(content);
+      } catch (err) {
+        console.error(`[VERSION] Failed to parse version.json:`, err);
+        throw err;
+      }
       const oldVersion = json.version;
       json.version = newVersion;
       json.previousVersion = oldVersion;
@@ -74,17 +80,20 @@ const filesToUpdate = [
     name: "service-worker.js",
     path: path.join(projectRoot, "service-worker.js"),
     update: (content) => {
-      return content.replace(
-        /const VERSION = "[\d.]+";/,
-        `const VERSION = "${newVersion}";`
-      );
+      return content.replace(/const VERSION = "[\d.]+";/, `const VERSION = "${newVersion}";`);
     }
   },
   {
     name: "manifest.dev.webmanifest",
     path: path.join(projectRoot, "manifest.dev.webmanifest"),
     update: (content) => {
-      const json = JSON.parse(content);
+      let json;
+      try {
+        json = JSON.parse(content);
+      } catch (err) {
+        console.error(`[VERSION] Failed to parse manifest.dev.webmanifest:`, err);
+        throw err;
+      }
       json.version = newVersion;
       return JSON.stringify(json, null, 2);
     }
@@ -93,7 +102,13 @@ const filesToUpdate = [
     name: "manifest.webmanifest",
     path: path.join(projectRoot, "manifest.webmanifest"),
     update: (content) => {
-      const json = JSON.parse(content);
+      let json;
+      try {
+        json = JSON.parse(content);
+      } catch (err) {
+        console.error(`[VERSION] Failed to parse manifest.webmanifest:`, err);
+        throw err;
+      }
       json.version = newVersion;
       return JSON.stringify(json, null, 2);
     }
@@ -102,7 +117,13 @@ const filesToUpdate = [
     name: "manifest.prod.webmanifest",
     path: path.join(projectRoot, "manifest.prod.webmanifest"),
     update: (content) => {
-      const json = JSON.parse(content);
+      let json;
+      try {
+        json = JSON.parse(content);
+      } catch (err) {
+        console.error(`[VERSION] Failed to parse manifest.prod.webmanifest:`, err);
+        throw err;
+      }
       json.version = newVersion;
       return JSON.stringify(json, null, 2);
     }
@@ -123,7 +144,7 @@ filesToUpdate.forEach(({ name, path: filePath, update }) => {
 
     const originalContent = fs.readFileSync(filePath, "utf8");
     const updatedContent = update(originalContent);
-    
+
     fs.writeFileSync(filePath, updatedContent, "utf8");
     console.log(`✅ Updated: ${name}`);
     successCount++;

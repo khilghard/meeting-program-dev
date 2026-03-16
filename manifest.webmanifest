@@ -1,10 +1,10 @@
 {
   "name": "Sacrament Meeting Program",
-  "short_name": "SMP",
-  "version": "2.1.13",
-  "description": "Displays information related to this weeks sacrament meeting",
-  "scope": "/meeting-program/",
-  "start_url": "/meeting-program/",
+  "short_name": "Meeting Program",
+  "version": "2.2.11",
+  "description": "Official sacrament meeting program for The Church of Jesus Christ of Latter-day Saints",
+  "scope": "/",
+  "start_url": "/",
   "background_color": "#ffffff",
   "theme_color": "#2d5ba8",
   "display": "standalone",
@@ -20,6 +20,13 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "img/icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
     }
-  ]
+  ],
+  "apple_touch_icon": "img/icon.png",
+  "_comment": "This manifest is for LOCAL TESTING. For deployments, use: manifest.dev.webmanifest (for /meeting-program-dev/) or manifest.prod.webmanifest (for /meeting-program/)"
 }

@@ -33,8 +33,10 @@ Your program loads automatically. The app works offline and remembers your last 
 ## 📋 Table of Contents
 
 - [Quick Start](#-quick-start)
+- [What's New in v2.2.0](#-whats-new-in-v220)
 - [Site Assets](#️-site-assets)
 - [Multi-Language Support](#-multi-language-support)
+- [Installing the App as PWA](#-installing-the-app-as-pwa)
 - [Hosting on GitHub](#-hosting-on-github)
 - [Development](#-development)
 - [Testing](#-testing)
@@ -49,8 +51,23 @@ Your program loads automatically. The app works offline and remembers your last 
 - [Security & Sanitization](#-security--sanitization)
 - [Setting Up the Next Meeting](#-setting-up-the-next-meeting)
 - [Example Sheets](#-example-google-sheets-structure)
+- [Troubleshooting](#-troubleshooting)
 - [What's New in v2.0](#-whats-new-in-v20)
 - [Migration from v1.x](#migration-from-v1x)
+
+---
+
+## 🆕 What's New in v2.2.0
+
+**Version 2.2.0** (Released March 4, 2025) brings performance and usability improvements:
+
+- **Enhanced PWA Support** — Better service worker caching and lifecycle management
+- **Installation Promotion** — Prompts to install the app on your home screen (iOS & Android)
+- **Performance Optimizations** — Faster initial load times, optimized CSS, reduced bundle size
+- **Accessibility Improvements** — Better keyboard navigation, improved screen reader support, enhanced ARIA labels
+- **Storage Improvements** — Better handling of IndexedDB initialization and legacy data migration
+
+**For upgrading from v2.0 or v2.1:** Your data will be automatically migrated. No action needed.
 
 ---
 
@@ -137,8 +154,8 @@ To provide program content in multiple languages, use the extended CSV format:
 
 ```csv
 key,en,es,fr,swa
-unitName,Riverview Branch,Rama Riverview,Branche Riverview,Tawi la Riverview
-openingHymn,#1001 Come Thou Fount,#1001 Ven Ti Fount,#1001 Venez Source,#1001 Yesu Ni
+unitName,Riverview Branch
+openingHymn,1001
 speaker1,John Smith,Juan Garcia,Jean Dupont,Yohana Mto
 ```
 
@@ -154,6 +171,40 @@ The app displays the official Church name in each language:
 | Spanish  | La Iglesia de Jesucristo de los Santos de los Últimos Días |
 | French   | L'Église de Jésus-Christ des Saints des Derniers Jours     |
 | Swahili  | Kanisa La Yesu Kristo La Watakatifu wa Siku za Mwisho      |
+
+---
+
+## 📱 Installing the App as PWA
+
+The app can be installed on your home screen just like a native app. This gives you quick access without opening a browser.
+
+### On Android (Chrome)
+
+1. Open the app: https://khilghard.github.io/meeting-program
+2. Tap the **three dots menu** (⋮) at the top right
+3. Select **"Add to Home screen"** or **"Install app"**
+4. Tap **"Install"**
+5. The app icon appears on your home screen
+
+**Tip:** The app may also show an installation prompt automatically on first visit.
+
+### On iPhone/iPad (Safari)
+
+1. Open the app: https://khilghard.github.io/meeting-program
+2. Tap the **Share button** (square with arrow) at the bottom
+3. Scroll down and tap **"Add to Home Screen"**
+4. Tap **"Add"**
+5. The app icon appears on your home screen
+
+**Note:** On iOS, the app works best in "standalone" mode (appears full-screen without Safari UI).
+
+### Benefits of Installing
+
+- **Quick access** from your home screen
+- **Offline access** to programs you've viewed
+- **No browser chrome** — app looks native
+- **Fast loading** — app launches instantly
+- **Works without internet** — uses cached data
 
 ---
 
@@ -270,7 +321,7 @@ Your sheet should look like:
 | unitName    | Your Ward Name           |
 | unitAddress | 123 Main St, City, State |
 | date        | January 1, 2026          |
-| openingHymn | #62 All Creatures…       |
+| openingHymn | 62                       |
 | …           | …                        |
 
 You can copy/paste the example table below directly into your sheet.
@@ -422,22 +473,39 @@ All optional — include only what your unit uses.
 
 These keys define the main flow of the meeting.
 
-| Key                | Description       | Example Value                           |
-| ------------------ | ----------------- | --------------------------------------- |
-| `openingHymn`      | Opening hymn      | “#62 All Creatures of Our God and King” |
-| `openingPrayer`    | Opening prayer    | “By Invitation”                         |
-| `sacramentHymn`    | Sacrament hymn    | “#188 Thy Will, O Lord, Be Done”        |
-| `speaker1`         | First speaker     | “Sister Johnson”                        |
-| `speaker2`         | Second speaker    | “Elder Brown”                           |
-| `speaker3`         | Third speaker     | “Youth Speaker”                         |
-| `intermediateHymn` | Intermediate hymn | “#228 My Heavenly Father Loves Me”      |
-| `closingHymn`      | Closing hymn      | “#2 Praise to the Lord, the Almighty”   |
-| `closingPrayer`    | Closing prayer    | “By Invitation”                         |
+| Key                | Description       | Example Value      |
+| ------------------ | ----------------- | ------------------ |
+| `openingHymn`      | Opening hymn      | `"62"`            |
+| `openingPrayer`    | Opening prayer    | `"By Invitation"`  |
+| `sacramentHymn`    | Sacrament hymn    | `"188"`           |
+| `speaker1`         | First speaker     | `"Sister Johnson"` |
+| `speaker2`         | Second speaker    | `"Elder Brown"`    |
+| `speaker3`         | Third speaker     | `"Youth Speaker"`  |
+| `intermediateHymn` | Intermediate hymn | `"228|Accompanied by Sister Smith on the Piano"`           |
+| `closingHymn`      | Closing hymn      | `"2"`             |
+| `closingPrayer`    | Closing prayer    | `"By Invitation"`  |
+
+**🎵 Hymn Formatting Guide:**
+
+- **Regular Hymns**: Use with the number only
+  - Example: `62`
+  - Example: `1001`
+  - The app automatically adds a 🎵 emoji and looks up the correct title and generates a working link
+
+- **Children's Songs**: Prepend `CS` with a **space** before the number
+  - Example: `CS 2`
+  - Example: `CS 73a`
+  - **Important**: There must be a space between `CS` and the number
+
+- **Custom Text**: Add a pipe `|` followed by custom text below the hymn
+  - Example: `62|Sung by the Primary Children`
+  - Example: `CS 2|Accompanied on the piano by Sister Smith`
+  - This displays an extra line below the hymn title for notes
 
 **Notes:**
 
 - You can add as many speakers as you want (`speaker1`, `speaker2`, `speaker3`, etc.).
-- Hymns can include numbers, titles, or both.
+- Only the hymn **number** is needed - the app looks up the correct title automatically.
 
 ---
 
@@ -599,9 +667,18 @@ Below is a clear explanation of what **will** work and what **will not** work.
 ### **Hymn formatting**
 
 ```
-#62 All Creatures of Our God and King
-#188 Thy Will~ O Lord, Be Done
+62
+1001
+CS 2
+CS 73a
+62|Sung by the Primary Children
 ```
+
+**Important:**
+
+- Regular hymns: just the number only (e.g., `62`)
+- Children's songs: `CS` + **space** + number (e.g., `CS 2`, `CS 73a`)
+- Custom text: Use `|` to add a note below the hymn (e.g., `|Sung by Primary`)
 
 ### **Leadership formatting**
 
@@ -768,9 +845,11 @@ This guarantees that the program members see on Sunday matches what you intended
 ## 📋 Example Google Sheets Structure
 
 | key              | en                                                                                                                                                                                                                            |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
 | unitName         | Unit Name                                                                                                                                                                                                                     |
 | stakeName        | Stake Name                                                                                                                                                                                                                    |
+| obsolete         | false Name                                                                                                                                                                                                                    |
+| migrationUrl     |  Name                                                                                                                                                                                                                    |
 | unitAddress      | 123 Actual Ave~ City US 123245                                                                                                                                                                                                |
 | link             | Homepage \| <OfficialHomePageLink>                                                                                                                                                                                            |
 | date             | January 1~ 2026                                                                                                                                                                                                               |
@@ -779,17 +858,17 @@ This guarantees that the program members see on Sunday matches what you intended
 | musicDirector    | Person1                                                                                                                                                                                                                       |
 | musicOrganist    | Person2                                                                                                                                                                                                                       |
 | horizontalLine   | Announcements                                                                                                                                                                                                                 |
-| openingHymn      | #62 All Creatures of Our God and King                                                                                                                                                                                         |
+| openingHymn      | 62                                                                                                                                                                                                                            |
 | openingPrayer    | By Invitation                                                                                                                                                                                                                 |
 | horizontalLine   | Branch or Stake Business                                                                                                                                                                                                      |
-| sacramentHymn    | #188 Thy Will~ O Lord~ Be Done                                                                                                                                                                                                |
+| sacramentHymn    | 188                                                                                                                                                                                                                           |
 | horizontalLine   | Ordinance of the Sacrament                                                                                                                                                                                                    |
 | speaker1         | Speaker One                                                                                                                                                                                                                   |
 | speaker2         | Speaker Two                                                                                                                                                                                                                   |
-| intermediateHymn | #228 (CS) My Heavenly Father Loves Me                                                                                                                                                                                         |
+| intermediateHymn | CS 2                                                                                                                                                                                                                          | Sung by the Primary Children |
 | speaker3         | Speaker Three                                                                                                                                                                                                                 |
 | speaker4         | Speaker Four                                                                                                                                                                                                                  |
-| closingHymn      | #2 Praise to the Lord~ the Almighty                                                                                                                                                                                           |
+| closingHymn      | 2                                                                                                                                                                                                                             |
 | closingPrayer    | By Invitation                                                                                                                                                                                                                 |
 | horizontalLine   | Dismiss to Class                                                                                                                                                                                                              |
 | horizontalLine   | Local Leaders                                                                                                                                                                                                                 |
@@ -845,52 +924,147 @@ General Information,Información general,Informations générales,Habari za Juml
 
 ---
 
-## 🆕 What's New in v2.0
+## 🔧 Troubleshooting
 
-### Offline-First Architecture
+### Service Worker Issues
+
+If the app isn't updating or you're seeing old versions:
+
+1. **Uninstall the PWA** (if installed):
+   - Android: Long-press app icon → "Uninstall"
+   - iOS: Long-press app icon → "Remove App" → "Remove from Home Screen"
+
+2. **Clear browser cache**:
+   - Open Settings in your browser
+   - Find "Clear Browsing Data" or "Clear Cache"
+   - Clear all data for the site
+
+3. **Unregister the service worker**:
+   - On most browsers: Settings → Advanced → Application → Service Workers
+   - Find the meeting-program worker and click "Unregister"
+
+4. **Reload the app**:
+   - Visit https://khilghard.github.io/meeting-program
+   - Force refresh: Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)
+
+5. **Reinstall the PWA** (if desired)
+
+### QR Scanner Not Working
+
+- **Check camera permissions**: Your browser needs permission to access the camera
+  - Go to Settings → Site Settings → Camera
+  - Make sure the meeting-program site is allowed
+- **Try manual URL entry**: Use "Enter Sheet URL Manually" button instead
+- **Use good lighting**: Make sure the QR code is well-lit and in focus
+- **Try a different browser**: Some browsers have better QR detection
+
+### Program Won't Load
+
+- **Check internet connection**: You need internet to load programs initially
+- **Verify the QR code**: Make sure it scans correctly and points to a valid Google Sheet
+- **Check Google Sheets settings**: Make sure the sheet is shared with "Anyone with the link" (Viewer access)
+- **Check the CSV link**: Make sure it ends with `/gviz/tq?tqx=out:csv`
+
+### Offline Mode Shows Old Program
+
+- **This is intentional**: The app shows the last cached program when offline
+- **Check your internet**: The banner should disappear when you go back online
+- **Reload when online**: Tap "Try Now" to refresh the program when internet returns
+
+### Language Not Changing
+
+- **Check storage**: Your language preference is saved locally
+- **Reload the page**: Changes may not take effect until you reload
+- **Try clearing cache**: If persistent, clear browser cache for the site
+- **Check supported languages**: Only English (en), Spanish (es), French (fr), and Swahili (swa) are supported
+
+### Data Loss After Update
+
+- **Data is usually preserved**: Updates shouldn't affect your saved programs
+- **Copy another device**: If on a different device, profile data is separate. Reload the program using the share QR code from a neighbor
+
+Still having issues? Open a GitHub issue with:
+
+- Device and browser (e.g., "iPhone 13, Safari")
+- What you were doing when the problem occurred
+- Steps you've already tried
+- Screenshots if possible
+
+## 🖥️ Developer Documentation
+
+For developers looking to contribute or understand the codebase:
+
+- **[FEATURES.md](FEATURES.md)** — Complete list of current features and implementation details
+- **[docs/REQUIREMENTS\_\*.md](docs/)** — Detailed specifications for each feature area
+- **[js/](js/)** — Main application code
+  - `main.js` — App initialization
+  - `i18n/` — Internationalization (translations)
+  - `data/` — IndexedDB and data management
+  - `utils/` — Utilities (CSV parsing, sanitization, rendering)
+- **[test/](test/)** — Unit tests with Vitest
+- **[e2e/](e2e/)** — End-to-end tests with Playwright
+- **[css/styles.css](css/styles.css)** — App styling and theme variables
+
+See [Contributing Guide](CONTRIBUTING.md) for branch strategy and PR guidelines.
+
+---
+
+## 🆕 What's New in v2.0 & v2.1
+
+These sections describe major improvements from earlier versions. Current version is v2.2.0 — see [What's New in v2.2.0](#-whats-new-in-v220) for latest changes.
+
+### Offline-First Architecture (v2.0)
 
 - **IndexedDB** replaces localStorage for reliable data persistence
 - **Service Worker** caches all assets for offline use
 - **Works without internet** - previous programs available offline
 - **Auto-sync** when network returns
 
-### Archive System
+### Archive System (v2.0)
 
 - **2 years of history** or up to 10MB of storage
-- **Timeline view** - newest programs first
-- **Automatic cleanup** - oldest programs removed as needed
-- **Data integrity** - checksums verify archive content
+- **Timeline view** — newest programs first
+- **Automatic cleanup** — oldest programs removed as needed
+- **Data integrity** — checksums verify archive content
 
-### Migration Guidance
-
-- **Automatic detection** when programs need updating
-- **Non-intrusive notifications** - doesn't interrupt service
-- **"Remind Me Later"** - defers until next Sunday
-- **Works offline** - migration checks run in background
-
-### Enhanced Profile Management
-
-- **Multiple wards** - switch between congregations easily
-- **Visual status** - green (active), yellow (needs update), gray (archived)
-- **Search/filter** - find profiles quickly
-- **Language flags** - see language at a glance
-
-### Print-Friendly
+### Print-Friendly (v2.0)
 
 - **One-click print** button
-- **Clean output** - no UI elements
-- **Optimized layout** - easy to read
+- **Clean output** — no UI elements
+- **Optimized layout** — easy to read
 
-### Data Backup
+### Data Backup (v2.0)
 
 - **Export** all data as JSON
 - **Import** from backup file
 - **Transfer** between devices
 
----
+### Migration Guidance (v2.0)
+
+- **Automatic detection** when programs need updating
+- **Non-intrusive notifications** — doesn't interrupt service
+- **"Remind Me Later"** — defers until next Sunday
+- **Works offline** — migration checks run in background
+
+### Enhanced Profile Management (v2.0)
+
+- **Multiple wards** — switch between congregations easily
+- **Visual status** — green (active), yellow (needs update), gray (archived)
+- **Search/filter** — find profiles quickly
+- **Language flags** — see language at a glance
+
+### v2.1 Enhancements
+
+- **Archives per profile** — separate history for each unit
+- **Hymn website links** — click hymn numbers to see full lyrics
+- **Honorific translation** — automatically translates titles like "Brother", "Sister", etc. to your language
+- **Improved UI translations** — archive pages now support all 4 languages
+- **Performance optimizations** — faster rendering and better caching
 
 ## Migration from v1.x
 
 v2.0 automatically migrates your existing profiles from localStorage to IndexedDB. Your data is preserved and will be available after the update. No action required.
 
 If you encounter any issues, you can manually export your data from v1.x and import it into v2.0 using the new backup feature.
+
+**v2.2.0** continues to support these migrations and automatically handles any remaining legacy data.

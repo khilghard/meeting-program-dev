@@ -35,6 +35,39 @@ export const fullProgramUrl =
   "https://docs.google.com/spreadsheets/d/alpine-ward-2026-02-15/gviz/tq";
 
 /**
+ * Comprehensive program with ALL required keys
+ * Used for comprehensive E2E testing to verify all data is rendered
+ */
+export const comprehensiveProgram = `key,value
+unitName,Complete Test Ward
+stakeName,Complete Stake
+obsolete,false
+migrationUrl,https://docs.google.com/spreadsheets/d/migrated-ward/gviz/tq
+unitAddress,100 Complete Street~ Test City~ UT 12345
+link,Ward Homepage | https://example-ward.org
+date,March 5~ 2026
+presiding,Bishop Complete Leader
+conducting,Brother Conducting Leader
+musicDirector,Sister Music Director
+musicOrganist,Brother Music Organist
+horizontalLine,Opening
+openingHymn,#97 Lord We Come Before Thee Now | Accompanied on the piano by Sister Smith
+openingPrayer,Sister Opening Prayer
+horizontalLine,Sacrament Service
+sacramentHymn,#169 Bread of Life
+horizontalLine,Speakers and Music
+speaker1,Brother Speaker One Topic
+intermediateHymn,#228 My Heavenly Father Loves Me
+speaker2,Sister Speaker Two Topic
+closingHymn,#347 God is Love
+closingPrayer,Brother Closing Prayer
+horizontalLine,Closing
+`;
+
+export const comprehensiveProgramUrl =
+  "https://docs.google.com/spreadsheets/d/comprehensive-ward/gviz/tq";
+
+/**
  * Minimal program with just essential fields
  */
 export const minimalProgram = `key,value
@@ -248,6 +281,7 @@ export const specialCharsProgramUrl =
  */
 export const mockPrograms = {
   fullProgram,
+  comprehensiveProgram,
   minimalProgram,
   week1WardA,
   week2WardA,
@@ -263,6 +297,7 @@ export const mockPrograms = {
 
 export const mockProgramUrls = {
   fullProgram: fullProgramUrl,
+  comprehensiveProgram: comprehensiveProgramUrl,
   minimalProgram: minimalProgramUrl,
   week1WardA: week1WardAUrl,
   week2WardA: week2WardAUrl,

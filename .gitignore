@@ -29,6 +29,9 @@
 
 .idea/
 local.properties
+coverage/
+.mastracode
+.scannerwork
 
 # Gradle and Maven with auto-import
 # When using Gradle or Maven with auto-import, you should exclude module files,
@@ -214,3 +217,8 @@ dist
 .aider*
 playwright-report
 test-results
+
+# Rigour Artifacts
+rigour-report.json
+rigour-fix-packet.json
+.rigour/
