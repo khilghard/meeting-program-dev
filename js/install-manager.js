@@ -145,14 +145,15 @@ export function ensureInstallButton() {
  * Initialize install manager
  */
 export function init() {
+  // Don't create or initialize install button if app is already installed
+  if (isPWAInstalled()) {
+    console.log("PWA is already installed");
+    return;
+  }
+
   // Ensure install button exists in DOM
   ensureInstallButton();
 
   // Initialize UI
   initInstallUI();
-
-  // Check if already installed
-  if (isPWAInstalled()) {
-    console.log("PWA is already installed");
-  }
 }
