@@ -747,9 +747,10 @@ async function init() {
     // If database migration occurred, reload the page to re-initialize with new data
     if (migrationResult && migrationResult.shouldReload) {
       console.log("[INIT] Database migration completed, reloading page to re-initialize...");
-      // Wait a moment before reload to ensure all metadata is written
-      await new Promise(resolve => setTimeout(resolve, 500));
-      window.location.reload();
+      // Wait longer to ensure all IndexedDB metadata is fully flushed and committed
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Force hard refresh from server, bypassing service worker cache
+      window.location.reload(true);
       return;
     }
 
