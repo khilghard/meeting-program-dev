@@ -269,9 +269,11 @@ async function initializePrerequisites() {
   }
 
   await initArchiveManager();
-  await Profiles.initProfiles();
+  const migrationResult = await Profiles.initProfiles();
   console.log("[INIT] Profiles loaded:", Profiles.getProfiles().length);
   initProfileUI();
+  
+  return migrationResult || { migratedSuccessfully: false, shouldReload: false };
 }
 
 // Helper: Determine the sheet URL to load
@@ -737,7 +739,16 @@ async function init() {
     console.log(`[VERSION] App running version: ${versionData.version}`);
 
     console.log("[INIT] Starting initialization...");
-    await initializePrerequisites();
+    const migrationResult = await initializePrerequisites();
+    
+    // Check if database migration occurred and triggered a reload
+    if (migrationResult && migrationResult.shouldReload) {
+      console.log("[INIT] Database migration detected! Reloading page to initialize with migrated data...");
+      // Wait a moment for metadata to be written
+      await new Promise(resolve => setTimeout(resolve, 500));
+      window.location.reload();
+      return;
+    }
 
     const sheetUrl = await determineSheetUrl();
 

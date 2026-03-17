@@ -23,12 +23,15 @@ let cache = {
   initialized: false
 };
 
+let migrationResult = { migratedSuccessfully: false, shouldReload: false };
+
 async function ensureInitialized() {
   if (!cache.initialized) {
-    await initProfileManager();
+    migrationResult = await initProfileManager();
     await refreshCache();
     cache.initialized = true;
   }
+  return migrationResult;
 }
 
 async function refreshCache() {
@@ -176,5 +179,9 @@ export function getCurrentProfile() {
  * @returns {Promise<void>}
  */
 export async function initProfiles() {
-  await ensureInitialized();
+  return await ensureInitialized();
+}
+
+export function getMigrationResult() {
+  return migrationResult;
 }

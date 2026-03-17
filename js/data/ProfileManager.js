@@ -20,8 +20,10 @@ import { clearHistory } from "../history.js";
 const LEGACY_STORAGE_KEY = "meeting_program_profiles";
 const LEGACY_SELECTED_KEY = "meeting_program_selected_id";
 const SELECTED_PROFILE_KEY = "meeting_program_selected_id";
+const APP_VERSION_KEY = "app_version";
 
 let initialized = false;
+let migrationResult = { migratedSuccessfully: false, shouldReload: false };
 
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -43,10 +45,99 @@ function validateUrl(url) {
   }
 }
 
+// Migrate from old database when upgrading versions
+async function migrateFromOldDatabase() {
+  try {
+    // Check if old database exists
+    const databases = await indexedDB.databases();
+    const hasOldDb = databases.some(db => db.name === "MeetingProgramDB");
+    
+    if (!hasOldDb) {
+      console.log("[ProfileManager] No old database to migrate from");
+      return { migratedSuccessfully: false, shouldReload: false };
+    }
+    
+    // Check if new database already has profiles
+    const newProfiles = await dbGetAllProfiles();
+    if (newProfiles.length > 0) {
+      console.log("[ProfileManager] New database already has profiles, no migration needed");
+      return { migratedSuccessfully: false, shouldReload: false };
+    }
+    
+    // Migrate profiles from old database
+    console.log("[ProfileManager] Old database found, attempting migration...");
+    const oldProfiles = await new Promise((resolve) => {
+      const req = indexedDB.open("MeetingProgramDB");
+      req.onsuccess = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains("profiles")) {
+          db.close();
+          resolve([]);
+          return;
+        }
+        
+        const tx = db.transaction("profiles", "readonly");
+        const store = tx.objectStore("profiles");
+        const getAllReq = store.getAll();
+        
+        getAllReq.onsuccess = () => {
+          db.close();
+          resolve(getAllReq.result);
+        };
+        getAllReq.onerror = () => {
+          db.close();
+          resolve([]);
+        };
+      };
+      req.onerror = () => resolve([]);
+    });
+    
+    if (!oldProfiles || oldProfiles.length === 0) {
+      console.log("[ProfileManager] Old database has no profiles to migrate");
+      return { migratedSuccessfully: false, shouldReload: false };
+    }
+    
+    // Copy profiles to new database
+    console.log(`[ProfileManager] Migrating ${oldProfiles.length} profiles...`);
+    for (const profile of oldProfiles) {
+      try {
+        await dbSaveProfile(profile);
+        console.log(`[ProfileManager] Migrated: ${profile.unitName}`);
+      } catch (e) {
+        console.warn(`[ProfileManager] Failed to migrate profile: ${profile.unitName}`, e);
+      }
+    }
+    
+    // Delete old database
+    try {
+      await new Promise((resolve) => {
+        const req = indexedDB.deleteDatabase("MeetingProgramDB");
+        req.onsuccess = () => {
+          console.log("[ProfileManager] Deleted old database");
+          resolve();
+        };
+        req.onerror = () => resolve();
+      });
+    } catch (e) {
+      console.warn("[ProfileManager] Failed to delete old database", e);
+    }
+    
+    console.log("[ProfileManager] Migration complete!");
+    return { migratedSuccessfully: true, shouldReload: true };
+  } catch (e) {
+    console.error("[ProfileManager] Migration error:", e);
+    return { migratedSuccessfully: false, shouldReload: false };
+  }
+}
+
 export async function initProfileManager() {
-  if (initialized) return;
+  if (initialized) {
+    return migrationResult;
+  }
   await createDatabase();
+  migrationResult = await migrateFromOldDatabase();
   initialized = true;
+  return migrationResult;
 }
 
 export async function addProfile(url, unitName, stakeName) {
