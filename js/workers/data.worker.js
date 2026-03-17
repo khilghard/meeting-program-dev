@@ -191,3 +191,6 @@ function cleanupOldArchives(archives, daysOld = 730, maxArchives = 100) {
 
   return { removed, kept };
 }
+
+// Export functions for testing
+export { parseCSV, calculateChecksum, compareData, sortData, cleanupOldArchives };

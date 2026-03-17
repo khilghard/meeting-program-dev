@@ -248,7 +248,7 @@ async function fetchWithTimeout(url, timeout) {
 }
 
 // Helper: Setup initialization prerequisites
-async function initializePrerequisites() {
+async function initializePrerequisites(currentVersion) {
   const { getCanonicalUrl } = await import("./config/baseUrl.js");
   const canonicalUrl = await getCanonicalUrl();
   const canonicalLink = document.querySelector("#canonical-link");
@@ -269,15 +269,20 @@ async function initializePrerequisites() {
   }
 
   await initArchiveManager();
-  await Profiles.initProfiles();
+  const migrationResult = await Profiles.initProfiles(currentVersion);
   console.log("[INIT] Profiles loaded:", Profiles.getProfiles().length);
+
+  
   initProfileUI();
+  
+  return migrationResult;
 }
 
 // Helper: Determine the sheet URL to load
 async function determineSheetUrl() {
   const params = new URLSearchParams(globalThis.window.location.search);
   let sheetUrl = params.get("url");
+  
   const currentProfile = Profiles.getCurrentProfile();
 
   if (!currentProfile && !sheetUrl) {
@@ -737,13 +742,28 @@ async function init() {
     console.log(`[VERSION] App running version: ${versionData.version}`);
 
     console.log("[INIT] Starting initialization...");
-    await initializePrerequisites();
+    const migrationResult = await initializePrerequisites(versionData.version);
+
+    // If database migration occurred, reload the page to re-initialize with new data
+    if (migrationResult && migrationResult.shouldReload) {
+      console.log("[INIT] Database migration completed, reloading page to re-initialize...");
+      // Wait longer to ensure all IndexedDB metadata is fully flushed and committed
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Force hard refresh from server, bypassing service worker cache
+      window.location.reload(true);
+      return;
+    }
 
     const sheetUrl = await determineSheetUrl();
 
     if (!sheetUrl) {
       await handleZeroState();
       return;
+    }
+
+    // Save sheetUrl to localStorage as fallback for future upgrades
+    if (sheetUrl) {
+      localStorage.setItem("sheetUrl", sheetUrl);
     }
 
     await handleActiveState(sheetUrl);

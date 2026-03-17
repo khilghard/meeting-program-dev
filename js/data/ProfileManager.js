@@ -20,8 +20,175 @@ import { clearHistory } from "../history.js";
 const LEGACY_STORAGE_KEY = "meeting_program_profiles";
 const LEGACY_SELECTED_KEY = "meeting_program_selected_id";
 const SELECTED_PROFILE_KEY = "meeting_program_selected_id";
+const APP_VERSION_KEY = "app_version";
 
 let initialized = false;
+
+// Detect if this is a version upgrade that needs reload
+async function migrateFromOldDatabase(currentVersion) {
+  try {
+    console.log("[ProfileManager] Checking for old database to migrate...");
+    console.log("[ProfileManager] Current app version:", currentVersion);
+    
+    // Get stored app version from metadata
+    try {
+      const storedVersion = await getMetadata(APP_VERSION_KEY);
+      console.log("[ProfileManager] Stored app version:", storedVersion);
+      
+      // If version changed, we may need to reload after migration
+      if (storedVersion && storedVersion !== currentVersion) {
+        console.log(`[ProfileManager] Version changed from ${storedVersion} to ${currentVersion}`);
+      }
+    } catch (e) {
+      console.log("[ProfileManager] No stored version found (first run or reset)");
+    }
+    
+    // Check if old database "MeetingProgramDB" exists
+    const databases = await indexedDB.databases();
+    const hasOldDb = databases.some(db => db.name === "MeetingProgramDB");
+    const hasNewDb = databases.some(db => db.name !== "MeetingProgramDB");
+    
+    if (!hasOldDb || !hasNewDb) {
+      console.log("[ProfileManager] No migration needed - both databases don't exist");
+      // Store current version for next time
+      try {
+        await setMetadata(APP_VERSION_KEY, currentVersion);
+      } catch (e) {
+        console.warn("[ProfileManager] Could not store version:", e);
+      }
+      return { migratedSuccessfully: false, shouldReload: false };
+    }
+    
+    // Get profiles from new database first
+    const newProfiles = await dbGetAllProfiles();
+    if (newProfiles.length > 0) {
+      console.log("[ProfileManager] New database already has profiles, skipping migration");
+      // Store current version
+      try {
+        await setMetadata(APP_VERSION_KEY, currentVersion);
+      } catch (e) {
+        console.warn("[ProfileManager] Could not store version:", e);
+      }
+      return { migratedSuccessfully: false, shouldReload: false };
+    }
+    
+    console.log("[ProfileManager] New database is empty, attempting to migrate from old database...");
+    
+    // Open old database and get profiles
+    const oldProfiles = await new Promise((resolve, reject) => {
+      const req = indexedDB.open("MeetingProgramDB");
+      req.onsuccess = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains("profiles")) {
+          db.close();
+          resolve([]);
+          return;
+        }
+        
+        const tx = db.transaction("profiles", "readonly");
+        const store = tx.objectStore("profiles");
+        const getAllReq = store.getAll();
+        
+        getAllReq.onsuccess = () => {
+          db.close();
+          resolve(getAllReq.result);
+        };
+        getAllReq.onerror = () => {
+          db.close();
+          reject(getAllReq.error);
+        };
+      };
+      req.onerror = () => reject(req.error);
+    });
+    
+    if (!oldProfiles || oldProfiles.length === 0) {
+      console.log("[ProfileManager] Old database has no profiles to migrate");
+      try {
+        await setMetadata(APP_VERSION_KEY, currentVersion);
+      } catch (e) {
+        console.warn("[ProfileManager] Could not store version:", e);
+      }
+      return { migratedSuccessfully: false, shouldReload: false };
+    }
+    
+    console.log(`[ProfileManager] Found ${oldProfiles.length} profiles in old database, migrating...`);
+    
+    // Migrate each profile to new database
+    for (const profile of oldProfiles) {
+      try {
+        await dbSaveProfile(profile);
+        console.log(`[ProfileManager] Migrated profile: ${profile.unitName} with url: ${profile.url.substring(0, 80)}`);
+      } catch (e) {
+        console.warn("[ProfileManager] Failed to migrate profile:", e);
+      }
+    }
+    
+    // Try to set selected profile if one exists
+    try {
+      const selectedReq = await new Promise((resolve, reject) => {
+        const req = indexedDB.open("MeetingProgramDB");
+        req.onsuccess = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains("metadata")) {
+            db.close();
+            resolve(null);
+            return;
+          }
+          
+          const tx = db.transaction("metadata", "readonly");
+          const store = tx.objectStore("metadata");
+          const getReq = store.get("meeting_program_selected_id");
+          
+          getReq.onsuccess = () => {
+            db.close();
+            resolve(getReq.result?.value || null);
+          };
+          getReq.onerror = () => {
+            db.close();
+            reject(getReq.error);
+          };
+        };
+        req.onerror = () => reject(req.error);
+      });
+      
+      if (selectedReq) {
+        await setMetadata("meeting_program_selected_id", selectedReq);
+        console.log("[ProfileManager] Migrated selected profile ID");
+      }
+    } catch (e) {
+      console.warn("[ProfileManager] Failed to migrate selected profile ID:", e);
+    }
+    
+    // Delete old database
+    try {
+      await new Promise((resolve, reject) => {
+        const req = indexedDB.deleteDatabase("MeetingProgramDB");
+        req.onsuccess = () => {
+          console.log("[ProfileManager] Deleted old MeetingProgramDB");
+          resolve();
+        };
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) {
+      console.warn("[ProfileManager] Failed to delete old database:", e);
+    }
+    
+    console.log("[ProfileManager] Migration complete!");
+    
+    // Store current version to prevent re-migration
+    try {
+      await setMetadata(APP_VERSION_KEY, currentVersion);
+      console.log("[ProfileManager] Stored app version:", currentVersion);
+    } catch (e) {
+      console.warn("[ProfileManager] Could not store version:", e);
+    }
+    
+    return { migratedSuccessfully: true, shouldReload: true };
+  } catch (e) {
+    console.error("[ProfileManager] Old database migration failed:", e);
+    return { migratedSuccessfully: false, shouldReload: false };
+  }
+}
 
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -43,10 +210,20 @@ function validateUrl(url) {
   }
 }
 
-export async function initProfileManager() {
-  if (initialized) return;
+let migrationResult = { migratedSuccessfully: false, shouldReload: false };
+
+export async function initProfileManager(currentVersion) {
+  if (initialized) {
+    return migrationResult;
+  }
   await createDatabase();
+  migrationResult = await migrateFromOldDatabase(currentVersion || "unknown");
   initialized = true;
+  return migrationResult;
+}
+
+export function getMigrationResult() {
+  return migrationResult;
 }
 
 export async function addProfile(url, unitName, stakeName) {

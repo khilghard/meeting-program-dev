@@ -370,6 +370,20 @@ function renderLineBreak(value) {
   container.appendChild(hr);
 }
 
+function normalizeRenderableKey(rawKey) {
+  const key = (rawKey || "").trim().replace(/^\uFEFF/, "");
+
+  if (/^speaker\d+$/i.test(key)) {
+    return "speaker";
+  }
+
+  if (/^intermediatehymn\d+$/i.test(key)) {
+    return "intermediateHymn";
+  }
+
+  return key;
+}
+
 const renderers = {
   unitName: renderUnitName,
   unitAddress: renderUnitAddress,
@@ -414,15 +428,41 @@ export {
 };
 
 function renderProgram(rows) {
+  let speakerLikeInputCount = 0;
+  let renderedSpeakerCount = 0;
+
   rows.forEach(({ key, value }) => {
-    const isHorizontalLine = key.toLowerCase() === "horizontalline";
+    const normalizedKey = normalizeRenderableKey(key);
+    const isHorizontalLine = normalizedKey.toLowerCase() === "horizontalline";
     const isEmpty = !value || value.trim() === "";
+
+    if (/^speaker\d*$/i.test((key || "").trim()) && !isEmpty) {
+      speakerLikeInputCount++;
+    }
 
     if (isEmpty && !isHorizontalLine) return;
 
-    const renderer = renderers[key];
-    if (renderer) renderer(value || "");
+    const renderer = renderers[normalizedKey];
+    if (renderer) {
+      renderer(value || "");
+      if (normalizedKey === "speaker") {
+        renderedSpeakerCount++;
+      }
+      return;
+    }
+
+    if (/^speaker/i.test((key || "").trim())) {
+      console.warn(
+        `[renderProgram] Unmapped speaker key: "${key}" (normalized: "${normalizedKey}")`
+      );
+    }
   });
+
+  if (speakerLikeInputCount > 0 && renderedSpeakerCount === 0) {
+    console.warn(
+      `[renderProgram] Speaker rows detected (${speakerLikeInputCount}) but none were rendered.`
+    );
+  }
 
   const alternateVersion = document.getElementById("the-version");
   if (alternateVersion) {
