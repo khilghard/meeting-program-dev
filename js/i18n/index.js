@@ -97,7 +97,13 @@ const translationsData = {
     remindMeLater: "Remind Me Later",
     migrationLoading: "Loading new program...",
     migrationSuccess: "New program loaded successfully!",
-    migrationError: "Failed to load new program. Please try again."
+    migrationError: "Failed to load new program. Please try again.",
+    "diagnostic.buttonLabel": "Report issue with diagnostic data",
+    "diagnostic.buttonTitle": "Click to report issue with diagnostic data",
+    "diagnostic.emailPrompt": "Please enter your email address (optional, but helpful for follow-up):",
+    "diagnostic.sending": "Sending diagnostic data...",
+    "diagnostic.success": "Opening your email client...",
+    "diagnostic.error": "Failed to collect diagnostic data. Please try again."
   },
   es: {
     churchName: "La Iglesia de Jesucristo de los Santos de los Últimos Días",
@@ -188,7 +194,13 @@ const translationsData = {
     remindMeLater: "Recordarme Después",
     migrationLoading: "Cargando nuevo programa...",
     migrationSuccess: "¡Nuevo programa cargado exitosamente!",
-    migrationError: "Error al cargar el nuevo programa. Por favor intente de nuevo."
+    migrationError: "Error al cargar el nuevo programa. Por favor intente de nuevo.",
+    "diagnostic.buttonLabel": "Reportar problema con datos de diagnóstico",
+    "diagnostic.buttonTitle": "Haga clic para reportar problema con datos de diagnóstico",
+    "diagnostic.emailPrompt": "Por favor ingrese su dirección de correo electrónico (opcional, pero útil para seguimiento):",
+    "diagnostic.sending": "Enviando datos de diagnóstico...",
+    "diagnostic.success": "Abriendo su cliente de correo electrónico...",
+    "diagnostic.error": "Error al recopilar datos de diagnóstico. Por favor intente de nuevo."
   },
   fr: {
     churchName: "L'Église de Jésus-Christ des Saints des Derniers Jours",
@@ -280,7 +292,13 @@ const translationsData = {
     remindMeLater: "Me Rappeler Plus Tard",
     migrationLoading: "Chargement du nouveau programme...",
     migrationSuccess: "Nouveau programme chargé avec succès!",
-    migrationError: "Échec du chargement du nouveau programme. Veuillez réessayer."
+    migrationError: "Échec du chargement du nouveau programme. Veuillez réessayer.",
+    "diagnostic.buttonLabel": "Signaler un problème avec les données de diagnostic",
+    "diagnostic.buttonTitle": "Cliquez pour signaler un problème avec les données de diagnostic",
+    "diagnostic.emailPrompt": "Veuillez entrer votre adresse e-mail (optionnel, mais utile pour le suivi):",
+    "diagnostic.sending": "Envoi des données de diagnostic...",
+    "diagnostic.success": "Ouverture de votre client e-mail...",
+    "diagnostic.error": "Échec de la collecte des données de diagnostic. Veuillez réessayer."
   },
   swa: {
     churchName: "Kanisa La Yesu Kristo La Watakatifu wa Siku za Mwisho",
@@ -371,7 +389,13 @@ const translationsData = {
     remindMeLater: "Nikumbushe Baadaye",
     migrationLoading: "Inapakia programu mpya...",
     migrationSuccess: "Programu mpya ilipakia kwa mafanikio!",
-    migrationError: "Imeshindwa kupakia programu mpya. Tafadhali jaribu tena."
+    migrationError: "Imeshindwa kupakia programu mpya. Tafadhali jaribu tena.",
+    "diagnostic.buttonLabel": "Ripoti tatizo na data ya kuchacha",
+    "diagnostic.buttonTitle": "Bonyeza kuripoti tatizo na data ya kuchacha",
+    "diagnostic.emailPrompt": "Tafadhali ingiza anwani yako ya barua pepe (si lazima, lakini inasaidia kwa uelekezi):",
+    "diagnostic.sending": "Inatuma data ya kuchacha...",
+    "diagnostic.success": "Inafungua mteja wako wa barua pepe...",
+    "diagnostic.error": "Imeshindwa kukusanya data ya kuchacha. Tafadhali jaribu tena."
   }
 };
 

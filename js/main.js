@@ -6,6 +6,8 @@ import { initArchiveManager } from "./data/ArchiveManager.js";
 import { t, getLanguage, initI18n, setLanguage } from "./i18n/index.js";
 import { fetchSheet, parseCSV } from "./utils/csv.js";
 import { createWorker } from "./workers/workerInterface.js";
+import { initConsoleCapture } from "./utils/console-capture.js";
+import { initDiagnosticButton } from "./components/diagnostic-button.js";
 import {
   renderers,
   renderProgram,
@@ -34,6 +36,9 @@ import { initTheme, toggleTheme, getTheme, applyTheme } from "./theme.js";
 import { createTimer, clearTimer, clearAllTimers } from "./utils/timer-manager.js";
 
 /* global MessageChannel */
+
+// DIAGNOSTIC: Initialize console capture first, before any other logging
+initConsoleCapture();
 
 // DIAGNOSTIC: Log that main.js has loaded
 console.log("[MAIN] main.js module loaded - version from package");
@@ -1702,6 +1707,7 @@ if (typeof globalThis.window !== "undefined" && !globalThis.window.__VITEST__) {
       initLanguageSelector();
       initHistoryUI();
       initShareUI();
+      initDiagnosticButton();
       promptPWAInstall();
       await updateStaticStrings();
       // Ensure help modal is properly initialized before init()
