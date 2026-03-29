@@ -26,7 +26,7 @@ console.log(`[SW] BASE_PATH detected: "${BASE_PATH}"`);
 // Legacy support - keep old MPPATH for existing users
 const MPPATH = BASE_PATH || "/meeting-program-dev";
 const APP_PREFIX = "smpwa";
-const VERSION = "2.2.13";
+const VERSION = "2.2.14";
 const CACHE_NAME = `${APP_PREFIX}-${VERSION}`;
 
 // All users now on 2.2.x - single unified cache scheme
@@ -59,6 +59,9 @@ const URLS = [
   `${BASE_PATH || MPPATH}/archive.html?v=${VERSION}`,
   `${BASE_PATH || MPPATH}/img/icon.png`,
   `${BASE_PATH || MPPATH}/img/favicon.png`,
+  `${BASE_PATH || MPPATH}/img/oil-lamp.webp`,
+  `${BASE_PATH || MPPATH}/img/oil-lamp.jpg`,
+  `${BASE_PATH || MPPATH}/img/sacrament.png`,
   `${BASE_PATH || MPPATH}/manifest.webmanifest`,
   "https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js",
   "https://cdn.jsdelivr.net/npm/dexie@4.3.0/+esm"

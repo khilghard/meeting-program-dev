@@ -316,9 +316,10 @@ function renderProgram(rows) {
   // Use the same rendering logic as the main application
   rows.forEach(({ key, value }) => {
     const isHorizontalLine = key.toLowerCase() === "horizontalline";
+    const allowEmpty = isHorizontalLine || key === "sacramentLine" || key === "oilLamp";
     const isEmpty = !value || value.trim() === "";
 
-    if (isEmpty && !isHorizontalLine) return;
+    if (isEmpty && !allowEmpty) return;
 
     const renderer = renderers[key];
     if (renderer) renderer(value || "");

@@ -25,7 +25,14 @@ function renderHymn(name) {
 }
 
 function renderSacramentHymn(name) {
-  appendRowHymn(t("sacramentHymn"), name, "sacramentHymn");
+  if (!document.getElementById("sacrament-section")) {
+    const container = document.getElementById("main-program");
+    const section = document.createElement("div");
+    section.id = "sacrament-section";
+    section.className = "sacrament-section";
+    container.appendChild(section);
+  }
+  appendRowHymn(t("sacramentHymn"), name, "sacramentHymn", "sacrament-section");
 }
 
 function renderOpeningPrayer(name) {
@@ -221,8 +228,8 @@ function appendRow(label, value, id) {
   container.appendChild(div);
 }
 
-function appendRowHymn(label, value, id) {
-  const container = document.getElementById("main-program");
+function appendRowHymn(label, value, id, containerIdOverride = null) {
+  const container = document.getElementById(containerIdOverride || "main-program");
   const div = document.createElement("div");
   div.id = id;
 
@@ -370,6 +377,63 @@ function renderLineBreak(value) {
   container.appendChild(hr);
 }
 
+function renderSacramentLine(value) {
+  const displayText = value && value.trim() ? value.trim() : t("ordinanceOfTheSacrament");
+
+  let section = document.getElementById("sacrament-section");
+  if (!section) {
+    const container = document.getElementById("main-program");
+    section = document.createElement("div");
+    section.id = "sacrament-section";
+    section.className = "sacrament-section";
+    container.appendChild(section);
+  }
+
+  const header = document.createElement("div");
+  header.className = "sacrament-section-header";
+
+  const titleEl = document.createElement("div");
+  titleEl.className = "sacrament-section-title";
+  const titleSpan = document.createElement("span");
+  titleSpan.textContent = displayText;
+  titleEl.appendChild(titleSpan);
+
+  header.appendChild(titleEl);
+
+  // Append header after the hymn row
+  section.appendChild(header);
+}
+
+function renderOilLamp(value) {
+  const container = document.getElementById("main-program");
+  const wrapper = document.createElement("div");
+  wrapper.className = "oil-lamp-container";
+
+  const picture = document.createElement("picture");
+
+  const webpSource = document.createElement("source");
+  webpSource.setAttribute("srcset", "img/oil-lamp.webp");
+  webpSource.setAttribute("type", "image/webp");
+
+  const img = document.createElement("img");
+  img.src = "img/oil-lamp.jpg";
+  img.alt = "Oil lamp";
+  img.className = "oil-lamp-img";
+
+  picture.appendChild(webpSource);
+  picture.appendChild(img);
+  wrapper.appendChild(picture);
+
+  if (value && value.trim()) {
+    const caption = document.createElement("p");
+    caption.className = "oil-lamp-caption";
+    caption.textContent = value.trim();
+    wrapper.appendChild(caption);
+  }
+
+  container.appendChild(wrapper);
+}
+
 function normalizeRenderableKey(rawKey) {
   const key = (rawKey || "").trim().replace(/^\uFEFF/, "");
 
@@ -401,6 +465,8 @@ const renderers = {
   musicDirector: renderMusicDirector,
   musicOrganist: renderOrganist,
   horizontalLine: renderLineBreak,
+  sacramentLine: renderSacramentLine,
+  oilLamp: renderOilLamp,
   leader: renderLeader,
   generalStatementWithLink: renderGeneralStatementWithLink,
   generalStatement: renderGeneralStatement,
@@ -415,6 +481,8 @@ export {
   renderUnitAddress,
   renderDate,
   renderLineBreak,
+  renderSacramentLine,
+  renderOilLamp,
   splitHymn,
   splitLeadership,
   appendRow,
@@ -434,13 +502,14 @@ function renderProgram(rows) {
   rows.forEach(({ key, value }) => {
     const normalizedKey = normalizeRenderableKey(key);
     const isHorizontalLine = normalizedKey.toLowerCase() === "horizontalline";
+    const allowEmpty = isHorizontalLine || normalizedKey === "sacramentLine" || normalizedKey === "oilLamp";
     const isEmpty = !value || value.trim() === "";
 
     if (/^speaker\d*$/i.test((key || "").trim()) && !isEmpty) {
       speakerLikeInputCount++;
     }
 
-    if (isEmpty && !isHorizontalLine) return;
+    if (isEmpty && !allowEmpty) return;
 
     const renderer = renderers[normalizedKey];
     if (renderer) {
