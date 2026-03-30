@@ -434,8 +434,18 @@ function addResetButtonToHelpModal() {
   createResetBtn.textContent = "Delete All Data & Reload";
   resetSection.appendChild(createResetBtn);
 
-  // Append to help-sections
+  // Append reset section at the end (after "Need a New Program?")
   helpSections.appendChild(resetSection);
+
+  // Move Close button just before the reset section, with an hr below it
+  const modalActions = document.querySelector("#help-modal .modal-actions");
+  if (modalActions) {
+    modalActions.style.cssText = "display: flex; justify-content: center; margin: 4px 0 8px;";
+    helpSections.insertBefore(modalActions, resetSection);
+    const razorHr = document.createElement("hr");
+    razorHr.className = "help-razor";
+    helpSections.insertBefore(razorHr, resetSection);
+  }
 
   // Attach click handler
   const resetBtn = document.getElementById("help-reset-btn");

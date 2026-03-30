@@ -1,10 +1,10 @@
 {
-  "version": "2.2.14",
-  "previousVersion": "2.2.13",
-  "releaseDate": "2026-03-29",
+  "version": "2.2.15",
+  "previousVersion": "2.2.14",
+  "releaseDate": "2026-03-30",
   "compatibility": {
     "minimum": "2.1.1",
-    "current": "2.2.14"
+    "current": "2.2.15"
   },
   "features": {
     "enhancedPWA": true,
