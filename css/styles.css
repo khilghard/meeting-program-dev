@@ -19,6 +19,8 @@
   --link-color: #004a9c;
   /* Solid dark blue for compliance */
   --accent-text: #ffffff;
+  --sacrament-accent: #7a5c2e;
+  --sacrament-rule: rgba(0, 0, 0, 0.15);
 
   /* Spacing & Sizes */
   --transition-speed: 0.3s;
@@ -40,6 +42,8 @@
   --offline-text: #ffb7b7;
   --hr-line: #666666;
   --link-color: #90caf9;
+  --sacrament-accent: #c8ddf5;
+  --sacrament-rule: rgba(255, 255, 255, 0.15);
 }
 
 /* =========================================================
@@ -626,7 +630,120 @@ body.archive-view::after {
 }
 
 /* =========================================================
-   8. FOOTER & MISC
+   8. SACRAMENT SECTION
+   ========================================================= */
+
+.sacrament-section {
+  margin: 36px 0;
+  padding: 20px;
+  border-radius: 10px;
+  background: var(--card-bg);
+  position: relative;
+  overflow: hidden;
+  box-shadow:
+    rgba(14, 30, 37, 0.12) 0px 2px 4px 0px,
+    rgba(14, 30, 37, 0.32) 0px 2px 16px 0px;
+}
+
+.sacrament-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url(../img/sacrament.png);
+  background-size: 100% auto;
+  background-repeat: no-repeat;
+  background-position: center;
+  opacity: 0.28;
+  pointer-events: none;
+  z-index: 0;
+  border-radius: 10px;
+}
+
+.sacrament-section > * {
+  position: relative;
+  z-index: 1;
+}
+
+[data-theme="dark"] .sacrament-section {
+  box-shadow:
+    rgba(0, 0, 0, 0.3) 0px 2px 4px 0px,
+    rgba(0, 0, 0, 0.6) 0px 2px 16px 0px;
+}
+
+.sacrament-section-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-top: 16px;
+  padding-top: 8px;
+  color: var(--sacrament-accent);
+}
+
+.sacrament-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--sacrament-accent);
+  margin-top: 8px;
+}
+
+.sacrament-section-title::before {
+  content: "";
+  flex: 1;
+  height: 2px;
+  background: linear-gradient(to right, transparent, var(--hr-line));
+}
+
+.sacrament-section-title::after {
+  content: "";
+  flex: 1;
+  height: 2px;
+  background: linear-gradient(to left, transparent, var(--hr-line));
+}
+
+.sacrament-section-title span {
+  flex-shrink: 0;
+}
+
+/* =========================================================
+   9. OIL LAMP IMAGE
+   ========================================================= */
+
+.oil-lamp-container {
+  margin: 24px auto;
+  width: 70%;
+  text-align: center;
+}
+
+.oil-lamp-img {
+  width: 100%;
+  border-radius: 12px;
+  display: block;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.15),
+    0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="dark"] .oil-lamp-img {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 4px 24px rgba(0, 0, 0, 0.5);
+}
+
+.oil-lamp-caption {
+  margin-top: 10px;
+  font-size: 0.9rem;
+  font-style: italic;
+  color: var(--text-color);
+  opacity: 0.75;
+}
+
+/* =========================================================
+   10. FOOTER & MISC
    ========================================================= */
 
 footer {
