@@ -1413,6 +1413,18 @@ footer {
   border-bottom: none;
 }
 
+hr.help-razor {
+  border: 0;
+  height: 1px;
+  background-image: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0));
+  margin-top: 25px;
+  margin-bottom: 25px;
+}
+
+[data-theme="dark"] hr.help-razor {
+  background-image: linear-gradient(to right, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
+}
+
 .help-section h4 {
   margin: 0 0 12px 0;
   color: var(--accent-color);
