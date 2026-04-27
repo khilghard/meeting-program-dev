@@ -25,6 +25,7 @@ export const ALLOWED_KEYS = new Set([
   "generalStatementWithLink",
   "generalStatement",
   "linkWithSpace",
+  "photo",
   "stakeName",
   "obsolete",
   "migrationUrl",
