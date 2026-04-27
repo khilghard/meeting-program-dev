@@ -532,14 +532,16 @@ _Note:_ The phone number field requires a value of some kind. It can be â€œNoneâ
 
 These keys create rows with icons, text, and links.
 
-| Key             | Description                | Example Value                                              |
-| --------------- | -------------------------- | ---------------------------------------------------------- |
-| `linkWithSpace` | A link with optional image | `<IMG> Gospel Library \| https://... \| https://image-url` |
+| Key             | Description                        | Example Value                                              |
+| --------------- | ---------------------------------- | ---------------------------------------------------------- |
+| `linkWithSpace` | A link with optional image         | `<IMG> Gospel Library \| https://... \| https://image-url` |
+| `photo`         | An image with an optional caption  | `https://example.com/photo.jpg \| Bishop's Corner`        |
 
 **Notes:**
 
 - `<IMG>` tells the app to show an icon.
-- If no image is available, use `NONE`.
+- If no image is available for `linkWithSpace`, use `NONE`.
+- For `photo`, the caption after `|` is optional. The URL must be `https://`.
 
 ---
 
@@ -947,6 +949,7 @@ This guarantees that the program members see on Sunday matches what you intended
 | linkWithSpace    | <IMG> Gospel Library \| https://www.churchofjesuschrist.org/learn/mobile-applications/gospel-library?lang=eng \| https://www.churchofjesuschrist.org/imgs/2fc43d5ac50d11ed9c00eeeeac1e68389ccf488f/full/!200%2C200/0/default  |
 | linkWithSpace    | <IMG> Gospel Stream App \| https://www.churchofjesuschrist.org/learn/gospel-stream-mobile-and-ott-app?lang=eng \| https://www.churchofjesuschrist.org/imgs/1defb046330311eebde7eeeeac1e2458428d21d7/full/!200%2C200/0/default |
 | linkWithSpace    | <IMG> Gospel Living \| https://www.churchofjesuschrist.org/youth/childrenandyouth/gospel-living-app?lang=eng \| https://www.churchofjesuschrist.org/imgs/8c92e16db3ab7e9219ca543fc04c58d77a968c3                              |
+| photo            | https://example.com/ward-photo.jpg \| Ward Family Photo                                                                                                                                                                     |
 
 ---
 
