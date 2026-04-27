@@ -84,6 +84,11 @@ function parseCSV(csv, options = {}) {
   currentRow.push(currentField);
   if (currentRow.length > 0) rows.push(currentRow);
 
+  // If raw option is set, return unprocessed rows (skip sanitization and transformation)
+  if (options.raw) {
+    return rows;
+  }
+
   return processWorkerCSVRows(rows, options);
 }
 

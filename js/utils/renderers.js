@@ -201,6 +201,34 @@ function renderLinkWithSpace(value) {
   container.appendChild(div);
 }
 
+function renderPhoto(value) {
+  const container = document.getElementById("main-program");
+  const parts = value.split("|").map((s) => s.trim());
+  const url = parts[0];
+  const caption = parts[1] || "";
+
+  if (!url) return;
+  const safeUrl = url.startsWith("http") ? url : `https://${url}`;
+  if (!isSafeUrl(safeUrl)) return;
+
+  const figure = document.createElement("figure");
+  figure.className = "program-photo";
+
+  const img = document.createElement("img");
+  img.src = safeUrl;
+  img.alt = caption;
+  img.loading = "lazy";
+  figure.appendChild(img);
+
+  if (caption) {
+    const figcaption = document.createElement("figcaption");
+    figcaption.textContent = caption;
+    figure.appendChild(figcaption);
+  }
+
+  container.appendChild(figure);
+}
+
 function appendRow(label, value, id) {
   const container = document.getElementById("main-program");
   const div = document.createElement("div");
@@ -471,11 +499,13 @@ const renderers = {
   generalStatementWithLink: renderGeneralStatementWithLink,
   generalStatement: renderGeneralStatement,
   link: renderLink,
-  linkWithSpace: renderLinkWithSpace
+  linkWithSpace: renderLinkWithSpace,
+  photo: renderPhoto
 };
 
 export {
   renderers,
+  normalizeRenderableKey,
   renderProgram,
   renderUnitName,
   renderUnitAddress,
@@ -492,7 +522,8 @@ export {
   renderGeneralStatementWithLink,
   renderGeneralStatement,
   renderLink,
-  renderLinkWithSpace
+  renderLinkWithSpace,
+  renderPhoto
 };
 
 function renderProgram(rows) {
@@ -502,7 +533,8 @@ function renderProgram(rows) {
   rows.forEach(({ key, value }) => {
     const normalizedKey = normalizeRenderableKey(key);
     const isHorizontalLine = normalizedKey.toLowerCase() === "horizontalline";
-    const allowEmpty = isHorizontalLine || normalizedKey === "sacramentLine" || normalizedKey === "oilLamp";
+    const allowEmpty =
+      isHorizontalLine || normalizedKey === "sacramentLine" || normalizedKey === "oilLamp";
     const isEmpty = !value || value.trim() === "";
 
     if (/^speaker\d*$/i.test((key || "").trim()) && !isEmpty) {

@@ -31,7 +31,7 @@ function generateArchiveId(profileId, programDate) {
 }
 
 function isContentEqual(csv1, csv2) {
-  if (!csv1 || !csv2) return false;
+  if (csv1 === csv2) return true;
   if (typeof csv1 === "string" && typeof csv2 === "string") {
     return csv1 === csv2;
   }
@@ -51,19 +51,25 @@ export async function autoArchive(profileId, programDate, csvData, options = {})
     return { archived: false, reason: "missing_params" };
   }
 
-  const { force = false, profileUrl = null } = options;
+  const { force = false, profileUrl = null, agendaRows = null, agendaCsvData = null } = options;
 
   const existing = await getArchive(profileId, programDate);
 
   const now = Date.now();
 
   if (existing) {
-    if (!force && isContentEqual(existing.csvData, csvData)) {
+    if (
+      !force &&
+      isContentEqual(existing.csvData, csvData) &&
+      isContentEqual(existing.agendaCsvData, agendaCsvData)
+    ) {
       return { archived: false, reason: "no_changes" };
     }
 
     existing.csvData = csvData;
     existing.profileUrl = profileUrl || existing.profileUrl;
+    if (agendaRows) existing.agendaRows = agendaRows;
+    if (agendaCsvData) existing.agendaCsvData = agendaCsvData;
     existing.cachedAt = now;
     await saveArchive(existing);
 
@@ -85,7 +91,9 @@ export async function autoArchive(profileId, programDate, csvData, options = {})
     csvData,
     profileUrl,
     cachedAt: now,
-    checksum
+    checksum,
+    agendaRows: agendaRows || null,
+    agendaCsvData: agendaCsvData || null
   };
 
   await saveArchive(newArchive);

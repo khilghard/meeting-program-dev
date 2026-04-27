@@ -7,12 +7,13 @@
  * Version 2: Added history store for data loss prevention on v2.1.1 upgrade
  * Version 3: Added date index to history, inactive index to profiles
  * Version 4: Migrate all localStorage data to IndexedDB (v2.2.0 migration)
+ * Version 5: Added agenda fields to profiles (agendaUrl, agendaLastLoaded, agendaValid) and archives (agendaCsvData, agendaRows)
  */
 
 import Dexie from "dexie";
 
 const BASE_DB_NAME = "MeetingProgramDB";
-const DB_SCHEMA_VERSION = 4;
+const DB_SCHEMA_VERSION = 5;
 
 function getDeploymentPath() {
   if (typeof globalThis !== "undefined" && globalThis.window?.DEPLOYMENT_PATH) {
@@ -255,6 +256,15 @@ db.version(4)
   .upgrade(async (tx) => {
     await migrateLocalStorageToIndexedDB(tx);
   });
+
+db.version(5).stores({
+  profiles: "id, url, lastUsed, inactive, agendaUrl, agendaLastLoaded, agendaValid",
+  archives: "id, profileId, programDate, [profileId+programDate], agendaCsvData, agendaRows",
+  metadata: "key",
+  migrations: "profileId",
+  history: "id, profileId, date, cachedAt, [profileId+cachedAt]"
+});
+// No upgrade needed – additive schema changes are backward compatible
 
 // Export default for convenience
 export default db;

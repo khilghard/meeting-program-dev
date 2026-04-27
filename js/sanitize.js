@@ -27,7 +27,23 @@ export const ALLOWED_KEYS = new Set([
   "linkWithSpace",
   "stakeName",
   "obsolete",
-  "migrationUrl"
+  "migrationUrl",
+  // Agenda keys
+  "agendaGeneral",
+  "agendaAnnouncements",
+  "agendaAckVisitingLeaders",
+  "agendaBusinessStake",
+  "agendaBusinessReleases",
+  "agendaBusinessCallings",
+  "agendaBusinessPriesthood",
+  "agendaBusinessNewMoveIns",
+  "agendaBusinessNewConverts",
+  "agendaBusinessGeneral",
+  // Lesson sections (public — visible to congregation)
+  "lessonEQRS",
+  "lessonSundaySchool",
+  "lessonYouth",
+  "lessonPrimary"
 ]);
 
 // Permissive: allow most Unicode letters, digits, punctuation, spaces,

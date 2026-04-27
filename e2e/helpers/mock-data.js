@@ -277,6 +277,48 @@ export const specialCharsProgramUrl =
   "https://docs.google.com/spreadsheets/d/special-chars/gviz/tq";
 
 /**
+ * Program with lesson panel keys — public congregation-visible panels.
+ * Lesson key rows are in the main sheet with "display text | https://url" values.
+ * Multiple rows with the same lesson key become list items in one panel.
+ */
+export const lessonPanelProgram = `key,value
+unitName,Lesson Test Ward
+unitAddress,500 Lesson Ave~ Test City~ UT 84000
+date,April 27~ 2026
+presiding,Bishop Lesson
+conducting,Brother Conductor
+openingHymn,62
+openingPrayer,By Invitation
+horizontalLine,Dismiss to Classes
+lessonEQRS,February 8 No One Sits Alone by Gerrit W. Gong | https://www.churchofjesuschrist.org/study/general-conference/2024/10/gong
+lessonEQRS,February 22 Do Your Part with All Your Heart | https://www.churchofjesuschrist.org/study/general-conference/2024/10/uchtdorf
+lessonSundaySchool,Genesis 6-11; Moses 8 | https://www.churchofjesuschrist.org/study/manual/come-follow-me/genesis
+lessonYouth,For the Strength of Youth — Courage | https://www.churchofjesuschrist.org/study/manual/fsy/courage
+lessonPrimary,I Am a Child of God | https://www.churchofjesuschrist.org/study/manual/primary/lesson3
+`;
+
+export const lessonPanelProgramUrl =
+  "https://docs.google.com/spreadsheets/d/lesson-panel-ward/gviz/tq";
+
+/**
+ * Program with both private agenda rows and lesson rows to verify
+ * that private rows are hidden but lesson rows are visible in public view.
+ * Lesson key values are direct content (text | url), not agendaIds.
+ */
+export const mixedAgendaLessonProgram = `key,value
+unitName,Mixed Ward
+date,April 27~ 2026
+openingHymn,62
+agendaGeneral,gen-001
+agendaAnnouncements,ann-001
+lessonEQRS,The Atonement of Jesus Christ | https://www.churchofjesuschrist.org/study/manual/lesson/atonement
+closingHymn,2
+`;
+
+export const mixedAgendaLessonProgramUrl =
+  "https://docs.google.com/spreadsheets/d/mixed-agenda-lesson/gviz/tq";
+
+/**
  * All available mock programs keyed by name
  */
 export const mockPrograms = {
@@ -292,7 +334,9 @@ export const mockPrograms = {
   obsoleteProgram,
   fullOptionalSections,
   emptyProgram,
-  specialCharsProgram
+  specialCharsProgram,
+  lessonPanelProgram,
+  mixedAgendaLessonProgram
 };
 
 export const mockProgramUrls = {
@@ -308,7 +352,9 @@ export const mockProgramUrls = {
   obsoleteProgram: obsoleteProgramUrl,
   fullOptionalSections: fullOptionalSectionsUrl,
   emptyProgram: emptyProgramUrl,
-  specialCharsProgram: specialCharsProgramUrl
+  specialCharsProgram: specialCharsProgramUrl,
+  lessonPanelProgram: lessonPanelProgramUrl,
+  mixedAgendaLessonProgram: mixedAgendaLessonProgramUrl
 };
 
 /**
