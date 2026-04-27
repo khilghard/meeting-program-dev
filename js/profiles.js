@@ -16,6 +16,11 @@ import {
   initProfileManager
 } from "./data/ProfileManager.js";
 
+import {
+  getProfile as dbGetProfile,
+  saveProfile as dbSaveProfile
+} from "./data/IndexedDBManager.js";
+
 let cache = {
   profiles: [],
   selectedId: null,
@@ -184,4 +189,26 @@ export async function initProfiles(currentVersion) {
 
 export function getMigrationResult() {
   return migrationResult;
+}
+
+/**
+ * Get a profile by ID (async - direct from DB)
+ * @param {string} id
+ * @returns {Promise<Profile|null>}
+ */
+export async function getProfile(id) {
+  await ensureInitialized();
+  return await dbGetProfile(id);
+}
+
+/**
+ * Update an existing profile (persists changes)
+ * @param {Profile} profile
+ * @returns {Promise<Profile>}
+ */
+export async function updateProfile(profile) {
+  await ensureInitialized();
+  await dbSaveProfile(profile);
+  await refreshCache();
+  return profile;
 }

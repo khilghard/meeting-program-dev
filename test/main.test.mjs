@@ -603,9 +603,9 @@ describe("Networking & Errors", () => {
 
       await init();
 
-      // Check that fetch was called with the URL
+      // Check that fetch was called with the sanitized URL (gviz/tq endpoint)
       expect(global.fetch).toHaveBeenCalledWith(
-        "https://docs.google.com/spreadsheets/d/test",
+        "https://docs.google.com/spreadsheets/d/test/gviz/tq?tqx=out:csv",
         expect.any(Object)
       );
       expect(document.querySelector("#speaker")).not.toBeNull();

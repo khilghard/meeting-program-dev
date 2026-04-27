@@ -384,12 +384,14 @@
         </select>
       </div>
 
-      <!-- PROFILE MANAGEMENT BUTTONS -->
-      <div style="justify-content: center; align-items: center; text-align: center">
-        <button id="manage-profiles-btn" class="icon-btn" aria-label="Manage Programs">⚙️</button>
-        <button id="view-archives-btn" class="icon-btn" aria-label="View Archives">📦</button>
-        <button id="update-btn" class="icon-btn" aria-label="Check for Updates">🔄</button>
-      </div>
+       <!-- PROFILE MANAGEMENT BUTTONS -->
+       <div style="justify-content: center; align-items: center; text-align: center">
+         <button id="manage-profiles-btn" class="icon-btn" aria-label="Manage Programs">⚙️</button>
+         <button id="view-archives-btn" class="icon-btn" aria-label="View Archives">📦</button>
+         <button id="update-btn" class="icon-btn" aria-label="Check for Updates">🔄</button>
+         <button id="agenda-settings-btn" class="icon-btn" aria-label="Manage Private Agenda">🔒</button>
+         <button id="agenda-toggle-btn" class="icon-btn" aria-label="Toggle Leadership Agenda" style="display:none;">👔</button>
+       </div>
 
       <!-- QR ACTION BUTTON (dynamic text + behavior handled in main.js) -->
       <button id="qr-action-btn" class="qr-action-btn"></button>
@@ -491,14 +493,13 @@
         </div>
       </dialog>
 
-      <!-- HELP MODAL -->
+       <!-- HELP MODAL -->
       <dialog id="help-modal" class="modal">
         <div class="modal-content help-content">
           <h3 id="help-modal-title">Help & FAQ</h3>
           <div class="help-sections">
             <div class="help-section">
               <h4>How to Add to Home Screen</h4>
-              <div class="help-ios">
                 <h5>iPhone (Safari)</h5>
                 <ol>
                   <li>Tap the <strong>Share</strong> button</li>
@@ -513,8 +514,18 @@
                   <li>Tap <strong>Install App</strong> or <strong>Add to Home Screen</strong></li>
                   <li>Tap <strong>Install</strong></li>
                 </ol>
-              </div>
-            </div>
+             </div>
+             <div class="help-section">
+               <h4>Leadership Agenda</h4>
+               <ul>
+                 <li><strong>Setup:</strong> Add <code>agenda_*</code> rows in your main sheet with unique IDs. Create a separate private agenda sheet containing those keys/IDs and your content. Save its CSV URL in the app via the lock (🔒) button.</li>
+                 <li><strong>Viewing:</strong> Tap the briefcase (👔) button to toggle between public program and leadership agenda. The toggle appears only when an agenda is configured.</li>
+                 <li><strong>Content:</strong> The agenda appears inline where placeholders were placed. Each section is a collapsible accordion with a lock icon. Announcements and business items render as bulleted lists; general notes render as paragraphs.</li>
+                 <li><strong>Transition:</strong> When leadership rotates, create a new agenda sheet and share the new URL; the old URL can be removed.</li>
+                 <li>Note: Public users see no agenda; the layout remains exactly the same.</li>
+               </ul>
+             </div>
+           </div>
             <div class="help-section">
               <h4>Camera Not Working?</h4>
               <ul>
@@ -538,10 +549,23 @@
           </div>
           <div class="modal-actions">
             <button id="close-help-modal-btn" class="secondary-btn">Close</button>
-          </div>
-        </div>
-      </dialog>
-    </main>
+           </div>
+         </div>
+       </dialog>
+
+       <!-- AGENDA SETTINGS MODAL -->
+       <dialog id="agenda-settings-modal" class="modal">
+         <div class="modal-content">
+           <h3 id="agenda-modal-title">Private Agenda</h3>
+           <div id="agenda-profiles-list" class="agenda-profiles-list">
+             <!-- Dynamically populated -->
+           </div>
+           <div class="modal-actions">
+             <button id="close-agenda-modal-btn" class="secondary-btn">Close</button>
+           </div>
+         </div>
+       </dialog>
+     </main>
 
     <!-- MODULES -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>

@@ -48,6 +48,7 @@ Your program loads automatically. The app works offline and remembers your last 
 - [Load the Sheet](#-6-load-the-sheet-in-the-app)
 - [Updating the Program](#-7-updating-the-program)
 - [Privacy & Safety](#-8-privacy--safety-notes)
+- [Leadership Agenda](#-leadership-agenda)
 - [Security & Sanitization](#-security--sanitization)
 - [Setting Up the Next Meeting](#-setting-up-the-next-meeting)
 - [Example Sheets](#-example-google-sheets-structure)
@@ -474,15 +475,15 @@ All optional — include only what your unit uses.
 These keys define the main flow of the meeting.
 
 | Key                | Description       | Example Value      |
-| ------------------ | ----------------- | ------------------ |
-| `openingHymn`      | Opening hymn      | `"62"`            |
+| ------------------ | ----------------- | ------------------ | ------------------------------------------ |
+| `openingHymn`      | Opening hymn      | `"62"`             |
 | `openingPrayer`    | Opening prayer    | `"By Invitation"`  |
-| `sacramentHymn`    | Sacrament hymn    | `"188"`           |
+| `sacramentHymn`    | Sacrament hymn    | `"188"`            |
 | `speaker1`         | First speaker     | `"Sister Johnson"` |
 | `speaker2`         | Second speaker    | `"Elder Brown"`    |
 | `speaker3`         | Third speaker     | `"Youth Speaker"`  |
-| `intermediateHymn` | Intermediate hymn | `"228|Accompanied by Sister Smith on the Piano"`           |
-| `closingHymn`      | Closing hymn      | `"2"`             |
+| `intermediateHymn` | Intermediate hymn | `"228              | Accompanied by Sister Smith on the Piano"` |
+| `closingHymn`      | Closing hymn      | `"2"`              |
 | `closingPrayer`    | Closing prayer    | `"By Invitation"`  |
 
 **🎵 Hymn Formatting Guide:**
@@ -632,6 +633,62 @@ This makes weekly updates simple for clerks, presidencies, or music directors.
 - Alternately, use an email address for the phone number field
 - Keep the sheet **view‑only** for the public
 - Share edit access only with trusted leaders
+
+---
+
+## 👔 Leadership Agenda
+
+The app supports a **private leadership agenda** that appears only for users who have configured an agenda URL. This allows bishops, counselors, and secretaries to view supplementary notes, announcements, and business details that are hidden from the general membership.
+
+### How It Works
+
+1. **Main sheet** contains placeholder rows with `agenda_*` keys. The value column holds an **agendaId** that links to the agenda sheet.
+2. **Agenda sheet** (private) contains the actual content, keyed by the same `agenda_*` keys and matching `agendaId`. Content is spread across columns C, D, E, etc., each becoming a list item (or paragraph for `agendaGeneral`).
+3. A **briefcase (👔) toggle** in the header switches between:
+   - **Public View** – all `agenda_*` rows are completely hidden.
+   - **Leadership Agenda View** – placeholders are replaced with collapsible accordion panels (🔒) showing the agenda content, positioned exactly where the placeholders were.
+
+### Setting Up
+
+1. **Add `agenda_*` rows** to your main Google Sheet in the desired positions. Use one of the predefined keys:
+   - `agendaGeneral` – General notes (rendered as paragraphs)
+   - `agendaAnnouncements` – Announcements (bulleted list)
+   - `agendaAckVisitingLeaders` – Visiting leaders acknowledgment (bulleted list)
+   - `agendaBusinessReleases`, `agendaBusinessCallings`, `agendaBusinessPriesthood`, `agendaBusinessNewMoveIns`, `agendaBusinessNewConverts`, `agendaBusinessGeneral` – Business sub‑sections (bulleted list). Stake business checkmarks (✅) appear automatically if content exists.
+   - In the **value** column of each placeholder, enter a unique **agendaId** (e.g., `ann1`, `rel1`). This ID will be used to match the agenda sheet.
+
+2. **Create the private agenda sheet** with columns:
+   - `key` (the `agenda_*` key)
+   - `agendaId` (matching the value from the main sheet)
+   - `value1`, `value2`, … – each non‑empty cell becomes a list item (or paragraph for `agendaGeneral`). Do not number them unless desired; they appear as typed.
+
+   Example:
+
+   ```csv
+   key,agendaId,value1,value2,value3
+   agendaAnnouncements,ann1,"Cleaning on Saturday.","Valentine's dance Friday.","Building maintenance next week."
+   ```
+
+3. **Publish the agenda sheet as CSV** and copy the URL (ends with `/gviz/tq?tqx=out:csv`).
+
+4. In the app, tap the **lock (🔒) button** → paste the agenda CSV URL → Save.
+
+5. The **briefcase (👔) toggle** will appear in the header. Tap it to switch to Leadership Agenda view. The toggle state is remembered per session and can be bookmarked via `?view=agenda`.
+
+### Leadership Transition
+
+When leadership changes:
+
+- Create a new agenda sheet with updated content.
+- Share the new CSV URL with the new leadership team.
+- They update their app by scanning/pasting the new URL. The old URL may be cleared or left; it simply won't match any placeholders.
+- The main sheet remains unchanged unless you need to add/remove `agenda_*` placeholders.
+
+### Notes
+
+- Public view shows no indication of agenda placeholders; the layout is identical to the pre‑agenda program.
+- All agenda data is cached for offline use.
+- iOS PWA storage limitation still applies: if the app is added to the home screen, the agenda URL may need to be re‑entered. See [Installing the App as PWA](#-installing-the-app-as-pwa).
 
 ---
 
@@ -849,7 +906,7 @@ This guarantees that the program members see on Sunday matches what you intended
 | unitName         | Unit Name                                                                                                                                                                                                                     |
 | stakeName        | Stake Name                                                                                                                                                                                                                    |
 | obsolete         | false Name                                                                                                                                                                                                                    |
-| migrationUrl     |  Name                                                                                                                                                                                                                    |
+| migrationUrl     | Name                                                                                                                                                                                                                          |
 | unitAddress      | 123 Actual Ave~ City US 123245                                                                                                                                                                                                |
 | link             | Homepage \| <OfficialHomePageLink>                                                                                                                                                                                            |
 | date             | January 1~ 2026                                                                                                                                                                                                               |

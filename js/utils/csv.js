@@ -93,17 +93,51 @@ function processCSVRows(rows) {
   return result;
 }
 
+// Sanitize sheet URL to point to a CSV export endpoint
+function sanitizeSheetUrl(url) {
+  if (!url) return url;
+  try {
+    const u = new URL(url);
+
+    // Already a CSV export URL? Return as-is.
+    if (u.searchParams.get("tqx") === "out:csv") return url;
+    if (u.searchParams.get("output") === "csv") return url;
+
+    // Only transform Google Sheets URLs
+    if (!u.hostname.includes("docs.google.com") || !u.pathname.includes("/spreadsheets/")) {
+      return url;
+    }
+
+    // Remove '/edit' or '/edit/' suffix if present
+    let path = u.pathname.replace(/\/edit\/?$/, "");
+    if (path.endsWith("/")) path = path.slice(0, -1);
+
+    // Build new URL: same origin + cleaned path + /gviz/tq
+    const newUrl = new URL(u.origin + path + "/gviz/tq");
+    // Add tqx=out:csv, then fix encoding (colon should not be percent-encoded)
+    newUrl.searchParams.set("tqx", "out:csv");
+    // Preserve all original query params (e.g., gid)
+    u.searchParams.forEach((value, key) => {
+      if (key !== "tqx") newUrl.searchParams.append(key, value);
+    });
+    // Ensure tqx=out:csv appears unencoded
+    newUrl.search = newUrl.search.replace("tqx=out%3Acsv", "tqx=out:csv");
+
+    return newUrl.toString();
+  } catch (e) {
+    // If URL parsing fails, return original unchanged
+    return url;
+  }
+}
+
 async function fetchSheet(sheetUrl) {
   if (!sheetUrl) {
     console.warn("No sheet URL provided. Program will not load.");
     return null;
   }
 
-  let url = sheetUrl;
-  if (!url.includes("tqx=out:csv")) {
-    if (url.endsWith("/")) url = url.slice(0, -1);
-    url = url + "/gviz/tq?tqx=out:csv";
-  }
+  const url = sanitizeSheetUrl(sheetUrl);
+  if (!url) return null;
 
   const response = await fetch(url);
   if (!response.ok) {
@@ -114,4 +148,4 @@ async function fetchSheet(sheetUrl) {
   return parseCSV(text);
 }
 
-export { fetchSheet, parseCSV, LANGUAGE_HEADERS };
+export { fetchSheet, parseCSV, sanitizeSheetUrl };

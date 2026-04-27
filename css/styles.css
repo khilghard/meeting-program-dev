@@ -1416,13 +1416,23 @@ footer {
 hr.help-razor {
   border: 0;
   height: 1px;
-  background-image: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0));
+  background-image: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0),
+    rgba(0, 0, 0, 0.2),
+    rgba(0, 0, 0, 0)
+  );
   margin-top: 25px;
   margin-bottom: 25px;
 }
 
 [data-theme="dark"] hr.help-razor {
-  background-image: linear-gradient(to right, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
+  background-image: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 0.2),
+    rgba(255, 255, 255, 0)
+  );
 }
 
 .help-section h4 {
@@ -1729,23 +1739,300 @@ hr.help-razor {
   animation: pulse-error 0.6s ease;
 }
 
+/* =========================================================
+    PRIVATE AGENDA STYLES
+    ========================================================= */
+
+/* Agenda panels in main program */
+.private-agenda-section {
+  margin: 20px 0;
+}
+
+.agenda-panel {
+  border-radius: 12px;
+  background: var(--card-bg);
+  margin: 8px 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.agenda-panel .panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+
+.agenda-panel .lock-icon {
+  margin-right: 8px;
+  font-size: 1.2em;
+}
+
+.agenda-panel .panel-content {
+  padding: 0 16px;
+  border-top: 0 solid var(--hr-line);
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.35s ease, padding 0.35s ease, border-top-width 0.35s ease;
+}
+
+.agenda-panel.expanded .panel-content {
+  max-height: 800px;
+  padding: 16px;
+  border-top-width: 1px;
+}
+
+/* Chevron indicator */
+.agenda-panel .chevron-icon {
+  flex-shrink: 0;
+  margin-left: 8px;
+  color: var(--text-color);
+  opacity: 0.6;
+  transition: transform 0.3s ease;
+  line-height: 1;
+}
+
+.agenda-panel.expanded .chevron-icon {
+  transform: rotate(180deg);
+}
+
+/* Agenda settings modal accordions */
+.agenda-setting-panel {
+  border-radius: 12px;
+  background: var(--card-bg);
+  margin: 10px 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.agenda-setting-panel .setting-title {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  cursor: pointer;
+}
+
+.agenda-setting-panel .setting-title .status-icon {
+  margin-right: 10px;
+  font-size: 1.2em;
+}
+
+.agenda-setting-panel .setting-content {
+  padding: 16px;
+  border-top: 1px solid var(--hr-line);
+  display: none;
+}
+
+.agenda-setting-panel.active .setting-content {
+  display: block;
+}
+
+.agenda-setting-panel .qr-scanner-container {
+  margin: 10px 0;
+}
+
+.agenda-setting-panel .manual-agenda-url {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.agenda-setting-panel .manual-agenda-url input {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid var(--hr-line);
+  border-radius: 4px;
+  background: var(--bg-color);
+  color: var(--text-color);
+}
+
+.agenda-setting-panel .agenda-status-message {
+  margin-top: 8px;
+  font-size: 0.9em;
+}
+
+/* Soft contrast for agenda content */
+.agenda-panel .panel-content {
+  line-height: 1.6;
+}
+
+/* Expand All / Collapse All controls */
+.agenda-expand-controls {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin: 4px 0 8px;
+}
+
+.agenda-expand-btn {
+  background: transparent;
+  border: 1px solid var(--accent-color);
+  color: var(--accent-color);
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 0.85em;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.agenda-expand-btn:hover {
+  background: var(--accent-color);
+  color: #fff;
+}
+
+/* Photo block */
+.program-photo {
+  display: block;
+  margin: 12px auto;
+  max-width: var(--max-width);
+  width: 100%;
+  padding: 0;
+  text-align: center;
+}
+
+.program-photo img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  display: block;
+  margin: 0 auto;
+}
+
+.program-photo figcaption {
+  margin-top: 6px;
+  font-size: 0.85em;
+  color: var(--text-color);
+  opacity: 0.7;
+}
+
+.agenda-panel .panel-content a {
+  color: var(--link-color);
+  text-decoration: underline;
+}
+
+.agenda-panel .panel-content strong {
+  font-weight: 600;
+}
+
+.agenda-panel .panel-content em {
+  font-style: italic;
+}
+
+/* =========================================================
+   LESSON PANELS
+   ========================================================= */
+
+/* Emoji icon in lesson panel headers */
+.lesson-icon {
+  margin-right: 6px;
+  font-size: 1.1em;
+  flex-shrink: 0;
+}
+
+/* Lesson panels may contain multiple cards; give the content room */
+.lesson-panel.expanded .panel-content {
+  max-height: 2000px;
+}
+
+/* Wrapper for all lesson cards in one panel */
+.lesson-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Individual lesson card */
+.lesson-card {
+  background: var(--bg-color);
+  border-left: 3px solid var(--accent-color);
+  border-radius: 6px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Date badge (e.g. "February 8") */
+.lesson-card__date {
+  font-size: 0.75em;
+  font-weight: 700;
+  color: var(--accent-color);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Lesson title text */
+.lesson-card__title {
+  font-size: 0.97em;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-color);
+}
+
+/* "Study this lesson →" pill button */
+.lesson-card__btn {
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 14px;
+  border-radius: 20px;
+  background: var(--accent-color);
+  color: #fff;
+  text-decoration: none;
+  font-size: 0.82em;
+  font-weight: 600;
+  align-self: flex-start;
+  transition: opacity 0.2s ease;
+}
+
+.lesson-card__btn:hover {
+  opacity: 0.82;
+  text-decoration: none;
+}
+
+/* Dark mode: slightly lighter card background for contrast */
+@media (prefers-color-scheme: dark) {
+  .lesson-card {
+    background: var(--card-bg);
+  }
+}
+
 .diagnostic-button.opening {
   background-color: #2196f3;
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes pulse-success {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.15); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
 }
 
 @keyframes pulse-error {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.15); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
 }
 
 .diagnostic-spinner {

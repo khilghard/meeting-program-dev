@@ -4,7 +4,8 @@ import { hasLegacyProfiles, migrateLegacyProfiles } from "./data/ProfileManager.
 import * as ArchiveManager from "./data/ArchiveManager.js";
 import { initArchiveManager } from "./data/ArchiveManager.js";
 import { t, getLanguage, initI18n, setLanguage } from "./i18n/index.js";
-import { fetchSheet, parseCSV } from "./utils/csv.js";
+import { fetchSheet, parseCSV, sanitizeSheetUrl } from "./utils/csv.js";
+import { isSafeUrl } from "./sanitize.js";
 import { createWorker } from "./workers/workerInterface.js";
 import { initConsoleCapture } from "./utils/console-capture.js";
 import { initDiagnosticButton } from "./components/diagnostic-button.js";
@@ -24,16 +25,19 @@ import {
   renderGeneralStatementWithLink,
   renderGeneralStatement,
   renderLink,
-  renderLinkWithSpace
+  renderLinkWithSpace,
+  normalizeRenderableKey
 } from "./utils/renderers.js";
 import { saveProgramHistory, getProgramHistory, cleanupHistory } from "./history.js";
 import { getMetadata, setMetadata } from "./data/IndexedDBManager.js";
 import { initShareUI, promptPWAInstall, openHelpModal } from "./share.js";
 import { checkMigrationRequired } from "./data/MigrationSystem.js";
+import { initAgendaSettings } from "./agenda/AgendaSettings.js";
 import { clearElement, setText, createTextElement } from "./utils/dom-utils.js";
 import { showMigrationBanner } from "./data/MigrationBanner.js";
 import { initTheme, toggleTheme, getTheme, applyTheme } from "./theme.js";
 import { createTimer, clearTimer, clearAllTimers } from "./utils/timer-manager.js";
+import { isAgendaKey, isBusinessKey, isLessonKey, LESSON_ICONS } from "./agenda/constants.js";
 
 /* global MessageChannel */
 
@@ -42,6 +46,17 @@ initConsoleCapture();
 
 // DIAGNOSTIC: Log that main.js has loaded
 console.log("[MAIN] main.js module loaded - version from package");
+
+// ------------------------------------------------------------------
+// Leadership Agenda State
+// ------------------------------------------------------------------
+let leadershipState = {
+  mainRows: [],
+  agendaMap: new Map(),
+  hasAgendaContent: false,
+  currentView: "program", // 'program' | 'agenda'
+  agendaValid: false
+};
 
 // ------------------------------------------------------------------
 // Theme & Install Manager Initialization
@@ -277,9 +292,8 @@ async function initializePrerequisites(currentVersion) {
   const migrationResult = await Profiles.initProfiles(currentVersion);
   console.log("[INIT] Profiles loaded:", Profiles.getProfiles().length);
 
-  
   initProfileUI();
-  
+
   return migrationResult;
 }
 
@@ -287,7 +301,7 @@ async function initializePrerequisites(currentVersion) {
 async function determineSheetUrl() {
   const params = new URLSearchParams(globalThis.window.location.search);
   let sheetUrl = params.get("url");
-  
+
   const currentProfile = Profiles.getCurrentProfile();
 
   if (!currentProfile && !sheetUrl) {
@@ -517,7 +531,8 @@ async function handleActiveState(sheetUrl) {
 // Helper: Load and render program from network
 async function loadAndRenderProgram(sheetUrl) {
   try {
-    const csv = await fetchWithTimeout(sheetUrl, 8000);
+    const url = sanitizeSheetUrl(sheetUrl);
+    const csv = await fetchWithTimeout(url, 8000);
     const rows = await createWorker("parseCSV", csv, { language: getLanguage() });
     await processAndRenderProgram(rows, sheetUrl);
   } catch (err) {
@@ -573,14 +588,25 @@ function findRowValue(rows, key, defaultValue = "") {
 }
 
 // Helper: Handle auto-archive and history
-async function handleAutoArchiveAndHistory(rows) {
+async function handleAutoArchiveAndHistory(rows, agendaData = null) {
   const loadedProfile = Profiles.getCurrentProfile();
   const programDate = findRowValue(rows, "date");
 
   if (loadedProfile && programDate) {
-    const archiveResult = await ArchiveManager.autoArchive(loadedProfile.id, programDate, rows, {
+    const options = {
       profileUrl: loadedProfile.url
-    });
+    };
+    if (agendaData) {
+      options.agendaRows = agendaData.privateRows;
+      options.agendaCsvData = agendaData.csv;
+    }
+
+    const archiveResult = await ArchiveManager.autoArchive(
+      loadedProfile.id,
+      programDate,
+      rows,
+      options
+    );
     if (archiveResult.archived) {
       console.log(
         `Program auto-archived: ${programDate} (${archiveResult.updated ? "updated" : "new"})`
@@ -613,11 +639,6 @@ async function processAndRenderProgram(rows, sheetUrl) {
   // Archive handling
   updateArchiveViewForProfile();
 
-  // Auto-archive if program date exists
-  const programDate = findRowValue(rows, "date");
-  console.log("[Archive] Program date:", programDate);
-  await handleAutoArchiveAndHistory(rows);
-
   // Check for migration requirement
   const loadedProfile = Profiles.getCurrentProfile();
   if (loadedProfile) {
@@ -627,13 +648,627 @@ async function processAndRenderProgram(rows, sheetUrl) {
     }
   }
 
-  // Render the program
-  const main = document.getElementById("main-program");
-  main.textContent = "";
-  renderProgram(rows);
-
+  // Leadership agenda system
+  leadershipState.mainRows = rows;
+  console.log(
+    "[Leadership] processAndRenderProgram calling loadAgendaForCurrentProfile. Profile:",
+    currentProfile?.id,
+    "agendaUrl:",
+    currentProfile?.agendaUrl
+  );
+  await loadAgendaForCurrentProfile(currentProfile);
   updateTimestamp();
+
+  // Archive (uses full rows including agenda key placeholders)
+  await handleAutoArchiveAndHistory(rows, null);
 }
+
+/**
+ * Load the private agenda for a profile and append to main program.
+ * @param {string} profileId
+ * @param {Array<{key:string, value:string}>} mainRows - Already rendered main program rows
+ * @returns {{csv: string, privateRows: Array<{key:string, value:string}>}|null}
+ */
+// ------------------------------------------------------------------
+// Leadership Agenda System
+// ------------------------------------------------------------------
+
+/**
+ * Load the private agenda for the current profile, build the agendaMap,
+ * and show/hide the toggle button. Finally, render the appropriate view.
+ */
+async function loadAgendaForCurrentProfile(profile) {
+  // Reset state
+  leadershipState.agendaMap = new Map();
+  leadershipState.hasAgendaContent = false;
+  leadershipState.agendaValid = false;
+
+  const toggleBtn = document.getElementById("agenda-toggle-btn");
+
+  if (!profile?.agendaUrl) {
+    // No agenda configured
+    console.log("[Leadership] No agendaUrl configured for profile:", profile?.id);
+    if (toggleBtn) toggleBtn.style.display = "none";
+    leadershipState.currentView = "program";
+    renderMain();
+    return;
+  }
+
+  console.log(
+    "[Leadership] Loading agenda for profile:",
+    profile.id,
+    "agendaUrl:",
+    profile.agendaUrl
+  );
+
+  // Fetch agenda CSV (network-first with cache fallback)
+  let csv;
+  try {
+    const url = sanitizeSheetUrl(profile.agendaUrl);
+    csv = await fetchWithTimeout(url, 8000);
+    await setMetadata(`agendaCache_${profile.id}`, csv);
+    profile.agendaValid = true;
+    profile.agendaLastLoaded = Date.now();
+    await Profiles.updateProfile(profile);
+  } catch (err) {
+    console.warn("[Leadership] Agenda fetch failed, trying cache:", err);
+    csv = await getMetadata(`agendaCache_${profile.id}`);
+    if (csv) {
+      profile.agendaValid = true;
+    } else {
+      profile.agendaValid = false;
+      await Profiles.updateProfile(profile);
+      if (toggleBtn) toggleBtn.style.display = "none";
+      leadershipState.currentView = "program";
+      renderMain();
+      return;
+    }
+  }
+
+  // Parse agenda CSV (multi‑column) - request raw rows to preserve all value columns
+  const rawRows = await createWorker("parseCSV", csv, { raw: true, language: getLanguage() });
+  // rawRows: array of arrays; first row is header
+  const map = new Map();
+  let hasContent = false;
+
+  for (let i = 1; i < rawRows.length; i++) {
+    const cells = rawRows[i];
+    if (!cells || cells.length < 3) continue; // need at least key, agendaId, one value
+    const key = String(cells[0]).trim();
+    const agendaId = String(cells[1]).trim();
+    const values = cells
+      .slice(2)
+      .map((v) => String(v).trim())
+      .filter((v) => v !== "");
+    if (values.length === 0) continue;
+
+    const mapKey = `${key}|${agendaId}`;
+    map.set(mapKey, { key, agendaId, values });
+    hasContent = true;
+  }
+
+  leadershipState.agendaMap = map;
+  leadershipState.hasAgendaContent = hasContent;
+  leadershipState.agendaValid = profile.agendaValid;
+
+  console.log("[Leadership] Agenda loaded:", {
+    profileId: profile.id,
+    agendaValid: profile.agendaValid,
+    hasContent,
+    entryCount: map.size,
+    toggleButtonVisible: toggleBtn ? profile.agendaValid && hasContent : false
+  });
+
+  // Show toggle button if we have content
+  if (toggleBtn) {
+    toggleBtn.style.display = profile.agendaValid && hasContent ? "inline-block" : "none";
+    console.log("[Leadership] Toggle button display:", toggleBtn.style.display);
+  }
+
+  // Determine initial view from sessionStorage or URL, default to program
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlView = urlParams.get("view");
+  const savedView = sessionStorage.getItem("agendaView");
+  let view = "program";
+  if ((urlView === "agenda" || savedView === "agenda") && hasContent) {
+    view = "agenda";
+  }
+  leadershipState.currentView = view;
+
+  console.log("[Leadership] Initial view:", view, "from:", { urlView, savedView });
+
+  renderMain();
+}
+
+/**
+ * Group all isLessonKey rows from mainRows by key, build one unlocked accordion panel per key.
+ * Multiple rows with the same lesson key become multiple list items in a single panel.
+ * @param {Array} rows - leadershipState.mainRows
+ * @returns {Map<string, HTMLElement>} key → panel element (insertion-ordered)
+ */
+function buildLessonPanelMap(rows) {
+  const groups = new Map(); // key → string[]
+  rows.forEach((row) => {
+    if (isLessonKey(row.key)) {
+      if (!groups.has(row.key)) groups.set(row.key, []);
+      groups.get(row.key).push(row.value);
+    }
+  });
+  const panels = new Map();
+  for (const [key, values] of groups) {
+    panels.set(key, createAgendaAccordionPanel(key, values, key, false));
+  }
+  return panels;
+}
+
+/**
+ * Build and insert Expand All / Collapse All controls into mainEl.
+ * Returns true to indicate controls were inserted.
+ */
+function insertExpandCollapseControls(mainEl) {
+  const controls = document.createElement("div");
+  controls.className = "agenda-expand-controls";
+  const expandBtn = document.createElement("button");
+  expandBtn.className = "agenda-expand-btn";
+  expandBtn.textContent = t("expandAll") || "Expand All";
+  expandBtn.addEventListener("click", () => {
+    mainEl.querySelectorAll(".agenda-panel").forEach((p) => {
+      p.classList.add("expanded");
+      const h = p.querySelector(".panel-header");
+      if (h) h.setAttribute("aria-expanded", "true");
+    });
+  });
+  const collapseBtn = document.createElement("button");
+  collapseBtn.className = "agenda-expand-btn";
+  collapseBtn.textContent = t("collapseAll") || "Collapse All";
+  collapseBtn.addEventListener("click", () => {
+    mainEl.querySelectorAll(".agenda-panel").forEach((p) => {
+      p.classList.remove("expanded");
+      const h = p.querySelector(".panel-header");
+      if (h) h.setAttribute("aria-expanded", "false");
+    });
+  });
+  controls.appendChild(expandBtn);
+  controls.appendChild(collapseBtn);
+  mainEl.appendChild(controls);
+  return true;
+}
+
+/**
+ * Render the main program according to currentView.
+ * Reads from leadershipState.mainRows, leadershipState.agendaMap.
+ */
+function renderMain() {
+  console.log("[Leadership] renderMain() called. Current view:", leadershipState.currentView, {
+    agendaValid: leadershipState.agendaValid,
+    hasAgendaContent: leadershipState.hasAgendaContent,
+    mainRowsCount: leadershipState.mainRows.length,
+    agendaMapSize: leadershipState.agendaMap.size
+  });
+
+  const mainEl = document.getElementById("main-program");
+  mainEl.innerHTML = "";
+
+  if (leadershipState.currentView === "program") {
+    // Public view: render rows in sheet order; lesson panels are public (unlocked); agenda rows are hidden.
+    // Lesson key rows are read directly from mainRows — multiple rows with the same key become one panel.
+    const lessonPanelMap = buildLessonPanelMap(leadershipState.mainRows);
+    console.log(
+      "[Leadership] Rendering program view with",
+      leadershipState.mainRows.length,
+      "rows,",
+      lessonPanelMap.size,
+      "lesson panels"
+    );
+    const renderedLessonKeys = new Set();
+    let expandCollapseInserted = false;
+    leadershipState.mainRows.forEach((row) => {
+      if (isLessonKey(row.key)) {
+        if (!renderedLessonKeys.has(row.key)) {
+          const panel = lessonPanelMap.get(row.key);
+          if (panel) {
+            if (!expandCollapseInserted && lessonPanelMap.size > 1) {
+              expandCollapseInserted = insertExpandCollapseControls(mainEl);
+            }
+            mainEl.appendChild(panel);
+            renderedLessonKeys.add(row.key);
+          }
+        }
+      } else if (isAgendaKey(row.key)) {
+        // Skip private agenda rows in public view
+      } else {
+        renderSingleRow(row);
+      }
+    });
+  } else {
+    // Leadership view: iterate in original order.
+    // Lesson keys are rendered from mainRows directly (public, unlocked).
+    // Private agenda keys are rendered from agendaMap (locked).
+    const lessonPanelMap = buildLessonPanelMap(leadershipState.mainRows);
+    const renderedLessonKeys = new Set();
+
+    // Collect private agenda panels from agendaMap
+    const agendaPanels = [];
+    leadershipState.mainRows.forEach((row) => {
+      if (isAgendaKey(row.key)) {
+        const mapKey = `${row.key}|${row.value}`;
+        const entry = leadershipState.agendaMap.get(mapKey);
+        if (entry && entry.values.length > 0) {
+          agendaPanels.push({ row, panel: createAgendaAccordionPanel(row.key, entry.values, row.value, true) });
+        }
+      }
+    });
+
+    const totalPanels = agendaPanels.length + lessonPanelMap.size;
+    let expandCollapseInserted = false;
+    let renderedAgendaPanels = 0;
+    let renderedRegularRows = 0;
+
+    leadershipState.mainRows.forEach((row) => {
+      if (isLessonKey(row.key)) {
+        if (!renderedLessonKeys.has(row.key)) {
+          const panel = lessonPanelMap.get(row.key);
+          if (panel) {
+            if (!expandCollapseInserted && totalPanels > 1) {
+              expandCollapseInserted = insertExpandCollapseControls(mainEl);
+            }
+            mainEl.appendChild(panel);
+            renderedLessonKeys.add(row.key);
+          }
+        }
+      } else if (isAgendaKey(row.key)) {
+        const mapKey = `${row.key}|${row.value}`;
+        const found = agendaPanels.find((p) => `${p.row.key}|${p.row.value}` === mapKey);
+        if (found) {
+          if (!expandCollapseInserted && totalPanels > 1) {
+            expandCollapseInserted = insertExpandCollapseControls(mainEl);
+          }
+          mainEl.appendChild(found.panel);
+          renderedAgendaPanels++;
+        }
+      } else {
+        renderSingleRow(row);
+        renderedRegularRows++;
+      }
+    });
+
+    console.log(
+      "[Leadership] Rendered agenda view:",
+      renderedAgendaPanels,
+      "agenda panels,",
+      lessonPanelMap.size,
+      "lesson panels,",
+      renderedRegularRows,
+      "regular rows"
+    );
+  }
+}
+
+/**
+ * Render a single row using the appropriate renderer.
+ */
+function renderSingleRow(row) {
+  if (row.key === "stakeName" || row.key === "obsolete" || row.key === "migrationUrl") {
+    return;
+  }
+  const normalizedKey = normalizeRenderableKey(row.key);
+  const renderer = renderers[normalizedKey];
+  if (renderer) {
+    renderer(row.value);
+  } else if (normalizedKey && !normalizedKey.startsWith("_")) {
+    appendRow(row.key, row.value, normalizedKey);
+  }
+}
+
+/**
+ * Toggle between program and leadership views.
+ */
+function toggleLeadershipView() {
+  console.log("[Leadership] Toggle clicked. State:", {
+    agendaValid: leadershipState.agendaValid,
+    hasAgendaContent: leadershipState.hasAgendaContent,
+    currentView: leadershipState.currentView
+  });
+
+  if (!leadershipState.agendaValid || !leadershipState.hasAgendaContent) {
+    console.warn("[Leadership] Toggle blocked: agendaValid or hasAgendaContent is false");
+    return;
+  }
+
+  leadershipState.currentView = leadershipState.currentView === "program" ? "agenda" : "program";
+  console.log("[Leadership] Switched to view:", leadershipState.currentView);
+
+  sessionStorage.setItem("agendaView", leadershipState.currentView);
+  // Update URL param
+  const url = new URL(window.location);
+  url.searchParams.set("view", leadershipState.currentView);
+  window.history.replaceState(null, "", url);
+  renderMain();
+}
+
+/**
+ * Initialize the leadership toggle button (add click listener).
+ */
+function initLeadershipToggle() {
+  const toggleBtn = document.getElementById("agenda-toggle-btn");
+  if (toggleBtn) {
+    console.log("[Leadership] Initializing toggle button. Current state:", {
+      agendaValid: leadershipState.agendaValid,
+      hasAgendaContent: leadershipState.hasAgendaContent,
+      currentView: leadershipState.currentView
+    });
+    toggleBtn.addEventListener("click", toggleLeadershipView);
+    // visibility is managed by loadAgendaForCurrentProfile
+  } else {
+    console.warn("[Leadership] Toggle button not found in DOM");
+  }
+}
+
+/**
+ * Render a single agenda accordion panel (replaces createAgendaAccordionPanel).
+ * Panel is collapsed by default.
+ */
+function createAgendaAccordionPanel(key, items, agendaId, isLocked = true) {
+  const panelId = `panel-content-${key}-${agendaId}`;
+  const section = document.createElement("section");
+  section.className = isLessonKey(key) ? "agenda-panel lesson-panel" : "agenda-panel";
+
+  const header = document.createElement("div");
+  header.className = "panel-header";
+  header.setAttribute("role", "button");
+  header.setAttribute("tabindex", "0");
+  header.setAttribute("aria-expanded", "false");
+  header.setAttribute("aria-controls", panelId);
+
+  const lockIcon = isLocked ? document.createElement("span") : null;
+  if (lockIcon) {
+    lockIcon.className = "lock-icon";
+    lockIcon.setAttribute("aria-hidden", "true");
+    lockIcon.textContent = "🔒";
+  }
+
+  const title = document.createElement("h3");
+  title.className = "panel-title";
+  const baseTitle = t(key) !== key ? t(key) : capitalizeKey(key);
+  // Add ✅ or ❌ for the Stake Business panel based on value
+  if (key === "agendaBusinessStake") {
+    const raw = (items[0] || "").trim();
+    const isYes = /^(yes|true)$/i.test(raw) || raw === "";
+    title.textContent = `${baseTitle} ${isYes ? "✅" : "❌"}`;
+  } else {
+    title.textContent = baseTitle;
+  }
+
+  const chevron = document.createElement("span");
+  chevron.className = "chevron-icon";
+  chevron.setAttribute("aria-hidden", "true");
+  chevron.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M5.41 7.59L4 9l8 8 8-8-1.41-1.41L12 14.17z"/></svg>`;
+
+  if (lockIcon) header.appendChild(lockIcon);
+
+  // Class-specific emoji icon for lesson panels
+  if (isLessonKey(key) && LESSON_ICONS[key]) {
+    const iconEl = document.createElement("span");
+    iconEl.className = "lesson-icon";
+    iconEl.setAttribute("aria-hidden", "true");
+    iconEl.textContent = LESSON_ICONS[key];
+    header.appendChild(iconEl);
+  }
+
+  header.appendChild(title);
+  header.appendChild(chevron);
+  section.appendChild(header);
+
+  const content = document.createElement("div");
+  content.className = "panel-content";
+  content.id = panelId;
+
+  // Dispatch to structured renderer
+  renderAgendaContent(key, items, content);
+
+  section.appendChild(content);
+
+  const toggle = () => {
+    const expanded = section.classList.toggle("expanded");
+    header.setAttribute("aria-expanded", String(expanded));
+  };
+  header.addEventListener("click", toggle);
+  header.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      toggle();
+    }
+  });
+
+  return section;
+}
+
+/**
+ * Render structured content into a panel content element based on key type.
+ *
+ * agendaGeneral          → <p> per item
+ * agendaBusinessStake    → checkbox (pre-checked if value is "yes" or "true")
+ * agendaBusinessReleases → wording script + bullets "Name — Position"
+ * agendaBusinessCallings → wording script + bullets "Name — Position"
+ * agendaBusinessPriesthood → wording script + bullets "Name — Office"
+ * agendaBusinessNewMoveIns   → name-only bullets
+ * agendaBusinessNewConverts  → name-only bullets
+ * everything else         → plain bulleted list
+ */
+// Regex to detect a leading month+day at the start of a lesson text value.
+const LESSON_DATE_RE =
+  /^(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}\b/i;
+
+function renderAgendaContent(key, items, el) {
+  if (isLessonKey(key)) {
+    // Each item is optionally "Month D Title | https://url".
+    // Render as styled lesson cards: date badge + title + study button.
+    const list = document.createElement("div");
+    list.className = "lesson-card-list";
+    items.forEach((item) => {
+      const parts = item.split("|").map((s) => s.trim());
+      const maybeUrl = parts[parts.length - 1];
+      const hasUrl = parts.length >= 2 && isSafeUrl(maybeUrl);
+      const rawText = hasUrl ? parts.slice(0, -1).join(" | ") : item.trim();
+
+      // Parse optional leading date (e.g. "February 8")
+      const dateMatch = LESSON_DATE_RE.exec(rawText);
+      const dateText = dateMatch ? dateMatch[0] : null;
+      const titleText = dateText ? rawText.slice(dateText.length).trim() : rawText;
+
+      const card = document.createElement("article");
+      card.className = "lesson-card";
+
+      if (dateText) {
+        const dateEl = document.createElement("div");
+        dateEl.className = "lesson-card__date";
+        dateEl.textContent = dateText;
+        card.appendChild(dateEl);
+      }
+
+      const titleEl = document.createElement("div");
+      titleEl.className = "lesson-card__title";
+      titleEl.textContent = titleText || rawText;
+      card.appendChild(titleEl);
+
+      if (hasUrl) {
+        const btn = document.createElement("a");
+        btn.className = "lesson-card__btn";
+        btn.href = maybeUrl;
+        btn.target = "_blank";
+        btn.rel = "noopener noreferrer";
+        btn.textContent = "📖 Study this lesson →";
+        card.appendChild(btn);
+      }
+
+      list.appendChild(card);
+    });
+    el.appendChild(list);
+    return;
+  }
+
+  if (key === "agendaGeneral") {
+    items.forEach((item) => {
+      const p = document.createElement("p");
+      p.textContent = item;
+      el.appendChild(p);
+    });
+    return;
+  }
+
+  if (key === "agendaBusinessStake") {
+    const p = document.createElement("p");
+    p.className = "agenda-stake-confirmed";
+    // Show the cell value if it's descriptive, otherwise a standard label
+    const raw = (items[0] || "").trim();
+    const isBoolean = /^(yes|true)$/i.test(raw);
+    const isNo = /^(no|false)$/i.test(raw);
+    if (isNo) {
+      p.textContent = "\u274C No stake business this week";
+    } else if (isBoolean || raw === "") {
+      p.textContent = "\u2705 Stake business to be presented";
+    } else {
+      p.textContent = `\u2705 ${raw}`;
+    }
+    el.appendChild(p);
+    return;
+  }
+
+  // Each entry is [prefix, between-name-and-role, suffix].
+  // The bullet is built with DOM nodes so name is <strong> and role is <em>.
+  const WORDING_PARTS = {
+    agendaBusinessReleases: [
+      "",
+      " has been released as ",
+      ". Those who wish to express appreciation for their service, please do so by raising your hand."
+    ],
+    agendaBusinessCallings: [
+      "",
+      " has been called as ",
+      ". Those in favor, please manifest by raising your hand. Those opposed, if any, may so manifest."
+    ],
+    agendaBusinessPriesthood: [
+      "We propose that ",
+      " receive the Aaronic Priesthood and be ordained as a ",
+      ". Those in favor please manifest it by the uplifted hand. Those opposed, if any, may so indicate."
+    ]
+  };
+
+  const PIPE_KEYS = new Set([
+    "agendaBusinessReleases",
+    "agendaBusinessCallings",
+    "agendaBusinessPriesthood"
+  ]);
+
+  if (key === "agendaAckVisitingLeaders") {
+    const intro = document.createElement("p");
+    intro.textContent = "We would like to acknowledge our visiting leaders:";
+    el.appendChild(intro);
+  }
+
+  if (key === "agendaAnnouncements") {
+    const intro = document.createElement("p");
+    intro.textContent = "We do have some announcements today.";
+    el.appendChild(intro);
+  }
+
+  if (key === "agendaBusinessNewMoveIns") {
+    const intro = document.createElement("p");
+    intro.textContent = "We would like to welcome the following new members to our congregation:";
+    el.appendChild(intro);
+  }
+
+  if (key === "agendaBusinessNewConverts") {
+    const intro = document.createElement("p");
+    intro.textContent = "We would like to recognize our recent converts:";
+    el.appendChild(intro);
+  }
+
+  const ul = document.createElement("ul");
+  items.forEach((item) => {
+    const li = document.createElement("li");
+    if (PIPE_KEYS.has(key)) {
+      const [name, role] = item.split("|").map((s) => s.trim());
+      const parts = WORDING_PARTS[key];
+      if (parts && name && role) {
+        li.appendChild(document.createTextNode(parts[0]));
+        const nameEl = document.createElement("strong");
+        nameEl.textContent = name;
+        li.appendChild(nameEl);
+        li.appendChild(document.createTextNode(parts[1]));
+        const roleEl = document.createElement("em");
+        roleEl.textContent = role;
+        li.appendChild(roleEl);
+        li.appendChild(document.createTextNode(parts[2]));
+      } else {
+        li.textContent = role ? `${name} — ${role}` : (name || item.trim());
+      }
+    } else {
+      li.textContent = item.trim();
+    }
+    ul.appendChild(li);
+  });
+  el.appendChild(ul);
+
+  if (key === "agendaAnnouncements") {
+    const outro = document.createElement("p");
+    outro.textContent = "Please see the meeting bulletin for other announcements.";
+    el.appendChild(outro);
+  }
+}
+/**
+ * Capitalize a key for display: 'openingHymn' -> 'Opening Hymn'
+ */
+function capitalizeKey(key) {
+  if (!key) return "";
+  return key
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (str) => str.toUpperCase())
+    .trim();
+}
+
+// Expose for AgendaSettings to reload agenda for current profile
+window.loadAgendaForCurrentProfile = loadAgendaForCurrentProfile;
 
 // Helper: Load cached program from IndexedDB
 async function loadIndexedDBCache(cachedProfile) {
@@ -763,7 +1398,7 @@ async function init() {
     if (migrationResult && migrationResult.shouldReload) {
       console.log("[INIT] Database migration completed, reloading page to re-initialize...");
       // Wait longer to ensure all IndexedDB metadata is fully flushed and committed
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       // Force hard refresh from server, bypassing service worker cache
       window.location.reload(true);
       return;
@@ -1717,6 +2352,8 @@ if (typeof globalThis.window !== "undefined" && !globalThis.window.__VITEST__) {
       initLanguageSelector();
       initHistoryUI();
       initShareUI();
+      initAgendaSettings();
+      initLeadershipToggle();
       initDiagnosticButton();
       promptPWAInstall();
       await updateStaticStrings();
