@@ -483,6 +483,10 @@ function normalizeRenderableKey(rawKey) {
     return "intermediateHymn";
   }
 
+  if (/^leader\d+$/i.test(key)) {
+    return "leader";
+  }
+
   return key;
 }
 

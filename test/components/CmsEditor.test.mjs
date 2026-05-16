@@ -25,6 +25,7 @@ describe("CmsEditor helpers", () => {
     expect(getFieldsForKeyType("intermediateHymn3")).toEqual(
       getFieldsForKeyType("intermediateHymn")
     );
+    expect(getFieldsForKeyType("leader2")).toEqual(getFieldsForKeyType("leader"));
   });
 
   test("sanitisePart strips pipe characters", () => {
@@ -103,6 +104,40 @@ describe("CmsEditor component", () => {
     ]);
   });
 
+  test("appends repeatable speakers after existing numbered rows", () => {
+    editor.initialize([
+      { key: "speaker1", value: "Alice | Faith in Christ" },
+      { key: "speaker2", value: "Bob | Hope" }
+    ]);
+
+    editor.addRepeatableItem("speaker");
+    editor.setItemValue("speaker", 2, { name: "Carol", caption: "Charity" });
+
+    const speakerRows = editor.getRows().filter(row => /^speaker\d+$/.test(row.key));
+    expect(speakerRows).toEqual([
+      { key: "speaker1", value: "Alice | Faith in Christ" },
+      { key: "speaker2", value: "Bob | Hope" },
+      { key: "speaker3", value: "Carol | Charity" }
+    ]);
+  });
+
+  test("clears removed existing repeatable rows on export", () => {
+    editor.initialize([
+      { key: "speaker1", value: "Alice | Faith in Christ" },
+      { key: "speaker2", value: "Bob" }
+    ]);
+
+    editor.removeRepeatableItem("speaker", 0);
+
+    const speakerRows = editor.getRows().filter(row => /^speaker\d+$/.test(row.key));
+    expect(speakerRows).toEqual(
+      expect.arrayContaining([
+        { key: "speaker1", value: "" },
+        { key: "speaker2", value: "Bob" }
+      ])
+    );
+  });
+
   test("exports intermediate hymns with numbered keys", () => {
     editor.initialize([]);
     editor.setItemValue("intermediateHymn", 0, {
@@ -122,12 +157,65 @@ describe("CmsEditor component", () => {
     ]);
   });
 
+  test("allows adding repeatable leaders and exports concrete numbered keys", () => {
+    editor.initialize([]);
+    editor.setItemValue("leader", 0, {
+      name: "Bishop Smith",
+      phone: "801-555-1111",
+      calling: "Bishop"
+    });
+    editor.addRepeatableItem("leader");
+    editor.setItemValue("leader", 1, {
+      name: "Brother Jones",
+      phone: "",
+      calling: "Executive Secretary"
+    });
+
+    const leaderRows = editor.getRows().filter(row => /^leader\d+$/.test(row.key));
+    expect(leaderRows).toEqual([
+      { key: "leader1", value: "Bishop Smith | 801-555-1111 | Bishop" },
+      { key: "leader2", value: "Brother Jones |  | Executive Secretary" }
+    ]);
+  });
+
+  test("inserts the <LINK> placeholder into general statements with link", () => {
+    editor.initialize([{ key: "generalStatementWithLink", value: "Welcome | https://example.com" }]);
+
+    const textarea = container.querySelector(
+      '.cms-editor__textarea[data-key-type="generalStatementWithLink"][data-part-name="text"]'
+    );
+    textarea.focus();
+    textarea.setSelectionRange(7, 7);
+
+    const insertButton = container.querySelector("[data-action='insert-token']");
+    insertButton.click();
+
+    expect(textarea.value).toBe("Welcome<LINK>");
+    expect(editor.getRows()).toEqual(
+      expect.arrayContaining([
+        { key: "generalStatementWithLink", value: "Welcome<LINK> | https://example.com" }
+      ])
+    );
+  });
+
   test("tracks dirty state after edits", () => {
     editor.initialize([{ key: "unitName", value: "Millcreek 5th Ward" }]);
     editor.setItemValue("unitName", 0, { text: "Millcreek 6th Ward" });
 
     expect(editor.getState().isDirty).toBe(true);
     expect(container.querySelector(".cms-editor__status").textContent).toContain("Unsaved changes");
+  });
+
+  test("escapes textarea content when rendering stored sheet values", () => {
+    editor.initialize([
+      {
+        key: "generalStatement",
+        value: '</textarea><img src="x" alt="injected">'
+      }
+    ]);
+
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector("textarea").value).toBe('</textarea><img src="x" alt="injected">');
   });
 
   test("renders translated component chrome without missing translation warnings", async () => {

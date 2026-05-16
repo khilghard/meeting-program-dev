@@ -34,7 +34,7 @@ describe("GoogleAuth Module", () => {
   const mockGoogleGSI = {
     accounts: {
       oauth2: {
-        initCodeClient: vi.fn(() => ({
+        initTokenClient: vi.fn(() => ({
           requestAccessToken: vi.fn(),
           requestAuthorizationCode: vi.fn()
         }))
@@ -54,7 +54,7 @@ describe("GoogleAuth Module", () => {
     global.google = {
       accounts: {
         oauth2: {
-          initCodeClient: vi.fn(() => ({
+          initTokenClient: vi.fn(() => ({
             requestAccessToken: vi.fn(),
             requestAuthorizationCode: vi.fn()
           }))
@@ -72,6 +72,19 @@ describe("GoogleAuth Module", () => {
       expect(() => {
         GoogleAuth.initialize("test-client-id", "http://localhost/callback");
       }).not.toThrow();
+    });
+
+    it("should request sheets and drive metadata scopes", () => {
+      GoogleAuth.initialize("test-client-id", "http://localhost/callback");
+
+      expect(global.google.accounts.oauth2.initTokenClient).toHaveBeenCalledWith(
+        expect.objectContaining({
+          scope: [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive.metadata.readonly"
+          ].join(" ")
+        })
+      );
     });
 
     it("should throw error if clientId is missing", () => {

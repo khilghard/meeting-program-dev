@@ -326,6 +326,11 @@ describe("renderProgram()", () => {
     expect(document.querySelector("#speaker .value-on-right").textContent).toBe("Alice");
   });
 
+  test("renders numbered leader keys for compatibility", () => {
+    renderProgram([{ key: "leader1", value: "Bishop Smith | 801-555-1111 | Bishop" }]);
+    expect(document.querySelector(".leader-of-dots .label").textContent).toBe("Bishop Smith");
+  });
+
   test("skips empty values but renders horizontalLine", () => {
     const spy = vi.spyOn(renderers, "horizontalLine");
     renderProgram([

@@ -207,6 +207,27 @@ describe("Service Worker Caching Strategy", () => {
       const normalJs = "/js/main.js";
       expect(isVersionFile(normalJs)).toBe(false);
     });
+
+    it("should map CMS directory navigations to cms/index.html", async () => {
+      const mapShellPath = (path, basePath) => {
+        const cmsBasePath = `${basePath}cms/`;
+        const cmsBasePathWithoutTrailingSlash = cmsBasePath.slice(0, -1);
+
+        if (path === cmsBasePath || path === cmsBasePathWithoutTrailingSlash) {
+          return `${cmsBasePath}index.html`;
+        }
+
+        return path;
+      };
+
+      expect(mapShellPath("/meeting-program-dev/cms/", "/meeting-program-dev/")).toBe(
+        "/meeting-program-dev/cms/index.html"
+      );
+      expect(mapShellPath("/meeting-program-dev/cms", "/meeting-program-dev/")).toBe(
+        "/meeting-program-dev/cms/index.html"
+      );
+      expect(mapShellPath("/cms/", "/")).toBe("/cms/index.html");
+    });
   });
 
   describe("Manifest Detection and Updates", () => {

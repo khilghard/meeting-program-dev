@@ -26,7 +26,7 @@ console.log(`[SW] BASE_PATH detected: "${BASE_PATH}"`);
 // Legacy support - keep old MPPATH for existing users
 const MPPATH = BASE_PATH || "/meeting-program-dev";
 const APP_PREFIX = "smpwa";
-const VERSION = "2.4.2";
+const VERSION = "2.4.4";
 const CACHE_NAME = `${APP_PREFIX}-${VERSION}`;
 
 // All users now on 2.2.x - single unified cache scheme
@@ -43,6 +43,7 @@ const MAX_CACHES_TO_KEEP = 5; // Increased to support dual cache schemes
 // Files to precache - use BASE_PATH for new deployments, MPPATH for legacy
 const URLS = [
   `${BASE_PATH || MPPATH}/index.html?v=${VERSION}`,
+  `${BASE_PATH || MPPATH}/cms/index.html?v=${VERSION}`,
   `${BASE_PATH || MPPATH}/css/styles.css?v=${VERSION}`,
   `${BASE_PATH || MPPATH}/js/version.js?v=${VERSION}`,
   `${BASE_PATH || MPPATH}/js/version-parser.js?v=${VERSION}`,
@@ -295,6 +296,9 @@ self.addEventListener("fetch", (event) => {
 
   if (req.method !== "GET") return;
 
+  const cmsBasePath = `${BASE_PATH}cms/`;
+  const cmsBasePathWithoutTrailingSlash = cmsBasePath.slice(0, -1);
+
   // Handle requests to deployment root (e.g., /meeting-program/ → /meeting-program/index.html)
   // This handles cases where users access the path without index.html
   if (
@@ -308,6 +312,19 @@ self.addEventListener("fetch", (event) => {
       headers: req.headers
     });
     event.respondWith(handleStaticCache(indexReq));
+    return;
+  }
+
+  // Handle requests to the CMS shell directory (e.g., /meeting-program/cms/ → /meeting-program/cms/index.html)
+  if (
+    url.pathname === cmsBasePath ||
+    url.pathname === cmsBasePathWithoutTrailingSlash
+  ) {
+    const cmsIndexReq = new Request(`${cmsBasePath}index.html`, {
+      method: req.method,
+      headers: req.headers
+    });
+    event.respondWith(handleStaticCache(cmsIndexReq));
     return;
   }
 

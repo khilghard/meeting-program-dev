@@ -159,6 +159,8 @@ const FIELD_DEFINITIONS = {
     fields: [{ name: "enabled", type: "checkbox", label: "Display oil lamp" }]
   },
   leader: {
+    repeatable: true,
+    addLabel: "Add Leader",
     fields: [
       { name: "name", type: "text", placeholder: "Name" },
       { name: "phone", type: "text", placeholder: "Phone (optional)" },
@@ -302,6 +304,7 @@ const STATIC_TEXT_KEYS = {
   "(optional) Custom title": "cms.input.optionalCustomTitle",
   "Add Intermediate Hymn": "cms.action.addIntermediateHymn",
   "Add Speaker": "cms.action.addSpeaker",
+    "Insert Link Placeholder": "cms.action.insertLinkPlaceholder",
   Name: "cms.input.name",
   "(Optional) Caption/topic": "cms.input.optionalCaptionTopic",
   "(Optional) Section label": "cms.input.optionalSectionLabel",
@@ -379,6 +382,7 @@ function translate(key, fallback = key) {
 export function normalizeCmsKeyType(key) {
   if (/^speaker\d+$/i.test(key)) return "speaker";
   if (/^intermediatehymn\d+$/i.test(key)) return "intermediateHymn";
+  if (/^leader\d+$/i.test(key)) return "leader";
   return key;
 }
 
@@ -517,21 +521,19 @@ function isRepeatableKeyType(keyType) {
   return getFieldDefinition(keyType).repeatable === true;
 }
 
+function isNumberedRepeatableKeyType(keyType) {
+  return ["speaker", "intermediateHymn", "leader"].includes(keyType);
+}
+
 function getConcreteKeyForNewItem(keyType, existingKeys, nextOrdinal) {
-  if (keyType === "speaker") {
-    return `speaker${nextOrdinal}`;
-  }
-  if (keyType === "intermediateHymn") {
-    return `intermediateHymn${nextOrdinal}`;
+  if (isNumberedRepeatableKeyType(keyType)) {
+    return `${keyType}${nextOrdinal}`;
   }
   return existingKeys[nextOrdinal - 1] ?? keyType;
 }
 
 function sortConcreteRows(rows, keyType) {
-  if (keyType === "speaker") {
-    return [...rows].sort((left, right) => getTrailingNumber(left.key) - getTrailingNumber(right.key));
-  }
-  if (keyType === "intermediateHymn") {
+  if (isNumberedRepeatableKeyType(keyType)) {
     return [...rows].sort((left, right) => getTrailingNumber(left.key) - getTrailingNumber(right.key));
   }
   return rows;
@@ -565,6 +567,7 @@ function buildFieldGroups(rows, includeAgenda) {
         keyType,
         label: getFieldLabel(keyType),
         definition: getFieldDefinition(keyType),
+        removedKeys: [],
         items
       };
     })
@@ -689,9 +692,13 @@ class CmsEditor {
     const inputId = `${keyType}-${itemIndex}-${part.name}`;
     const prompt = translateStaticText(part.label || part.placeholder || "");
     if (part.type === "textarea") {
+      const insertTokenButton = keyType === "generalStatementWithLink" && part.name === "text"
+        ? `<button type="button" class="cms-editor__insert-token" data-action="insert-token" data-key-type="${keyType}" data-item-index="${itemIndex}" data-part-name="${part.name}" data-token="<LINK>">${translateStaticText("Insert Link Placeholder")}</button>`
+        : "";
       return `
         <label class="cms-editor__input-label" for="${inputId}">${prompt}</label>
-        <textarea id="${inputId}" class="cms-editor__input cms-editor__textarea" data-key-type="${keyType}" data-item-index="${itemIndex}" data-part-name="${part.name}">${value[part.name] ?? ""}</textarea>
+        <textarea id="${inputId}" class="cms-editor__input cms-editor__textarea" data-key-type="${keyType}" data-item-index="${itemIndex}" data-part-name="${part.name}">${this.escapeHtml(value[part.name] ?? "")}</textarea>
+        ${insertTokenButton}
       `;
     }
 
@@ -734,6 +741,20 @@ class CmsEditor {
         this.removeRepeatableItem(button.dataset.keyType, Number(button.dataset.itemIndex));
       });
     });
+
+    this.container.querySelectorAll("[data-action='insert-token']").forEach(button => {
+      button.addEventListener("mousedown", event => {
+        event.preventDefault();
+      });
+      button.addEventListener("click", () => {
+        this.insertToken(
+          button.dataset.keyType,
+          Number(button.dataset.itemIndex),
+          button.dataset.partName,
+          button.dataset.token
+        );
+      });
+    });
   }
 
   handleValueChange(event) {
@@ -761,6 +782,24 @@ class CmsEditor {
     this.refreshDirtyState();
   }
 
+  insertToken(keyType, itemIndex, partName, token) {
+    const textarea = this.container.querySelector(
+      `.cms-editor__textarea[data-key-type="${keyType}"][data-item-index="${itemIndex}"][data-part-name="${partName}"]`
+    );
+    if (!textarea) return;
+
+    const currentValue = textarea.value ?? "";
+    const tokenValue = token ?? "";
+    const start = textarea.selectionStart ?? currentValue.length;
+    const end = textarea.selectionEnd ?? start;
+    const nextValue = `${currentValue.slice(0, start)}${tokenValue}${currentValue.slice(end)}`;
+
+    textarea.value = nextValue;
+    textarea.focus();
+    textarea.setSelectionRange(start + tokenValue.length, start + tokenValue.length);
+    this.setPartValue(keyType, itemIndex, partName, nextValue);
+  }
+
   addRepeatableItem(keyType) {
     const field = this.findField(keyType);
     if (!field?.definition.repeatable) return;
@@ -772,7 +811,13 @@ class CmsEditor {
   removeRepeatableItem(keyType, itemIndex) {
     const field = this.findField(keyType);
     if (!field?.definition.repeatable) return;
-    if (field.items.length === 1) {
+    const item = field.items[itemIndex];
+    if (!item) return;
+
+    if (item.key) {
+      field.removedKeys = Array.from(new Set([...(field.removedKeys ?? []), item.key]));
+      field.items.splice(itemIndex, 1);
+    } else if (field.items.length === 1) {
       field.items[0].value = createEmptyValue(keyType);
     } else {
       field.items.splice(itemIndex, 1);
@@ -802,8 +847,11 @@ class CmsEditor {
     const rows = [];
 
     for (const field of flattenGroups(this.groups)) {
-      const existingKeys = field.items.filter(item => item.key).map(item => item.key);
-      let nextOrdinal = Math.max(1, ...existingKeys.map(getTrailingNumber), 0);
+      const trackedKeys = [
+        ...field.items.filter(item => item.key).map(item => item.key),
+        ...(field.removedKeys ?? [])
+      ];
+      let nextOrdinal = Math.max(0, ...trackedKeys.map(getTrailingNumber)) + 1;
 
       field.items.forEach(item => {
         const serialized = serializeFieldValue(field.keyType, item.value);
@@ -819,16 +867,19 @@ class CmsEditor {
         }
 
         if (isRepeatableKeyType(field.keyType)) {
+          const newKey = getConcreteKeyForNewItem(field.keyType, trackedKeys, nextOrdinal);
+          trackedKeys.push(newKey);
+          rows.push({ key: newKey, value: serialized });
           nextOrdinal += 1;
+          return;
         }
 
-        rows.push({
-          key: isRepeatableKeyType(field.keyType)
-            ? getConcreteKeyForNewItem(field.keyType, existingKeys, nextOrdinal - 1)
-            : field.keyType,
-          value: serialized
-        });
+        rows.push({ key: field.keyType, value: serialized });
       });
+
+      for (const removedKey of field.removedKeys ?? []) {
+        rows.push({ key: removedKey, value: "" });
+      }
     }
 
     return rows;
@@ -955,6 +1006,7 @@ class CmsEditor {
         min-height: 5rem;
       }
       .cms-editor__add-item,
+      .cms-editor__insert-token,
       .cms-editor__remove-item {
         align-self: start;
         border: none;

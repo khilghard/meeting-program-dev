@@ -107,6 +107,10 @@ export function sanitizeEntry(rawKey, rawValue) {
     return { key: "intermediateHymn", value: sanitizeValue(rawValue) };
   }
 
+  if (/^leader\d+$/i.test(key)) {
+    return { key: "leader", value: sanitizeValue(rawValue) };
+  }
+
   if (!ALLOWED_KEYS.has(key)) {
     console.warn("Blocked unknown key:", key);
     return null;

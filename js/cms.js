@@ -25,6 +25,21 @@ export function buildCmsDraftKey(profileId) {
   return `cms_draft_${profileId}`;
 }
 
+function getFallbackLocaleFromError(error, supportedLanguages = []) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const match = /Available columns:\s*(.+)$/i.exec(message);
+  if (!match) {
+    return null;
+  }
+
+  const availableColumns = match[1]
+    .split(",")
+    .map(column => column.trim())
+    .filter(Boolean);
+
+  return supportedLanguages.find(locale => availableColumns.includes(locale)) ?? null;
+}
+
 function normalizeSelectedTab(tabs, preferredTitle = "") {
   const normalizedTabs = Array.isArray(tabs) ? tabs : [];
   if (preferredTitle) {
@@ -47,6 +62,12 @@ function buildDraftPayload(state) {
     rows: state.editor?.getRows?.() ?? [],
     savedAt: Date.now()
   };
+}
+
+function isAuthError(error) {
+  if (!error) return false;
+  const message = error instanceof Error ? error.message : String(error);
+  return error.name === "SheetsAuthError" || error.status === 403 || /access token|not authorized/i.test(message);
 }
 
 export function createCmsApp(dependencies = {}) {
@@ -91,6 +112,7 @@ export function createCmsApp(dependencies = {}) {
       signInButton: documentRef.getElementById("cms-sign-in-btn"),
       loading: documentRef.getElementById("cms-loading"),
       content: documentRef.getElementById("cms-content"),
+      toolbar: documentRef.getElementById("cms-toolbar"),
       profileName: documentRef.getElementById("cms-profile-name"),
       localeSelect: documentRef.getElementById("cms-locale-select"),
       tabSelect: documentRef.getElementById("cms-tab-select"),
@@ -108,7 +130,8 @@ export function createCmsApp(dependencies = {}) {
       elements.loading.textContent = message || deps.t("loading");
     }
     if (elements.content) {
-      elements.content.hidden = isLoading;
+      const authPanelVisible = elements.authPanel ? !elements.authPanel.hidden : false;
+      elements.content.hidden = isLoading || authPanelVisible;
     }
   }
 
@@ -118,6 +141,42 @@ export function createCmsApp(dependencies = {}) {
     pageStatus.textContent = message;
     pageStatus.dataset.tone = tone;
     pageStatus.hidden = !message;
+  }
+
+  function setToolbarState(isEnabled) {
+    const elements = getElements();
+    if (elements.toolbar) {
+      elements.toolbar.hidden = !isEnabled;
+    }
+
+    [elements.localeSelect, elements.tabSelect, elements.saveButton, elements.discardButton]
+      .filter(Boolean)
+      .forEach(control => {
+        control.disabled = !isEnabled;
+      });
+  }
+
+  function showAuthGate(message, tone = "info") {
+    const elements = getElements();
+    if (elements.loading) {
+      elements.loading.hidden = true;
+    }
+    if (elements.content) {
+      elements.content.hidden = true;
+    }
+    if (elements.authPanel) {
+      elements.authPanel.hidden = false;
+    }
+    setToolbarState(false);
+    setStatus(message, tone);
+  }
+
+  function showEditorChrome() {
+    const { authPanel } = getElements();
+    if (authPanel) {
+      authPanel.hidden = true;
+    }
+    setToolbarState(true);
   }
 
   function updateHeader() {
@@ -186,18 +245,55 @@ export function createCmsApp(dependencies = {}) {
     state.editor.initialize(rows);
   }
 
-  async function loadSheetRows() {
+  async function loadSheetRows({ allowLocaleFallback = true } = {}) {
     setLoading(true, "Loading CMS...");
 
-    const { rows, modifiedTime } = await state.programService.readSheet(state.locale, state.selectedTab);
-    state.modifiedTime = modifiedTime;
-    state.sheetRows = rows;
+    try {
+      const { rows, modifiedTime } = await state.programService.readSheet(
+        state.locale,
+        state.selectedTab
+      );
+      showEditorChrome();
+      state.modifiedTime = modifiedTime;
+      state.sheetRows = rows;
 
-    const draft = state.profile ? await deps.getDraft(buildCmsDraftKey(state.profile.id)) : null;
-    mountEditor(draftMatchesCurrentView(draft) ? draft.rows : rows);
-    updateHeader();
-    setLoading(false);
-    setStatus("");
+      const draft = state.profile ? await deps.getDraft(buildCmsDraftKey(state.profile.id)) : null;
+      mountEditor(draftMatchesCurrentView(draft) ? draft.rows : rows);
+      updateHeader();
+      setStatus("");
+      return true;
+    } catch (error) {
+      if (isAuthError(error)) {
+        console.warn("[CMS] Authentication expired while loading rows", error);
+        showAuthGate("Your Google session expired. Sign in again to continue editing.", "warning");
+        return false;
+      }
+
+      const fallbackLocale = allowLocaleFallback
+        ? getFallbackLocaleFromError(error, deps.getSupportedLanguages())
+        : null;
+
+      if (fallbackLocale && fallbackLocale !== state.locale) {
+        const requestedLocale = state.locale;
+        state.locale = fallbackLocale;
+        populateLocaleOptions();
+
+        const reloaded = await loadSheetRows({ allowLocaleFallback: false });
+        if (reloaded) {
+          setStatus(
+            `Locale ${requestedLocale.toUpperCase()} is unavailable in this sheet. Switched to ${fallbackLocale.toUpperCase()}.`,
+            "warning"
+          );
+        }
+        return reloaded;
+      }
+
+      console.error("[CMS] Failed to load sheet rows", error);
+      setStatus(error instanceof Error ? error.message : "Failed to load CMS rows.", "error");
+      return false;
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleLocaleChange(event) {
@@ -215,25 +311,50 @@ export function createCmsApp(dependencies = {}) {
     if (!state.editor) return;
 
     setLoading(true, "Saving CMS...");
-    const result = await state.programService.writeSheet(
-      state.editor.getRows(),
-      state.locale,
-      state.modifiedTime || null,
-      state.selectedTab
-    );
+    const currentRows = state.editor.getRows();
 
-    if (result.conflict) {
-      setLoading(false);
-      setStatus(
-        "This sheet changed since you loaded it. Reload the latest version before saving.",
-        "error"
+    try {
+      let result = await state.programService.writeSheet(
+        currentRows,
+        state.locale,
+        state.modifiedTime || null,
+        state.selectedTab
       );
-      return;
-    }
 
-    await deps.clearDraft(buildCmsDraftKey(state.profile.id));
-    await loadSheetRows();
-    setStatus("Saved to Google Sheets.", "success");
+      if (result.conflict) {
+        const shouldOverwrite = deps.windowRef?.confirm?.(
+          "This sheet was modified by another user since you opened it. Save anyway?"
+        ) ?? false;
+
+        if (!shouldOverwrite) {
+          state.modifiedTime = result.modifiedTime || state.modifiedTime;
+          setStatus("Save cancelled to avoid overwriting newer sheet changes.", "warning");
+          return;
+        }
+
+        result = await state.programService.writeSheet(
+          currentRows,
+          state.locale,
+          null,
+          state.selectedTab
+        );
+      }
+
+      await deps.clearDraft(buildCmsDraftKey(state.profile.id));
+      await loadSheetRows();
+      setStatus("Saved to Google Sheets.", "success");
+    } catch (error) {
+      if (isAuthError(error)) {
+        console.warn("[CMS] Authentication expired while saving rows", error);
+        showAuthGate("Your Google session expired. Sign in again to continue editing.", "warning");
+        return;
+      }
+
+      console.error("[CMS] Failed to save sheet rows", error);
+      setStatus(error instanceof Error ? error.message : "Failed to save CMS rows.", "error");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleDiscard() {
@@ -270,17 +391,27 @@ export function createCmsApp(dependencies = {}) {
   }
 
   async function signIn() {
-    const result = await deps.auth.signIn();
-    if (!result) {
-      setStatus("Google sign-in was cancelled.", "warning");
-      return;
-    }
+    try {
+      const result = await deps.auth.signIn();
+      if (!result) {
+        setStatus("Google sign-in was cancelled.", "warning");
+        return;
+      }
 
-    deps.windowRef.sessionStorage.removeItem(CMS_AUTH_PENDING_KEY);
-    getElements().authPanel.hidden = true;
-    await connectServices();
-    populateTabOptions();
-    await loadSheetRows();
+      deps.windowRef.sessionStorage.removeItem(CMS_AUTH_PENDING_KEY);
+      showEditorChrome();
+      await connectServices();
+      populateTabOptions();
+      await loadSheetRows();
+    } catch (error) {
+      if (isAuthError(error)) {
+        showAuthGate("Your Google session expired. Sign in again to continue editing.", "warning");
+        return;
+      }
+
+      console.error("[CMS] Google sign-in failed", error);
+      setStatus(error instanceof Error ? error.message : "Google sign-in failed.", "error");
+    }
   }
 
   async function initialize() {
@@ -309,22 +440,25 @@ export function createCmsApp(dependencies = {}) {
 
     const isAuthenticated = await initializeAuth();
     if (!isAuthenticated) {
-      setLoading(false);
-      if (elements.authPanel) {
-        elements.authPanel.hidden = false;
-      }
-      setStatus("Sign in with Google to load and edit CMS rows.", "info");
+      showAuthGate("Sign in with Google to load and edit CMS rows.", "info");
       return state;
     }
 
-    if (elements.authPanel) {
-      elements.authPanel.hidden = true;
-    }
+    try {
+      showEditorChrome();
 
-    await connectServices();
-    populateTabOptions();
-    await loadSheetRows();
-    return state;
+      await connectServices();
+      populateTabOptions();
+      await loadSheetRows();
+      return state;
+    } catch (error) {
+      if (isAuthError(error)) {
+        showAuthGate("Your Google session expired. Sign in again to continue editing.", "warning");
+        return state;
+      }
+
+      throw error;
+    }
   }
 
   return {
