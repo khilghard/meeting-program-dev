@@ -1014,11 +1014,39 @@ footer {
   padding: 20px;
 }
 
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal-close-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-color);
+  font-size: 1.8rem;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.modal-close-btn:hover {
+  opacity: 0.7;
+}
+
 .modal-content h3 {
   margin-top: 0;
   margin-bottom: 15px;
   text-align: center;
   font-size: 1.4rem;
+}
+
+.help-modal-header h3 {
+  flex: 1;
+  text-align: center;
+  margin-bottom: 0;
+  padding-left: 32px;
 }
 
 .modal-actions {
@@ -1401,6 +1429,11 @@ footer {
 .help-content {
   max-height: 80vh;
   overflow-y: auto;
+}
+
+.help-content .modal-actions {
+  justify-content: center;
+  margin: 4px 0 8px;
 }
 
 .help-sections {

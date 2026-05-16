@@ -118,8 +118,9 @@ function initNetworkStatus() {
 
   // Timer storage for cleanup
   let statusHideTimer = null;
+  let hasBeenOffline = typeof navigator !== "undefined" ? !navigator.onLine : false;
 
-  const updateStatus = async () => {
+  const updateStatus = async ({ showOnlineNotice = false } = {}) => {
     const statusEl = document.getElementById("network-status");
     if (!statusEl) return;
 
@@ -135,7 +136,6 @@ function initNetworkStatus() {
       textEl.textContent = "Online";
       statusEl.classList.remove("offline");
       statusEl.classList.add("online");
-      statusEl.classList.remove("hidden");
 
       const lastUpdated = await getMetadata("programLastUpdatedDate");
       if (lastUpdated) {
@@ -145,15 +145,25 @@ function initNetworkStatus() {
       }
 
       if (statusHideTimer) clearTimeout(statusHideTimer);
-      statusHideTimer = setTimeout(() => {
+
+      if (showOnlineNotice && hasBeenOffline) {
+        statusEl.classList.remove("hidden");
+        hasBeenOffline = false;
+        statusHideTimer = setTimeout(() => {
+          statusEl.classList.add("hidden");
+        }, 3000);
+      } else {
         statusEl.classList.add("hidden");
-      }, 3000);
+      }
     } else {
+      hasBeenOffline = true;
       iconEl.textContent = "📱";
       textEl.textContent = "Working offline";
       statusEl.classList.remove("online");
       statusEl.classList.add("offline");
       statusEl.classList.remove("hidden");
+
+      if (statusHideTimer) clearTimeout(statusHideTimer);
 
       const lastUpdated = await getMetadata("programLastUpdatedDate");
       if (lastUpdated) {
@@ -165,7 +175,7 @@ function initNetworkStatus() {
   };
 
   globalThis.window.addEventListener("online", () => {
-    updateStatus();
+    updateStatus({ showOnlineNotice: true });
   });
 
   globalThis.window.addEventListener("offline", () => {
@@ -460,7 +470,6 @@ function addResetButtonToHelpModal() {
   // Move Close button just before the reset section, with an hr below it
   const modalActions = document.querySelector("#help-modal .modal-actions");
   if (modalActions) {
-    modalActions.style.cssText = "display: flex; justify-content: center; margin: 4px 0 8px;";
     helpSections.insertBefore(modalActions, resetSection);
     const razorHr = document.createElement("hr");
     razorHr.className = "help-razor";
@@ -2054,6 +2063,8 @@ function updateBasicStrings() {
   updateElementAriaLabel("manage-profiles-btn", "managePrograms");
   updateElementText("add-new-program-btn", "scanNewProgram");
   updateElementText("close-modal-btn", "close");
+  updateElementText("close-help-modal-btn", "done");
+  updateElementAriaLabel("close-help-modal-top-btn", "close");
   updateElementAriaLabel("theme-toggle", "toggleDarkMode");
   updateElementText("welcome-to-text", "welcomeTo");
   updateElementText("manage-profiles-title", "managePrograms");
@@ -2471,4 +2482,4 @@ export {
 export { fetchSheet, parseCSV } from "./utils/csv.js";
 
 // Keep local exports
-export { init, fetchWithTimeout };
+export { init, fetchWithTimeout, initNetworkStatus };

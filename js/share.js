@@ -188,6 +188,7 @@ function generateQRCode(url, container) {
 async function openHelpModal() {
   const modal = document.getElementById("help-modal");
   const closeBtn = document.getElementById("close-help-modal-btn");
+  const closeTopBtn = document.getElementById("close-help-modal-top-btn");
 
   if (!modal) {
     return;
@@ -203,6 +204,10 @@ async function openHelpModal() {
 
   if (closeBtn) {
     closeBtn.onclick = () => modal.close();
+  }
+
+  if (closeTopBtn) {
+    closeTopBtn.onclick = () => modal.close();
   }
 
   await setMetadata(HELP_SHOWN_KEY, "true");
