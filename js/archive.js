@@ -261,7 +261,7 @@ async function loadArchives() {
       info.speakers.forEach((speaker) => {
         const speakerDiv = document.createElement("div");
         speakerDiv.className = "profile-card-details";
-        speakerDiv.textContent = escapeHtml(speaker);
+        speakerDiv.textContent = escapeHtml(speaker.split("|")[0].trim());
         content.appendChild(speakerDiv);
       });
     }
@@ -316,9 +316,10 @@ function renderProgram(rows) {
   // Use the same rendering logic as the main application
   rows.forEach(({ key, value }) => {
     const isHorizontalLine = key.toLowerCase() === "horizontalline";
+    const allowEmpty = isHorizontalLine || key === "sacramentLine" || key === "oilLamp";
     const isEmpty = !value || value.trim() === "";
 
-    if (isEmpty && !isHorizontalLine) return;
+    if (isEmpty && !allowEmpty) return;
 
     const renderer = renderers[key];
     if (renderer) renderer(value || "");

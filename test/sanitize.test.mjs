@@ -90,5 +90,41 @@ describe("Sanitization Module", () => {
       expect(entry.key).toBe("unitName");
       expect(entry.value).toBe("My Ward");
     });
+
+    test("Agenda keys are allowed (private leadership panels)", () => {
+      const agendaKeys = [
+        "agendaGeneral",
+        "agendaAnnouncements",
+        "agendaAckVisitingLeaders",
+        "agendaBusinessStake",
+        "agendaBusinessReleases",
+        "agendaBusinessCallings",
+        "agendaBusinessPriesthood",
+        "agendaBusinessNewMoveIns",
+        "agendaBusinessNewConverts",
+        "agendaBusinessGeneral"
+      ];
+      for (const key of agendaKeys) {
+        const entry = sanitizeEntry(key, "ann-001");
+        expect(entry).not.toBe(null);
+        expect(entry.key).toBe(key);
+      }
+    });
+
+    test("Lesson keys are allowed (public congregation panels)", () => {
+      const lessonKeys = ["lessonEQRS", "lessonSundaySchool", "lessonYouth", "lessonPrimary"];
+      for (const key of lessonKeys) {
+        const entry = sanitizeEntry(key, "lesson-001");
+        expect(entry).not.toBe(null);
+        expect(entry.key).toBe(key);
+      }
+    });
+
+    test("agendaLesson* keys (old naming) are blocked", () => {
+      expect(sanitizeEntry("agendaLessonEQRS", "x")).toBe(null);
+      expect(sanitizeEntry("agendaLessonSundaySchool", "x")).toBe(null);
+      expect(sanitizeEntry("agendaLessonYouth", "x")).toBe(null);
+      expect(sanitizeEntry("agendaLessonPrimary", "x")).toBe(null);
+    });
   });
 });

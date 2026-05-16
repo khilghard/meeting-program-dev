@@ -245,6 +245,19 @@ describe("renderSpeaker()", () => {
     renderSpeaker("Alice");
     expect(document.querySelector("#speaker .value-on-right").textContent).toBe("Alice");
   });
+
+  test("renders speaker name and caption when pipe is present", () => {
+    renderSpeaker("Alice | Visiting Speaker");
+    const div = document.querySelector("#speaker");
+    expect(div.querySelector(".value-on-right").textContent).toBe("Alice");
+    expect(div.querySelector(".speaker-caption").textContent).toBe("Visiting Speaker");
+  });
+
+  test("does not render caption element when no pipe is present", () => {
+    renderSpeaker("Alice");
+    const div = document.querySelector("#speaker");
+    expect(div.querySelector(".speaker-caption")).toBeNull();
+  });
 });
 
 // ---------- renderLeader ----------
@@ -305,6 +318,11 @@ describe("renderProgram()", () => {
     const spy = vi.spyOn(renderers, "speaker");
     renderProgram([{ key: "speaker", value: "Alice" }]);
     expect(spy).toHaveBeenCalledWith("Alice");
+  });
+
+  test("renders numbered speaker keys for compatibility", () => {
+    renderProgram([{ key: "speaker1", value: "Alice" }]);
+    expect(document.querySelector("#speaker .value-on-right").textContent).toBe("Alice");
   });
 
   test("skips empty values but renders horizontalLine", () => {
@@ -598,9 +616,9 @@ describe("Networking & Errors", () => {
 
       await init();
 
-      // Check that fetch was called with the URL
+      // Check that fetch was called with the sanitized URL (gviz/tq endpoint)
       expect(global.fetch).toHaveBeenCalledWith(
-        "https://docs.google.com/spreadsheets/d/test",
+        "https://docs.google.com/spreadsheets/d/test/gviz/tq?tqx=out:csv",
         expect.any(Object)
       );
       expect(document.querySelector("#speaker")).not.toBeNull();

@@ -1,16 +1,13 @@
 import { t, getLanguage } from "../i18n/index.js";
 import { translateHonorifics } from "../i18n/honorifics.js";
 import { isSafeUrl } from "../sanitize.js";
-import { getChildrenSongData, getChildrenSongUrl, getHymnData } from "../data/hymnsLookup.js";
-
-// Helper: Render a role with translated name (speaker, prayer, etc.)
-function renderHonorificRole(name, labelKey, className) {
-  const translatedName = translateHonorifics(name, getLanguage());
-  appendRow(t(labelKey), translatedName, className);
-}
+import { getHymnData, getChildrenSongData } from "../data/hymnsLookup.js";
 
 function renderSpeaker(name) {
-  renderHonorificRole(name, "speaker", "speaker");
+  const [namePart, ...captionParts] = name.split("|");
+  const translatedName = translateHonorifics(namePart.trim(), getLanguage());
+  const caption = captionParts.length > 0 ? captionParts.join("|").trim() : "";
+  appendRow(t("speaker"), translatedName, "speaker", caption);
 }
 
 function renderIntermediateHymn(name) {
@@ -30,31 +27,44 @@ function renderHymn(name) {
 }
 
 function renderSacramentHymn(name) {
-  appendRowHymn(t("sacramentHymn"), name, "sacramentHymn");
+  if (!document.getElementById("sacrament-section")) {
+    const container = document.getElementById("main-program");
+    const section = document.createElement("div");
+    section.id = "sacrament-section";
+    section.className = "sacrament-section";
+    container.appendChild(section);
+  }
+  appendRowHymn(t("sacramentHymn"), name, "sacramentHymn", "sacrament-section");
 }
 
 function renderOpeningPrayer(name) {
-  renderHonorificRole(name, "openingPrayer", "openingPrayer");
+  const translatedName = translateHonorifics(name, getLanguage());
+  appendRow(t("openingPrayer"), translatedName, "openingPrayer");
 }
 
 function renderClosingPrayer(name) {
-  renderHonorificRole(name, "closingPrayer", "closingPrayer");
+  const translatedName = translateHonorifics(name, getLanguage());
+  appendRow(t("closingPrayer"), translatedName, "closingPrayer");
 }
 
 function renderPresiding(name) {
-  renderHonorificRole(name, "presiding", "presiding");
+  const translatedName = translateHonorifics(name, getLanguage());
+  appendRow(t("presiding"), translatedName, "presiding");
 }
 
 function renderConducting(name) {
-  renderHonorificRole(name, "conducting", "conducting");
+  const translatedName = translateHonorifics(name, getLanguage());
+  appendRow(t("conducting"), translatedName, "conducting");
 }
 
 function renderMusicDirector(name) {
-  renderHonorificRole(name, "musicDirector", "musicDirector");
+  const translatedName = translateHonorifics(name, getLanguage());
+  appendRow(t("musicDirector"), translatedName, "musicDirector");
 }
 
 function renderOrganist(name) {
-  renderHonorificRole(name, "organist", "musicOrganist");
+  const translatedName = translateHonorifics(name, getLanguage());
+  appendRow(t("organist"), translatedName, "musicOrganist");
 }
 
 function renderLeader(value) {
@@ -174,7 +184,7 @@ function renderLinkWithSpace(value) {
   const inner = document.createElement("div");
   inner.className = "link-with-space-inner";
 
-  if (imgLinkRaw?.toUpperCase() !== "NONE" && isSafeUrl(imgLinkRaw)) {
+  if (imgLinkRaw && imgLinkRaw.toUpperCase() !== "NONE" && isSafeUrl(imgLinkRaw)) {
     const img = document.createElement("img");
     img.src = imgLinkRaw;
     img.className = "link-icon";
@@ -193,7 +203,35 @@ function renderLinkWithSpace(value) {
   container.appendChild(div);
 }
 
-function appendRow(label, value, id) {
+function renderPhoto(value) {
+  const container = document.getElementById("main-program");
+  const parts = value.split("|").map((s) => s.trim());
+  const url = parts[0];
+  const caption = parts[1] || "";
+
+  if (!url) return;
+  const safeUrl = url.startsWith("http") ? url : `https://${url}`;
+  if (!isSafeUrl(safeUrl)) return;
+
+  const figure = document.createElement("figure");
+  figure.className = "program-photo";
+
+  const img = document.createElement("img");
+  img.src = safeUrl;
+  img.alt = caption;
+  img.loading = "lazy";
+  figure.appendChild(img);
+
+  if (caption) {
+    const figcaption = document.createElement("figcaption");
+    figcaption.textContent = caption;
+    figure.appendChild(figcaption);
+  }
+
+  container.appendChild(figure);
+}
+
+function appendRow(label, value, id, caption = "") {
   const container = document.getElementById("main-program");
   const div = document.createElement("div");
   div.id = id;
@@ -217,33 +255,38 @@ function appendRow(label, value, id) {
   row.appendChild(valueSpan);
 
   div.appendChild(row);
+
+  if (caption) {
+    const captionDiv = document.createElement("div");
+    captionDiv.className = "speaker-caption";
+    captionDiv.textContent = caption;
+    div.appendChild(captionDiv);
+  }
+
   container.appendChild(div);
 }
 
-function appendRowHymn(label, value, id) {
-  const container = document.getElementById("main-program");
+function appendRowHymn(label, value, id, containerIdOverride = null) {
+  const container = document.getElementById(containerIdOverride || "main-program");
   const div = document.createElement("div");
   div.id = id;
 
   const { number, title, isChildrensSong, customText } = splitHymn(value);
+  const hymnUrl = getHymnUrl(number, isChildrensSong, title);
 
-  // Get URL and potentially correct title from lookup
-  let hymnUrl = null;
+  // Get the accurate title from hymn lookup data
   let displayTitle = title;
-
-  if (isChildrensSong) {
-    const lookupData = getChildrenSongData(number);
-    if (lookupData) {
-      hymnUrl = lookupData.url;
-      displayTitle = lookupData.title;
-    }
-  } else {
-    const hymnData = getHymnData(number);
-    if (hymnData) {
-      hymnUrl = hymnData.url;
-      displayTitle = hymnData.title;
+  if (hymnUrl) {
+    if (isChildrensSong) {
+      const songData = getChildrenSongData(number);
+      if (songData) {
+        displayTitle = songData.title;
+      }
     } else {
-      hymnUrl = getHymnUrl(number, isChildrensSong, title);
+      const hymnData = getHymnData(number);
+      if (hymnData) {
+        displayTitle = hymnData.title;
+      }
     }
   }
 
@@ -283,12 +326,12 @@ function appendRowHymn(label, value, id) {
   div.appendChild(row);
   div.appendChild(titleDiv);
 
-  // Add custom text line if provided
+  // Display custom text if present
   if (customText) {
-    const customTextDiv = document.createElement("div");
-    customTextDiv.className = "hymn-title";
-    customTextDiv.textContent = customText;
-    div.appendChild(customTextDiv);
+    const customDiv = document.createElement("div");
+    customDiv.className = "hymn-custom-text";
+    customDiv.textContent = customText;
+    div.appendChild(customDiv);
   }
 
   container.appendChild(div);
@@ -297,46 +340,48 @@ function appendRowHymn(label, value, id) {
 function getHymnUrl(number, isChildrensSong, title) {
   if (!number) return null;
 
-  const cleanNumber = number.replace("#", "");
-
   if (isChildrensSong) {
-    // Use lookup table for accurate URL
-    const url = getChildrenSongUrl(cleanNumber);
-    if (url) return url;
-
-    // Fallback to title-based slug if not found in lookup
-    const slug = title
-      .toLowerCase()
-      .replaceAll(/[^a-z0-9\s-]/g, "")
-      .replaceAll(/\s+/g, "-")
-      .replaceAll(/-+/g, "-")
-      .replaceAll(/^-+|-+$/g, "")
-      .trim();
-    return slug ? `https://www.churchofjesuschrist.org/media/music/songs/${slug}?lang=eng` : null;
+    const songData = getChildrenSongData(number);
+    return songData ? songData.url : null;
   }
 
-  // Use lookup table for regular hymns
-  const hymnData = getHymnData(cleanNumber);
-  if (hymnData) return hymnData.url;
-
-  // Fallback to collection page if not found in lookup
-  return `https://www.churchofjesuschrist.org/media/music/collections/hymns?lang=eng`;
+  const hymnData = getHymnData(number);
+  return hymnData ? hymnData.url : null;
 }
 
 function splitHymn(value) {
-  // Split on first pipe to separate hymn name from custom text
-  const parts = value.split("|");
-  const hymnPart = parts[0].trim();
-  const customText = parts.length > 1 ? parts.slice(1).join("|").trim() : "";
+  // Split by first pipe to separate title from custom text
+  const [mainPart, ...customParts] = value.split("|");
+  const customText = customParts.length > 0 ? customParts.join("|").trim() : "";
 
-  const csMatch = hymnPart.match(/^#?CS\s*(\d+[a-z]?)\s*(.*)$/i);
+  // Check for #CS format first (e.g., "#CS 73a Before I Take the Sacrament")
+  let csMatch = mainPart.match(/^#?CS\s*(\d+[a-z]?)\s*(.*)$/i);
   if (csMatch) {
-    return { number: `CS ${csMatch[1]}`, title: csMatch[2], isChildrensSong: true, customText };
+    return {
+      number: `CS ${csMatch[1]}`,
+      title: csMatch[2].trim(),
+      isChildrensSong: true,
+      customText: customText
+    };
   }
 
-  const match = hymnPart.match(/^(#?(\d+[a-z]?))\s*(.*)$/);
-  if (!match) return { number: "", title: hymnPart, isChildrensSong: false, customText };
-  return { number: match[1], title: match[3], isChildrensSong: false, customText };
+  // Check for hymn format (e.g., "#73a Before I Take the Sacrament" or "45")
+  const hymnMatch = mainPart.match(/^(#?\d+[a-z]?)\s*(.*)$/i);
+  if (!hymnMatch) {
+    return {
+      number: "",
+      title: mainPart.trim(),
+      isChildrensSong: false,
+      customText: customText
+    };
+  }
+
+  return {
+    number: hymnMatch[1],
+    title: hymnMatch[2].trim(),
+    isChildrensSong: false,
+    customText: customText
+  };
 }
 
 function splitLeadership(value) {
@@ -365,9 +410,80 @@ function renderLineBreak(value) {
   const hr = document.createElement("hr");
   hr.className = "hr-text";
   if (value) {
-    hr.dataset.content = value;
+    hr.setAttribute("data-content", value);
   }
   container.appendChild(hr);
+}
+
+function renderSacramentLine(value) {
+  const displayText = value && value.trim() ? value.trim() : t("ordinanceOfTheSacrament");
+
+  let section = document.getElementById("sacrament-section");
+  if (!section) {
+    const container = document.getElementById("main-program");
+    section = document.createElement("div");
+    section.id = "sacrament-section";
+    section.className = "sacrament-section";
+    container.appendChild(section);
+  }
+
+  const header = document.createElement("div");
+  header.className = "sacrament-section-header";
+
+  const titleEl = document.createElement("div");
+  titleEl.className = "sacrament-section-title";
+  const titleSpan = document.createElement("span");
+  titleSpan.textContent = displayText;
+  titleEl.appendChild(titleSpan);
+
+  header.appendChild(titleEl);
+
+  // Append header after the hymn row
+  section.appendChild(header);
+}
+
+function renderOilLamp(value) {
+  const container = document.getElementById("main-program");
+  const wrapper = document.createElement("div");
+  wrapper.className = "oil-lamp-container";
+
+  const picture = document.createElement("picture");
+
+  const webpSource = document.createElement("source");
+  webpSource.setAttribute("srcset", "img/oil-lamp.webp");
+  webpSource.setAttribute("type", "image/webp");
+
+  const img = document.createElement("img");
+  img.src = "img/oil-lamp.jpg";
+  img.alt = "Oil lamp";
+  img.className = "oil-lamp-img";
+
+  picture.appendChild(webpSource);
+  picture.appendChild(img);
+  wrapper.appendChild(picture);
+
+  if (value && value.trim()) {
+    const caption = document.createElement("p");
+    caption.className = "oil-lamp-caption";
+    caption.textContent = value.trim();
+    wrapper.appendChild(caption);
+  }
+
+  container.appendChild(wrapper);
+}
+
+function normalizeRenderableKey(rawKey) {
+  const key = (rawKey || "").trim().replace(/^\uFEFF/, "");
+
+  if (/^speaker\d+$/i.test(key)) {
+    return "speaker";
+  }
+
+  if (/^intermediatehymn\d+$/i.test(key)) {
+    return "intermediateHymn";
+  }
+
+  return key;
 }
 
 const renderers = {
@@ -387,20 +503,26 @@ const renderers = {
   musicDirector: renderMusicDirector,
   musicOrganist: renderOrganist,
   horizontalLine: renderLineBreak,
+  sacramentLine: renderSacramentLine,
+  oilLamp: renderOilLamp,
   leader: renderLeader,
   generalStatementWithLink: renderGeneralStatementWithLink,
   generalStatement: renderGeneralStatement,
   link: renderLink,
-  linkWithSpace: renderLinkWithSpace
+  linkWithSpace: renderLinkWithSpace,
+  photo: renderPhoto
 };
 
 export {
   renderers,
+  normalizeRenderableKey,
   renderProgram,
   renderUnitName,
   renderUnitAddress,
   renderDate,
   renderLineBreak,
+  renderSacramentLine,
+  renderOilLamp,
   splitHymn,
   splitLeadership,
   appendRow,
@@ -410,19 +532,48 @@ export {
   renderGeneralStatementWithLink,
   renderGeneralStatement,
   renderLink,
-  renderLinkWithSpace
+  renderLinkWithSpace,
+  renderPhoto
 };
 
 function renderProgram(rows) {
+  let speakerLikeInputCount = 0;
+  let renderedSpeakerCount = 0;
+
   rows.forEach(({ key, value }) => {
-    const isHorizontalLine = key.toLowerCase() === "horizontalline";
+    const normalizedKey = normalizeRenderableKey(key);
+    const isHorizontalLine = normalizedKey.toLowerCase() === "horizontalline";
+    const allowEmpty =
+      isHorizontalLine || normalizedKey === "sacramentLine" || normalizedKey === "oilLamp";
     const isEmpty = !value || value.trim() === "";
 
-    if (isEmpty && !isHorizontalLine) return;
+    if (/^speaker\d*$/i.test((key || "").trim()) && !isEmpty) {
+      speakerLikeInputCount++;
+    }
 
-    const renderer = renderers[key];
-    if (renderer) renderer(value || "");
+    if (isEmpty && !allowEmpty) return;
+
+    const renderer = renderers[normalizedKey];
+    if (renderer) {
+      renderer(value || "");
+      if (normalizedKey === "speaker") {
+        renderedSpeakerCount++;
+      }
+      return;
+    }
+
+    if (/^speaker/i.test((key || "").trim())) {
+      console.warn(
+        `[renderProgram] Unmapped speaker key: "${key}" (normalized: "${normalizedKey}")`
+      );
+    }
   });
+
+  if (speakerLikeInputCount > 0 && renderedSpeakerCount === 0) {
+    console.warn(
+      `[renderProgram] Speaker rows detected (${speakerLikeInputCount}) but none were rendered.`
+    );
+  }
 
   const alternateVersion = document.getElementById("the-version");
   if (alternateVersion) {
