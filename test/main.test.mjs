@@ -49,6 +49,7 @@ const {
   renderLinkWithSpace,
   renderProgram,
   init,
+  initNetworkStatus,
   fetchSheet,
   parseCSV,
   renderers,
@@ -806,6 +807,10 @@ describe("Offline Banner", () => {
 // ---------- Network Status Tests ----------
 describe("Network Status Monitoring", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  beforeEach(() => {
     setupDOM();
     vi.clearAllMocks();
     localStorage.clear();
@@ -862,6 +867,48 @@ describe("Network Status Monitoring", () => {
 
     lastSyncEl.textContent = `Last sync: ${timeString}`;
     expect(lastSyncEl.textContent).toContain("Last sync");
+  });
+
+  test("keeps online status hidden on initial online page load", async () => {
+    Object.defineProperty(navigator, "onLine", {
+      configurable: true,
+      writable: true,
+      value: true
+    });
+
+    initNetworkStatus();
+    await vi.runAllTimersAsync();
+
+    const statusEl = document.getElementById("network-status");
+    expect(statusEl.classList.contains("hidden")).toBe(true);
+    expect(statusEl.querySelector(".status-text").textContent).toBe("Online");
+  });
+
+  test("shows online status only after returning from offline", async () => {
+    Object.defineProperty(navigator, "onLine", {
+      configurable: true,
+      writable: true,
+      value: false
+    });
+
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ version: "2.4.1" })
+    });
+
+    initNetworkStatus();
+    await vi.runAllTimersAsync();
+
+    const statusEl = document.getElementById("network-status");
+    expect(statusEl.classList.contains("hidden")).toBe(false);
+    expect(statusEl.querySelector(".status-text").textContent).toBe("Working offline");
+
+    navigator.onLine = true;
+    window.dispatchEvent(new Event("online"));
+    await vi.runAllTimersAsync();
+
+    expect(statusEl.querySelector(".status-text").textContent).toBe("Online");
+    expect(statusEl.classList.contains("hidden")).toBe(true);
   });
 });
 

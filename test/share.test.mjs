@@ -79,3 +79,43 @@ describe("share.js - initShareUI", () => {
     });
   });
 });
+
+describe("share.js - helpModal", () => {
+  let openHelpModal;
+
+  beforeEach(async () => {
+    document.body.innerHTML = `
+      <dialog id="help-modal">
+        <button id="close-help-modal-top-btn" aria-label="Close">×</button>
+        <button id="close-help-modal-btn">Done</button>
+        <h3 id="help-modal-title">Help & FAQ</h3>
+      </dialog>
+    `;
+
+    const modal = document.getElementById("help-modal");
+    modal.showModal = vi.fn();
+    modal.close = vi.fn();
+
+    vi.resetModules();
+    const module = await import("../js/share.js");
+    openHelpModal = module.openHelpModal;
+  });
+
+  test("should wire both help modal close buttons", async () => {
+    const modal = document.getElementById("help-modal");
+    const closeBtn = document.getElementById("close-help-modal-btn");
+    const closeTopBtn = document.getElementById("close-help-modal-top-btn");
+
+    await openHelpModal();
+
+    expect(modal.showModal).toHaveBeenCalled();
+    expect(closeBtn.onclick).toBeDefined();
+    expect(closeTopBtn.onclick).toBeDefined();
+
+    closeTopBtn.onclick();
+    expect(modal.close).toHaveBeenCalledTimes(1);
+
+    closeBtn.onclick();
+    expect(modal.close).toHaveBeenCalledTimes(2);
+  });
+});

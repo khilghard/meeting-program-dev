@@ -8,12 +8,13 @@
  * Version 3: Added date index to history, inactive index to profiles
  * Version 4: Migrate all localStorage data to IndexedDB (v2.2.0 migration)
  * Version 5: Added agenda fields to profiles (agendaUrl, agendaLastLoaded, agendaValid) and archives (agendaCsvData, agendaRows)
+ * Version 6: Added drafts store for CMS auto-save (AD-04)
  */
 
-import Dexie from "dexie";
+import Dexie from "../vendor/dexie.mjs";
 
 const BASE_DB_NAME = "MeetingProgramDB";
-const DB_SCHEMA_VERSION = 5;
+const DB_SCHEMA_VERSION = 6;
 
 function getDeploymentPath() {
   if (typeof globalThis !== "undefined" && globalThis.window?.DEPLOYMENT_PATH) {
@@ -22,8 +23,8 @@ function getDeploymentPath() {
 
   if (typeof globalThis !== "undefined" && globalThis.location?.pathname) {
     const pathname = String(globalThis.location.pathname);
-    if (pathname.includes("/meeting-program-dev/")) return "/meeting-program-dev/";
-    if (pathname.includes("/meeting-program/")) return "/meeting-program/";
+    if (pathname.includes("/meeting-program-dev")) return "/meeting-program-dev/";
+    if (pathname.includes("/meeting-program")) return "/meeting-program/";
   }
 
   return "/";
@@ -265,6 +266,16 @@ db.version(5).stores({
   history: "id, profileId, date, cachedAt, [profileId+cachedAt]"
 });
 // No upgrade needed – additive schema changes are backward compatible
+
+db.version(6).stores({
+  profiles: "id, url, lastUsed, inactive, agendaUrl, agendaLastLoaded, agendaValid",
+  archives: "id, profileId, programDate, [profileId+programDate], agendaCsvData, agendaRows",
+  metadata: "key",
+  migrations: "profileId",
+  history: "id, profileId, date, cachedAt, [profileId+cachedAt]",
+  drafts: "id, profileId, updatedAt" // NEW — CMS auto-save drafts (AD-04)
+});
+// No upgrade needed – additive store, no data transformation required
 
 // Export default for convenience
 export default db;

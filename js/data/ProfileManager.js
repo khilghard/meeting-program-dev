@@ -11,18 +11,81 @@ import {
   saveProfile as dbSaveProfile,
   deleteProfile as dbDeleteProfile,
   clearProfileArchives,
+  clearProfileDrafts,
   createDatabase,
   getMetadata,
   setMetadata
 } from "./IndexedDBManager.js";
+import { DB_NAME } from "./db.js";
 import { clearHistory } from "../history.js";
 
+const BASE_DB_NAME = "MeetingProgramDB";
+const PROD_DB_NAME = `${BASE_DB_NAME}__meeting-program`;
 const LEGACY_STORAGE_KEY = "meeting_program_profiles";
 const LEGACY_SELECTED_KEY = "meeting_program_selected_id";
 const SELECTED_PROFILE_KEY = "meeting_program_selected_id";
 const APP_VERSION_KEY = "app_version";
 
 let initialized = false;
+
+function getMigrationSourceCandidates() {
+  return [PROD_DB_NAME, BASE_DB_NAME].filter((name, index, values) => {
+    return name !== DB_NAME && values.indexOf(name) === index;
+  });
+}
+
+function findMigrationSourceDatabase(databases) {
+  const availableNames = new Set(databases.map((database) => database.name).filter(Boolean));
+  return getMigrationSourceCandidates().find((name) => availableNames.has(name)) || null;
+}
+
+async function withObjectStore(dbName, storeName, mode, callback) {
+  return await new Promise((resolve, reject) => {
+    const req = indexedDB.open(dbName);
+    req.onsuccess = async () => {
+      const database = req.result;
+      if (!database.objectStoreNames.contains(storeName)) {
+        database.close();
+        resolve(null);
+        return;
+      }
+
+      try {
+        const transaction = database.transaction(storeName, mode);
+        const store = transaction.objectStore(storeName);
+        const result = await callback(store);
+        database.close();
+        resolve(result);
+      } catch (error) {
+        database.close();
+        reject(error);
+      }
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function getAllRecordsFromDatabase(dbName, storeName) {
+  const result = await withObjectStore(dbName, storeName, "readonly", (store) => {
+    return new Promise((resolve, reject) => {
+      const getAllReq = store.getAll();
+      getAllReq.onsuccess = () => resolve(getAllReq.result);
+      getAllReq.onerror = () => reject(getAllReq.error);
+    });
+  });
+
+  return result || [];
+}
+
+async function getRecordFromDatabase(dbName, storeName, key) {
+  return await withObjectStore(dbName, storeName, "readonly", (store) => {
+    return new Promise((resolve, reject) => {
+      const getReq = store.get(key);
+      getReq.onsuccess = () => resolve(getReq.result || null);
+      getReq.onerror = () => reject(getReq.error);
+    });
+  });
+}
 
 // Detect if this is a version upgrade that needs reload
 async function migrateFromOldDatabase(currentVersion) {
@@ -43,13 +106,17 @@ async function migrateFromOldDatabase(currentVersion) {
       console.log("[ProfileManager] No stored version found (first run or reset)");
     }
     
-    // Check if old database "MeetingProgramDB" exists
+    if (typeof indexedDB.databases !== "function") {
+      console.log("[ProfileManager] indexedDB.databases() unavailable, skipping DB migration check");
+      return { migratedSuccessfully: false, shouldReload: false };
+    }
+
     const databases = await indexedDB.databases();
-    const hasOldDb = databases.some(db => db.name === "MeetingProgramDB");
-    const hasNewDb = databases.some(db => db.name !== "MeetingProgramDB");
-    
-    if (!hasOldDb || !hasNewDb) {
-      console.log("[ProfileManager] No migration needed - both databases don't exist");
+    const sourceDbName = findMigrationSourceDatabase(databases);
+    const hasCurrentDb = databases.some((database) => database.name === DB_NAME);
+
+    if (!sourceDbName || !hasCurrentDb) {
+      console.log("[ProfileManager] No migration source database found for current deployment");
       // Store current version for next time
       try {
         await setMetadata(APP_VERSION_KEY, currentVersion);
@@ -74,35 +141,11 @@ async function migrateFromOldDatabase(currentVersion) {
     
     console.log("[ProfileManager] New database is empty, attempting to migrate from old database...");
     
-    // Open old database and get profiles
-    const oldProfiles = await new Promise((resolve, reject) => {
-      const req = indexedDB.open("MeetingProgramDB");
-      req.onsuccess = () => {
-        const db = req.result;
-        if (!db.objectStoreNames.contains("profiles")) {
-          db.close();
-          resolve([]);
-          return;
-        }
-        
-        const tx = db.transaction("profiles", "readonly");
-        const store = tx.objectStore("profiles");
-        const getAllReq = store.getAll();
-        
-        getAllReq.onsuccess = () => {
-          db.close();
-          resolve(getAllReq.result);
-        };
-        getAllReq.onerror = () => {
-          db.close();
-          reject(getAllReq.error);
-        };
-      };
-      req.onerror = () => reject(req.error);
-    });
+    // Open source database and get profiles
+    const oldProfiles = await getAllRecordsFromDatabase(sourceDbName, "profiles");
     
     if (!oldProfiles || oldProfiles.length === 0) {
-      console.log("[ProfileManager] Old database has no profiles to migrate");
+      console.log("[ProfileManager] Source database has no profiles to migrate");
       try {
         await setMetadata(APP_VERSION_KEY, currentVersion);
       } catch (e) {
@@ -111,7 +154,7 @@ async function migrateFromOldDatabase(currentVersion) {
       return { migratedSuccessfully: false, shouldReload: false };
     }
     
-    console.log(`[ProfileManager] Found ${oldProfiles.length} profiles in old database, migrating...`);
+    console.log(`[ProfileManager] Found ${oldProfiles.length} profiles in ${sourceDbName}, migrating...`);
     
     // Migrate each profile to new database
     for (const profile of oldProfiles) {
@@ -125,52 +168,31 @@ async function migrateFromOldDatabase(currentVersion) {
     
     // Try to set selected profile if one exists
     try {
-      const selectedReq = await new Promise((resolve, reject) => {
-        const req = indexedDB.open("MeetingProgramDB");
-        req.onsuccess = () => {
-          const db = req.result;
-          if (!db.objectStoreNames.contains("metadata")) {
-            db.close();
-            resolve(null);
-            return;
-          }
-          
-          const tx = db.transaction("metadata", "readonly");
-          const store = tx.objectStore("metadata");
-          const getReq = store.get("meeting_program_selected_id");
-          
-          getReq.onsuccess = () => {
-            db.close();
-            resolve(getReq.result?.value || null);
-          };
-          getReq.onerror = () => {
-            db.close();
-            reject(getReq.error);
-          };
-        };
-        req.onerror = () => reject(req.error);
-      });
+      const selectedReq = await getRecordFromDatabase(sourceDbName, "metadata", SELECTED_PROFILE_KEY);
       
-      if (selectedReq) {
-        await setMetadata("meeting_program_selected_id", selectedReq);
+      if (selectedReq?.value) {
+        await setMetadata(SELECTED_PROFILE_KEY, selectedReq.value);
         console.log("[ProfileManager] Migrated selected profile ID");
       }
     } catch (e) {
       console.warn("[ProfileManager] Failed to migrate selected profile ID:", e);
     }
     
-    // Delete old database
-    try {
-      await new Promise((resolve, reject) => {
-        const req = indexedDB.deleteDatabase("MeetingProgramDB");
-        req.onsuccess = () => {
-          console.log("[ProfileManager] Deleted old MeetingProgramDB");
-          resolve();
-        };
-        req.onerror = () => reject(req.error);
-      });
-    } catch (e) {
-      console.warn("[ProfileManager] Failed to delete old database:", e);
+    if (sourceDbName === BASE_DB_NAME) {
+      try {
+        await new Promise((resolve, reject) => {
+          const req = indexedDB.deleteDatabase(sourceDbName);
+          req.onsuccess = () => {
+            console.log(`[ProfileManager] Deleted legacy database ${sourceDbName}`);
+            resolve();
+          };
+          req.onerror = () => reject(req.error);
+        });
+      } catch (e) {
+        console.warn("[ProfileManager] Failed to delete old database:", e);
+      }
+    } else {
+      console.log(`[ProfileManager] Preserved source database ${sourceDbName}`);
     }
     
     console.log("[ProfileManager] Migration complete!");
@@ -328,6 +350,7 @@ export async function removeProfile(id) {
 
   await dbDeleteProfile(id);
   await clearProfileArchives(id);
+  await clearProfileDrafts(id);
   await clearHistory(id); // Clear history entries for deleted profile
 
   const selectedId = await getSelectedProfileId();

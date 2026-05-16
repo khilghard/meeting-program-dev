@@ -60,28 +60,55 @@ function parseCSV(csv) {
 
 // Helper: Process parsed rows and apply language formatting
 function processCSVRows(rows) {
-  const headerRow = rows[0] || [];
-  const isMultiLang =
-    headerRow.length > 2 && LANGUAGE_HEADERS.includes(headerRow[1]?.toLowerCase());
+  if (!rows || rows.length === 0) {
+    return [];
+  }
+
+  const headerRow = rows[0];
+
+  // Check if this is a multi-language CSV with expected headers
+  // Look for 'key' in first column and at least one language code in subsequent columns
+  const hasKeyHeader = headerRow && headerRow[0] && headerRow[0].toLowerCase().includes("key");
+  const hasLanguageHeaders =
+    headerRow &&
+    headerRow.length >= 2 &&
+    headerRow[1] &&
+    LANGUAGE_HEADERS.includes(headerRow[1].toLowerCase());
+
+  // If we have a header row that looks like a multi-language CSV with key and language columns,
+  // return the raw rows with all columns intact
+  if (hasKeyHeader && hasLanguageHeaders) {
+    return rows;
+  }
+
+  // Otherwise, fall back to single-language behavior
   const currentLang = getLanguage() || "en";
   const langIndex = LANGUAGE_HEADERS.indexOf(currentLang);
   const safeLangIndex = Math.max(0, langIndex);
 
   const result = [];
   rows.slice(1).forEach((row) => {
+    if (!row || row.length === 0) {
+      return;
+    }
+
     const rawKey = row[0];
     let rawValue;
 
-    if (isMultiLang) {
+    if (hasKeyHeader && hasLanguageHeaders) {
+      // This is a multi-language CSV
       const langValue = row[safeLangIndex + 1];
       const enValue = row[1];
       rawValue = langValue?.trim() !== "" ? langValue : enValue;
     } else {
+      // Single-language format
       rawValue = row[1];
     }
 
     const entry = sanitizeEntry(rawKey, rawValue);
-    if (!entry) return;
+    if (!entry) {
+      return;
+    }
 
     if (entry.value) {
       entry.value = entry.value.replaceAll(/~/g, ",");
