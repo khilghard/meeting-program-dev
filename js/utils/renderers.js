@@ -4,8 +4,10 @@ import { isSafeUrl } from "../sanitize.js";
 import { getHymnData, getChildrenSongData } from "../data/hymnsLookup.js";
 
 function renderSpeaker(name) {
-  const translatedName = translateHonorifics(name, getLanguage());
-  appendRow(t("speaker"), translatedName, "speaker");
+  const [namePart, ...captionParts] = name.split("|");
+  const translatedName = translateHonorifics(namePart.trim(), getLanguage());
+  const caption = captionParts.length > 0 ? captionParts.join("|").trim() : "";
+  appendRow(t("speaker"), translatedName, "speaker", caption);
 }
 
 function renderIntermediateHymn(name) {
@@ -229,7 +231,7 @@ function renderPhoto(value) {
   container.appendChild(figure);
 }
 
-function appendRow(label, value, id) {
+function appendRow(label, value, id, caption = "") {
   const container = document.getElementById("main-program");
   const div = document.createElement("div");
   div.id = id;
@@ -253,6 +255,14 @@ function appendRow(label, value, id) {
   row.appendChild(valueSpan);
 
   div.appendChild(row);
+
+  if (caption) {
+    const captionDiv = document.createElement("div");
+    captionDiv.className = "speaker-caption";
+    captionDiv.textContent = caption;
+    div.appendChild(captionDiv);
+  }
+
   container.appendChild(div);
 }
 

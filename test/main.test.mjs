@@ -245,6 +245,19 @@ describe("renderSpeaker()", () => {
     renderSpeaker("Alice");
     expect(document.querySelector("#speaker .value-on-right").textContent).toBe("Alice");
   });
+
+  test("renders speaker name and caption when pipe is present", () => {
+    renderSpeaker("Alice | Visiting Speaker");
+    const div = document.querySelector("#speaker");
+    expect(div.querySelector(".value-on-right").textContent).toBe("Alice");
+    expect(div.querySelector(".speaker-caption").textContent).toBe("Visiting Speaker");
+  });
+
+  test("does not render caption element when no pipe is present", () => {
+    renderSpeaker("Alice");
+    const div = document.querySelector("#speaker");
+    expect(div.querySelector(".speaker-caption")).toBeNull();
+  });
 });
 
 // ---------- renderLeader ----------

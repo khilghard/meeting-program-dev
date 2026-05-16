@@ -261,7 +261,7 @@ async function loadArchives() {
       info.speakers.forEach((speaker) => {
         const speakerDiv = document.createElement("div");
         speakerDiv.className = "profile-card-details";
-        speakerDiv.textContent = escapeHtml(speaker);
+        speakerDiv.textContent = escapeHtml(speaker.split("|")[0].trim());
         content.appendChild(speakerDiv);
       });
     }
