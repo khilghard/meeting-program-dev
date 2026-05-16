@@ -280,4 +280,5 @@ ignore:
   - .svelte-kit/**
   - coverage/**
   - .turbo/**
+  - js/vendor/**
 preset: ui

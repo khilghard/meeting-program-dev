@@ -13,6 +13,7 @@ import {
   hasLegacyProfiles,
   initProfileManager
 } from "../js/data/ProfileManager.js";
+import { getDraft, saveDraft } from "../js/data/IndexedDBManager.js";
 
 describe("ProfileManager", () => {
   beforeEach(async () => {
@@ -27,6 +28,7 @@ describe("ProfileManager", () => {
       const { db } = await import("../js/data/db.js");
       await db.profiles.clear();
       await db.metadata.clear();
+      await db.drafts.clear();
     } catch (e) {
       // Ignore errors if db isn't initialized
     }
@@ -119,6 +121,27 @@ describe("ProfileManager", () => {
 
       const profiles = await getProfiles();
       expect(profiles).toHaveLength(1);
+    });
+
+    test("removing a profile also removes its drafts", async () => {
+      const survivor = await addProfile(
+        "https://docs.google.com/spreadsheets/d/test",
+        "Test Ward",
+        "Test Stake"
+      );
+      const profile = await addProfile(
+        "https://docs.google.com/spreadsheets/d/a",
+        "Ward A",
+        "Stake A"
+      );
+
+      await saveDraft(`cms_draft_${profile.id}`, { title: "Delete me" });
+      await saveDraft(`cms_draft_${survivor.id}`, { title: "Keep me" });
+
+      await removeProfile(profile.id);
+
+      await expect(getDraft(`cms_draft_${profile.id}`)).resolves.toBeNull();
+      await expect(getDraft(`cms_draft_${survivor.id}`)).resolves.toEqual({ title: "Keep me" });
     });
   });
 

@@ -223,3 +223,7 @@ test-results
 rigour-report.json
 rigour-fix-packet.json
 .rigour/
+_bmad/
+_bmad-output/
+.agents/
+graphify*

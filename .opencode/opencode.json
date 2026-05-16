@@ -25,5 +25,8 @@
         "skill": true
       }
     }
-  }
+  },
+  "plugin": [
+    ".opencode/plugins/graphify.js"
+  ]
 }

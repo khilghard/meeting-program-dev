@@ -11,8 +11,8 @@
  *   - editor_snapshots: Save draft snapshots of entire CSV state
  */
 
-import Dexie from "dexie";
-import { v4 as uuidv4 } from "uuid";
+import Dexie from "../vendor/dexie.mjs";
+import { v4 as uuidv4 } from "../vendor/uuid-v4.mjs";
 
 /**
  * Initialize IndexedDB schema
@@ -161,9 +161,7 @@ const EditorStateManager = (() => {
         lastModified: now
       });
 
-      console.log(
-        `[EditorStateManager] Change recorded: ${key}[${language}] = "${newValue}"`
-      );
+      console.log(`[EditorStateManager] Change recorded: ${key}[${language}] = "${newValue}"`);
       return changeId;
     } catch (err) {
       console.error("[EditorStateManager] Failed to record change:", err);
@@ -183,10 +181,7 @@ const EditorStateManager = (() => {
     }
 
     try {
-      const changes = await editorDb.editor_changes
-        .where("sessionId")
-        .equals(sessionId)
-        .toArray();
+      const changes = await editorDb.editor_changes.where("sessionId").equals(sessionId).toArray();
 
       console.log(`[EditorStateManager] Retrieved ${changes.length} changes`);
       return changes;
@@ -251,9 +246,7 @@ const EditorStateManager = (() => {
         state[key]._changed = true;
       }
 
-      console.log(
-        `[EditorStateManager] State reconstructed from ${changes.length} changes`
-      );
+      console.log(`[EditorStateManager] State reconstructed from ${changes.length} changes`);
       return state;
     } catch (err) {
       console.error("[EditorStateManager] Failed to reconstruct state:", err);
@@ -385,10 +378,7 @@ const EditorStateManager = (() => {
 
     try {
       // Delete all changes for this session
-      const deleted = await editorDb.editor_changes
-        .where("sessionId")
-        .equals(sessionId)
-        .delete();
+      const deleted = await editorDb.editor_changes.where("sessionId").equals(sessionId).delete();
 
       console.log(`[EditorStateManager] Deleted ${deleted} changes`);
 
@@ -435,17 +425,14 @@ const EditorStateManager = (() => {
       // Add only changed rows
       for (const [key, values] of Object.entries(state)) {
         if (values._changed) {
-          const row = [
-            key,
-            values.en || "",
-            values.es || "",
-            values.fr || "",
-            values.swa || ""
-          ];
+          const row = [key, values.en || "", values.es || "", values.fr || "", values.swa || ""];
 
           // Quote fields with commas, newlines, or quotes
           const quotedRow = row.map((field) => {
-            if (typeof field === "string" && (field.includes(",") || field.includes("\n") || field.includes('"'))) {
+            if (
+              typeof field === "string" &&
+              (field.includes(",") || field.includes("\n") || field.includes('"'))
+            ) {
               return `"${field.replace(/"/g, '""')}"`;
             }
             return field;
@@ -456,9 +443,7 @@ const EditorStateManager = (() => {
       }
 
       const csv = rows.join("\n");
-      console.log(
-        `[EditorStateManager] Exported ${rows.length - 1} changed rows as CSV`
-      );
+      console.log(`[EditorStateManager] Exported ${rows.length - 1} changed rows as CSV`);
       return csv;
     } catch (err) {
       console.error("[EditorStateManager] Failed to export changes:", err);
@@ -486,16 +471,13 @@ const EditorStateManager = (() => {
       const rows = [header];
 
       for (const [key, values] of Object.entries(state)) {
-        const row = [
-          key,
-          values.en || "",
-          values.es || "",
-          values.fr || "",
-          values.swa || ""
-        ];
+        const row = [key, values.en || "", values.es || "", values.fr || "", values.swa || ""];
 
         const quotedRow = row.map((field) => {
-          if (typeof field === "string" && (field.includes(",") || field.includes("\n") || field.includes('"'))) {
+          if (
+            typeof field === "string" &&
+            (field.includes(",") || field.includes("\n") || field.includes('"'))
+          ) {
             return `"${field.replace(/"/g, '""')}"`;
           }
           return field;
