@@ -26,11 +26,11 @@ A free, offline-first Progressive Web App (PWA) for displaying sacrament meeting
 
 ## Live URLs
 
-| Environment | URL |
-|------------|-----|
-| Production | https://khilghard.github.io/meeting-program |
+| Environment | URL                                             |
+| ----------- | ----------------------------------------------- |
+| Production  | https://khilghard.github.io/meeting-program     |
 | Development | https://khilghard.github.io/meeting-program-dev |
-| Local dev | http://localhost:8000/meeting-program/ |
+| Local dev   | http://localhost:8000/meeting-program/          |
 
 ---
 
@@ -42,16 +42,16 @@ A free, offline-first Progressive Web App (PWA) for displaying sacrament meeting
 
 ## Tech Stack Summary
 
-| Category | Technology |
-|----------|-----------|
-| Language | Vanilla JavaScript (ES6+, no transpilation) |
-| Data storage | Dexie 4.x / IndexedDB |
-| External data | Google Sheets CSV (URL-based) |
-| External API | Google Sheets API v4 + Google Identity Services |
-| Offline | Custom Service Worker |
-| Testing | Vitest (unit) + Playwright (E2E) |
-| Hosting | GitHub Pages |
-| Build | None (native ES6 modules) |
+| Category      | Technology                                      |
+| ------------- | ----------------------------------------------- |
+| Language      | Vanilla JavaScript (ES6+, no transpilation)     |
+| Data storage  | Dexie 4.x / IndexedDB                           |
+| External data | Google Sheets CSV (URL-based)                   |
+| External API  | Google Sheets API v4 + Google Identity Services |
+| Offline       | Custom Service Worker                           |
+| Testing       | Vitest (unit) + Playwright (E2E)                |
+| Hosting       | GitHub Pages                                    |
+| Build         | None (native ES6 modules)                       |
 
 ---
 
@@ -63,33 +63,33 @@ A free, offline-first Progressive Web App (PWA) for displaying sacrament meeting
 
 ## Key Features
 
-| Feature | Description |
-|---------|------------|
-| Multi-profile | Multiple ward/branch programs stored simultaneously |
-| QR scan | Camera-based QR code scanning to load program URL |
-| Offline support | Full PWA with service worker caching |
-| Archive | Automatic program archive (IndexedDB, 2-year retention) |
-| Multi-language | English, Spanish, French, Swahili |
-| Dark mode | System-aware + user-toggleable theme |
-| PWA install | Prompts to install as native-like app (iOS + Android) |
-| Auto-update | Hourly version check, one-tap update |
-| Leadership Agenda | Private per-profile agenda (separate sheet URL) |
-| CMS Editor | Google Sheets write-back editor (editor.html) |
-| Hymn lookup | LDS Hymnal + Children's Songbook auto-lookup |
-| Migration | Cross-ward program migration (obsolete + migrationUrl CSV keys) |
-| Sharing | QR code generation for sharing program URL |
-| Diagnostics | Built-in diagnostic data collector for troubleshooting |
+| Feature           | Description                                                     |
+| ----------------- | --------------------------------------------------------------- |
+| Multi-profile     | Multiple ward/branch programs stored simultaneously             |
+| QR scan           | Camera-based QR code scanning to load program URL               |
+| Offline support   | Full PWA with service worker caching                            |
+| Archive           | Automatic program archive (IndexedDB, 2-year retention)         |
+| Multi-language    | English, Spanish, French, Swahili                               |
+| Dark mode         | System-aware + user-toggleable theme                            |
+| PWA install       | Prompts to install as native-like app (iOS + Android)           |
+| Auto-update       | Hourly version check, one-tap update                            |
+| Leadership Agenda | Private per-profile agenda (separate sheet URL)                 |
+| CMS Editor        | Google Sheets write-back editor (cms/index.html)                |
+| Hymn lookup       | LDS Hymnal + Children's Songbook auto-lookup                    |
+| Migration         | Cross-ward program migration (obsolete + migrationUrl CSV keys) |
+| Sharing           | QR code generation for sharing program URL                      |
+| Diagnostics       | Built-in diagnostic data collector for troubleshooting          |
 
 ---
 
 ## Entry Points
 
-| File | Purpose |
-|------|---------|
-| `index.html` | Main program viewer |
-| `editor.html` | CMS editor (Google OAuth required) |
-| `archive.html` | Historical archive viewer |
-| `service-worker.js` | PWA service worker |
+| File                | Purpose                            |
+| ------------------- | ---------------------------------- |
+| `index.html`        | Main program viewer                |
+| `cms/index.html`    | CMS editor (Google OAuth required) |
+| `archive.html`      | Historical archive viewer          |
+| `service-worker.js` | PWA service worker                 |
 
 ---
 
@@ -110,7 +110,7 @@ A free, offline-first Progressive Web App (PWA) for displaying sacrament meeting
 - [GRADE.md](./GRADE.md) — Quality grade assessment
 - [HYMN_IMPLEMENTATION.md](./HYMN_IMPLEMENTATION.md) — Hymn feature notes
 - [FEATURE_CMS_EDIT.md](./FEATURE_CMS_EDIT.md) — CMS edit feature spec
-- [REQUIREMENTS_*.md](./REQUIREMENTS_UI.md) — Feature requirements
+- [REQUIREMENTS\_\*.md](./REQUIREMENTS_UI.md) — Feature requirements
 
 ---
 

@@ -18,14 +18,14 @@
 
 ## Quick Reference
 
-| Attribute | Value |
-|-----------|-------|
-| **Tech Stack** | Vanilla JS, Dexie/IndexedDB, Google Sheets CSV, Service Worker |
-| **Entry Points** | `index.html`, `editor.html`, `archive.html` |
-| **Test Frameworks** | Vitest (unit), Playwright (E2E) |
-| **Architecture Pattern** | Offline-first SPA with ES6 module separation of concerns |
-| **External Services** | Google Sheets (CSV), Google Sheets API v4, Google Identity Services (OAuth) |
-| **Hosting** | GitHub Pages (`/meeting-program/`, `/meeting-program-dev/`) |
+| Attribute                | Value                                                                       |
+| ------------------------ | --------------------------------------------------------------------------- |
+| **Tech Stack**           | Vanilla JS, Dexie/IndexedDB, Google Sheets CSV, Service Worker              |
+| **Entry Points**         | `index.html`, `cms/index.html`, `archive.html`                              |
+| **Test Frameworks**      | Vitest (unit), Playwright (E2E)                                             |
+| **Architecture Pattern** | Offline-first SPA with ES6 module separation of concerns                    |
+| **External Services**    | Google Sheets (CSV), Google Sheets API v4, Google Identity Services (OAuth) |
+| **Hosting**              | GitHub Pages (`/meeting-program/`, `/meeting-program-dev/`)                 |
 
 ---
 
@@ -85,6 +85,7 @@ See [Development Guide](./development-guide.md) for full details.
 ### For AI Agents
 
 This project uses:
+
 - **ES6 modules** — all `import`/`export`, no CommonJS in source
 - **Dexie** for IndexedDB — see [Data Models](./data-models.md) for schema
 - **`js/sanitize.js` ALLOWED_KEYS** — must be updated when adding new CSV keys
@@ -99,14 +100,14 @@ See [AGENT_INSTRUCTIONS.md](./AGENT_INSTRUCTIONS.md) for full AI agent context.
 
 ## Key Source Files
 
-| File | Why It Matters |
-|------|---------------|
-| `js/main.js` | App orchestrator — all features initialized here |
-| `js/data/db.js` | IndexedDB schema — change here for schema migrations |
-| `js/data/IndexedDBManager.js` | Data access layer — all IDB reads/writes |
-| `js/sanitize.js` | Security gatekeeper — ALLOWED_KEYS, isSafeUrl |
-| `js/utils/renderers.js` | Program rendering — add new row types here |
-| `js/i18n/index.js` | All user-facing strings for all 4 languages |
-| `js/utils/csv.js` | CSV parsing + Google Sheets fetching |
-| `service-worker.js` | Offline caching, update lifecycle |
-| `js/version.js` | Single source of VERSION constant |
+| File                          | Why It Matters                                       |
+| ----------------------------- | ---------------------------------------------------- |
+| `js/main.js`                  | App orchestrator — all features initialized here     |
+| `js/data/db.js`               | IndexedDB schema — change here for schema migrations |
+| `js/data/IndexedDBManager.js` | Data access layer — all IDB reads/writes             |
+| `js/sanitize.js`              | Security gatekeeper — ALLOWED_KEYS, isSafeUrl        |
+| `js/utils/renderers.js`       | Program rendering — add new row types here           |
+| `js/i18n/index.js`            | All user-facing strings for all 4 languages          |
+| `js/utils/csv.js`             | CSV parsing + Google Sheets fetching                 |
+| `service-worker.js`           | Offline caching, update lifecycle                    |
+| `js/version.js`               | Single source of VERSION constant                    |
