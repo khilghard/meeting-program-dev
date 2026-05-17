@@ -74,7 +74,7 @@ The 13 ADs that govern all implementation choices are detailed in the [Architect
 
 ### Context
 
-The original CMS design was modelled on the existing single-column mobile-first `editor.html`. Since then:
+The original CMS design was modelled on the existing single-column mobile-first `editor.html`, which has since been replaced by the redesigned CMS at `cms/index.html`. Since then:
 
 - Many new key types have been added (agenda, lessons, media, links, leadership)
 - The intended audience is **non-technical ward/branch clerks or secretaries** editing on a laptop or desktop on Friday or Saturday night
@@ -89,7 +89,7 @@ The CMS is accessed at:
 https://khilghard.github.io/meeting-program/cms/
 ```
 
-Implemented as `cms/index.html` (served at `/meeting-program/cms/`). The old `editor.html` remains but may redirect to `/cms/`.
+Implemented as `cms/index.html` (served at `/meeting-program/cms/`). The old `editor.html` has been removed.
 
 ### Who Uses This
 
@@ -719,7 +719,7 @@ Most recent focused validation: **14 tests passed** (`test/components/CmsEditor.
 
 ### Phase 5: CMS Page & Navigation
 
-> **Updated from original Phase 5.** The CMS lives at `cms/index.html`, not `editor.html`.
+> **Updated from original Phase 5.** The CMS lives at `cms/index.html`, not `editor.html` (which has been removed).
 
 **File**: `cms/index.html`, `js/cms.js`
 

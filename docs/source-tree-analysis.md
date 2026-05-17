@@ -1,7 +1,7 @@
 # Source Tree Analysis
 
 **Generated:** 2026-05-16  
-**Scan Level:** Exhaustive  
+**Scan Level:** Exhaustive
 
 ---
 
@@ -11,7 +11,7 @@
 meeting-program-dev/          # Project root (GitHub Pages → /meeting-program-dev/)
 │
 │── index.html                # [ENTRY] Main program viewer page
-│── editor.html               # [ENTRY] CMS editor page (Google Sheets write-back)
+│── cms/index.html          # [ENTRY] CMS editor page (Google Sheets write-back)
 │── archive.html              # [ENTRY] Historical archives viewer
 │── offline.html              # [ENTRY] Service worker offline fallback page
 │── service-worker.js         # [ENTRY] PWA service worker (caching, update lifecycle)
@@ -31,7 +31,7 @@ meeting-program-dev/          # Project root (GitHub Pages → /meeting-program-
 │
 ├── js/                       # [SOURCE] All application JavaScript (ES6 modules)
 │   ├── main.js               # App orchestrator (index.html entry point)
-│   ├── editor.js             # CMS editor orchestrator (editor.html)
+│   ├── cms.js                # CMS editor orchestrator (cms/index.html)
 │   ├── archive.js            # Archive viewer orchestrator (archive.html)
 │   ├── version.js            # VERSION constant ("2.3.2")
 │   ├── version-parser.js     # Semantic version comparison
@@ -176,33 +176,33 @@ meeting-program-dev/          # Project root (GitHub Pages → /meeting-program-
 
 ## Critical Directories
 
-| Directory | Purpose | Importance |
-|-----------|---------|-----------|
-| `js/` | All application source code | ⭐⭐⭐ Core |
-| `js/data/` | Data layer (IDB, schemas, managers) | ⭐⭐⭐ Core |
-| `js/utils/` | Shared utilities | ⭐⭐⭐ Core |
-| `js/agenda/` | Leadership agenda feature | ⭐⭐ Feature |
-| `js/auth/` | Google OAuth | ⭐⭐ Feature |
-| `js/services/` | External API integrations | ⭐⭐ Feature |
-| `js/workers/` | Off-thread processing | ⭐⭐ Performance |
-| `docs/` | Project knowledge base | ⭐⭐⭐ Documentation |
-| `test/` | Unit + integration tests | ⭐⭐⭐ Quality |
-| `e2e/` | End-to-end tests | ⭐⭐ Quality |
+| Directory      | Purpose                             | Importance           |
+| -------------- | ----------------------------------- | -------------------- |
+| `js/`          | All application source code         | ⭐⭐⭐ Core          |
+| `js/data/`     | Data layer (IDB, schemas, managers) | ⭐⭐⭐ Core          |
+| `js/utils/`    | Shared utilities                    | ⭐⭐⭐ Core          |
+| `js/agenda/`   | Leadership agenda feature           | ⭐⭐ Feature         |
+| `js/auth/`     | Google OAuth                        | ⭐⭐ Feature         |
+| `js/services/` | External API integrations           | ⭐⭐ Feature         |
+| `js/workers/`  | Off-thread processing               | ⭐⭐ Performance     |
+| `docs/`        | Project knowledge base              | ⭐⭐⭐ Documentation |
+| `test/`        | Unit + integration tests            | ⭐⭐⭐ Quality       |
+| `e2e/`         | End-to-end tests                    | ⭐⭐ Quality         |
 
 ---
 
 ## Entry Points
 
-| File | Triggered By | Description |
-|------|-------------|-------------|
-| `index.html` | Browser navigation | Primary app page |
-| `js/main.js` | `<script type="module" src="...">` in `index.html` | Main app bootstrap |
-| `editor.html` | `/editor.html` route | CMS editor |
-| `js/editor.js` | `<script>` in `editor.html` | Editor bootstrap |
-| `archive.html` | `/archive.html` route | Archive viewer |
-| `js/archive.js` | `<script>` in `archive.html` | Archive bootstrap |
-| `service-worker.js` | SW registration in `js/service-worker-manager.js` | PWA offline support |
-| `js/workers/data.worker.js` | `new Worker(...)` in `workerInterface.js` | Background CSV processing |
+| File                        | Triggered By                                       | Description               |
+| --------------------------- | -------------------------------------------------- | ------------------------- |
+| `index.html`                | Browser navigation                                 | Primary app page          |
+| `js/main.js`                | `<script type="module" src="...">` in `index.html` | Main app bootstrap        |
+| `cms/index.html`            | `/cms/` route                                      | CMS editor                |
+| `js/cms.js`                 | `<script>` in `cms/index.html`                     | CMS bootstrap             |
+| `archive.html`              | `/archive.html` route                              | Archive viewer            |
+| `js/archive.js`             | `<script>` in `archive.html`                       | Archive bootstrap         |
+| `service-worker.js`         | SW registration in `js/service-worker-manager.js`  | PWA offline support       |
+| `js/workers/data.worker.js` | `new Worker(...)` in `workerInterface.js`          | Background CSV processing |
 
 ---
 
@@ -216,20 +216,20 @@ main.js
   ├── utils/csv.js → sanitize.js, i18n/index.js
   ├── utils/renderers.js → i18n/index.js, i18n/honorifics.js, sanitize.js, data/hymnsLookup.js
   ├── workers/workerInterface.js → [data.worker.js via Worker()]
-  ├── auth/googleAuth.js (loaded lazily by editor.js)
-  ├── services/sheetsApiService.js (loaded by editor.js)
+  ├── auth/googleAuth.js (loaded lazily by cms.js)
+  ├── services/ProgramSheetService.mjs (loaded by cms.js)
   ├── data/MigrationSystem.js → data/IndexedDBManager.js
   ├── data/MigrationBanner.js → i18n/index.js, data/ProfileManager.js
   ├── agenda/AgendaSettings.js → profiles.js, data/IndexedDBManager.js, qr.js
   ├── agenda/AgendaRenderer.js → i18n/index.js
   └── theme.js → data/IndexedDBManager.js (lazy import)
 
-editor.js
+cms.js
   ├── data/ProfileManager.js
-  ├── data/EditorStateManager.js → Dexie (separate DB)
-  ├── components/SheetEditor.mjs → data/EditorStateManager.js
+  ├── data/ProgramSheetService.mjs → SheetsApiClient.mjs
+  ├── components/CmsEditor.mjs → data/ProgramSheetService.mjs
   ├── auth/googleAuth.js → Google Identity Services (CDN)
-  └── services/sheetsApiService.js → Google Sheets API v4
+  └── services/AgendaSheetService.mjs → SheetsApiClient.mjs
 
 service-worker.js
   └── (standalone — no imports, uses Cache API + fetch events)
