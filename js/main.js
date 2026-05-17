@@ -406,6 +406,14 @@ async function handleZeroState() {
   if (!helpShown) {
     openHelpModal();
   }
+
+  // Show edit agenda button on zero state if profile has agendaUrl
+  const editBtn = document.getElementById("agenda-edit-btn");
+  if (editBtn) {
+    const currentProfile = Profiles.getCurrentProfile();
+    editBtn.style.display = currentProfile?.agendaUrl ? "inline-block" : "none";
+    console.log("[INIT] Edit agenda button display:", editBtn.style.display);
+  }
 }
 
 // Helper: Add reset button to help modal with warnings
