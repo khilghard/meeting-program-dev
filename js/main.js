@@ -787,6 +787,13 @@ async function loadAgendaForCurrentProfile(profile) {
     console.log("[Leadership] Toggle button display:", toggleBtn.style.display);
   }
 
+  // Show edit agenda button if agendaUrl is configured
+  const editBtn = document.getElementById("agenda-edit-btn");
+  if (editBtn) {
+    editBtn.style.display = profile.agendaUrl ? "inline-block" : "none";
+    console.log("[Leadership] Edit agenda button display:", editBtn.style.display);
+  }
+
   // Determine initial view from sessionStorage or URL, default to program
   const urlParams = new URLSearchParams(window.location.search);
   const urlView = urlParams.get("view");
@@ -1026,6 +1033,17 @@ function initLeadershipToggle() {
     // visibility is managed by loadAgendaForCurrentProfile
   } else {
     console.warn("[Leadership] Toggle button not found in DOM");
+  }
+
+  const editBtn = document.getElementById("agenda-edit-btn");
+  if (editBtn) {
+    editBtn.addEventListener("click", () => {
+      const currentProfile = Profiles.getCurrentProfile();
+      if (currentProfile?.id) {
+        const agendaUrl = `cms_agenda/index.html?profileId=${encodeURIComponent(currentProfile.id)}`;
+        window.location.href = agendaUrl;
+      }
+    });
   }
 }
 
