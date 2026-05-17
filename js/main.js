@@ -312,6 +312,13 @@ async function determineSheetUrl() {
   const params = new URLSearchParams(globalThis.window.location.search);
   let sheetUrl = params.get("url");
 
+  if (!sheetUrl) {
+    const localStorageUrl = localStorage.getItem("sheetUrl");
+    if (localStorageUrl) {
+      sheetUrl = localStorageUrl;
+    }
+  }
+
   const currentProfile = Profiles.getCurrentProfile();
 
   if (!currentProfile && !sheetUrl) {
@@ -909,7 +916,10 @@ function renderMain() {
         const mapKey = `${row.key}|${row.value}`;
         const entry = leadershipState.agendaMap.get(mapKey);
         if (entry && entry.values.length > 0) {
-          agendaPanels.push({ row, panel: createAgendaAccordionPanel(row.key, entry.values, row.value, true) });
+          agendaPanels.push({
+            row,
+            panel: createAgendaAccordionPanel(row.key, entry.values, row.value, true)
+          });
         }
       }
     });
@@ -1256,7 +1266,7 @@ function renderAgendaContent(key, items, el) {
         li.appendChild(roleEl);
         li.appendChild(document.createTextNode(parts[2]));
       } else {
-        li.textContent = role ? `${name} — ${role}` : (name || item.trim());
+        li.textContent = role ? `${name} — ${role}` : name || item.trim();
       }
     } else {
       li.textContent = item.trim();
@@ -1418,6 +1428,29 @@ async function init() {
 
     const sheetUrl = await determineSheetUrl();
 
+    // Log URL resolution channel for debugging
+    const urlParam = new URLSearchParams(globalThis.window.location.search).get("url");
+    const localStorageUrl = localStorage.getItem("sheetUrl");
+    const currentProfile = Profiles.getCurrentProfile();
+    const isStandalone =
+      globalThis.window.matchMedia("(display-mode: standalone)").matches ||
+      ("standalone" in globalThis.navigator && globalThis.navigator.standalone);
+
+    console.log("[INIT] URL Resolution:", {
+      channel: urlParam
+        ? "url-params"
+        : localStorageUrl
+          ? "localStorage"
+          : currentProfile?.url
+            ? "profile"
+            : "none",
+      urlParamPresent: !!urlParam,
+      localStorageUrlPresent: !!localStorageUrl,
+      profileUrlPresent: !!currentProfile?.url,
+      resolvedUrl: sheetUrl || "[none]",
+      isStandalone: isStandalone
+    });
+
     if (!sheetUrl) {
       // Zero state - don't show loading modal
       console.log("[INIT] Zero state (no URL) - hiding loading modal");
@@ -1447,19 +1480,21 @@ async function init() {
 // Helper: Handle active state with loading modal timing
 async function handleActiveStateWithLoadingModal(sheetUrl, pageContainer, main) {
   // Detect if this is a reload/refresh vs first load
-  const isReload = performance.navigation?.type === 1 || performance.getEntriesByType("navigation")?.[0]?.type === "reload";
-  
+  const isReload =
+    performance.navigation?.type === 1 ||
+    performance.getEntriesByType("navigation")?.[0]?.type === "reload";
+
   // For reloads: Show loading with 500ms delay for 2.5 seconds
   if (isReload) {
     console.log("[INIT] Page reload detected - showing loading modal with 500ms delay");
-    
+
     // Wait 500ms before showing loading
     await new Promise((resolve) => setTimeout(resolve, 500));
-    
+
     // Show loading modal
     if (pageContainer) pageContainer.classList.add("loading");
     if (main) main.classList.add("loading");
-    
+
     // Auto-hide after 2.5 seconds regardless of load status
     setTimeout(() => {
       console.log("[INIT] Auto-hiding loading modal after 2.5 seconds");
@@ -1472,7 +1507,7 @@ async function handleActiveStateWithLoadingModal(sheetUrl, pageContainer, main) 
     if (pageContainer) pageContainer.classList.add("loading");
     if (main) main.classList.add("loading");
   }
-  
+
   await handleActiveState(sheetUrl);
 }
 
