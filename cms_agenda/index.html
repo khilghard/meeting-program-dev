@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Ward Agenda CMS" />
+    <title>Ward Agenda CMS</title>
+    <script src="../js/theme-early.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script>
+      window.GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
+    </script>
+    <link id="styles-link" rel="stylesheet" href="" />
+    <script type="module">
+      import { VERSION } from "../js/version.js";
+
+      document.getElementById("styles-link").href = `../css/styles.css?v=${VERSION}`;
+
+      const agendaScript = document.createElement("script");
+      agendaScript.type = "module";
+      agendaScript.src = `../js/cms-agenda.js?v=${VERSION}`;
+      document.head.appendChild(agendaScript);
+
+      if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+        navigator.serviceWorker.register(`../service-worker.js?v=${VERSION}`).catch(error => {
+          console.error("[CMS Agenda] Service worker registration failed", error);
+        });
+      }
+    </script>
+    <style>
+      body {
+        margin: 0;
+      }
+
+      .cms-agenda {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .cms-agenda__header,
+      .cms-agenda__controls,
+      .cms-agenda__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+      }
+
+      .cms-agenda__controls label,
+      .cms-agenda__actions button,
+      .agenda-key-editor__field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+      }
+
+      .cms-agenda__controls select,
+      .cms-agenda__actions button,
+      .agenda-key-editor__input,
+      .agenda-key-editor__textarea,
+      #cms-agenda-setup-client-id,
+      #cms-agenda-setup-sheet-url {
+        padding: 0.7rem 0.85rem;
+        border-radius: 0.75rem;
+      }
+
+      .agenda-key-editor,
+      .cms-agenda__panel,
+      #cms-agenda-auth-panel,
+      #cms-agenda-setup-modal form {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .agenda-key-editor__row,
+      .cms-agenda__pending-item {
+        display: flex;
+        gap: 0.75rem;
+        align-items: end;
+        justify-content: space-between;
+      }
+
+      .cms-agenda__status[data-tone="error"] {
+        color: #b42318;
+      }
+
+      .cms-agenda__status[data-tone="success"] {
+        color: #027a48;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="cms-agenda">
+      <header class="cms-agenda__header">
+        <div>
+          <p id="cms-agenda-shell-title">Ward Agenda CMS</p>
+          <h1 id="cms-agenda-profile-name">Loading profile...</h1>
+        </div>
+      </header>
+
+      <div id="cms-agenda-page-status" class="cms-agenda__status" hidden></div>
+
+      <section id="cms-agenda-auth-panel" hidden>
+        <p id="cms-agenda-auth-message">Tap to sign in again to publish agenda changes.</p>
+        <div class="cms-agenda__actions">
+          <button id="cms-agenda-setup-btn" type="button">Configure Google Settings</button>
+          <button id="cms-agenda-sign-in-btn" type="button">Sign in with Google</button>
+        </div>
+      </section>
+
+      <dialog id="cms-agenda-setup-modal">
+        <form method="dialog">
+          <h2 id="cms-agenda-setup-title">Google Settings</h2>
+          <label>
+            <span id="cms-agenda-setup-client-id-label">Google Client ID</span>
+            <input id="cms-agenda-setup-client-id" type="text" placeholder="12345.apps.googleusercontent.com" />
+          </label>
+          <label>
+            <span id="cms-agenda-setup-sheet-url-label">Agenda Sheet URL</span>
+            <input id="cms-agenda-setup-sheet-url" type="text" readonly />
+          </label>
+          <p id="cms-agenda-setup-status" class="cms-agenda__status" hidden></p>
+          <div class="cms-agenda__actions">
+            <button id="cms-agenda-setup-cancel-btn" type="button">Cancel</button>
+            <button id="cms-agenda-setup-save-btn" type="button">Save Settings</button>
+          </div>
+        </form>
+      </dialog>
+
+      <div id="cms-agenda-loading">Loading agenda editor...</div>
+
+      <section id="cms-agenda-content" hidden>
+        <div class="cms-agenda__controls">
+          <label>
+            <span id="cms-agenda-tab-label">Sheet Tab</span>
+            <select id="cms-agenda-tab-select"></select>
+          </label>
+          <label>
+            <span id="cms-agenda-key-label">Agenda Key</span>
+            <select id="cms-agenda-key-select"></select>
+          </label>
+        </div>
+
+        <div class="cms-agenda__actions">
+          <button id="cms-agenda-make-active-btn" type="button">Make Active</button>
+          <button id="cms-agenda-save-draft-btn" type="button">Save Draft</button>
+          <button id="cms-agenda-publish-btn" type="button">Publish</button>
+          <button id="cms-agenda-publish-all-btn" type="button">Publish All Pending</button>
+        </div>
+
+        <div id="cms-agenda-editor-container"></div>
+
+        <section class="cms-agenda__panel">
+          <h2 id="cms-agenda-pending-title">Pending Changes</h2>
+          <div id="cms-agenda-pending-list"></div>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>

@@ -49,8 +49,8 @@ export class ProgramSheetService {
    * Read all key/value pairs for a given locale from the program sheet.
    *
    * @param {string} locale  — e.g. "en", "es", "fr", "swa"
-    * @param {string|import("../utils/sheetRanges.js").SheetTabSelection} [sheetName]
-    *   selected sheet tab or tab object (default "Sheet1")
+   * @param {string|import("../utils/sheetRanges.js").SheetTabSelection} [sheetName]
+   *   selected sheet tab or tab object (default "Sheet1")
    * @returns {Promise<{rows: Array<{key: string, value: string}>, modifiedTime: string}>}
    * @throws if the locale column or key column is not found in the header row
    */
@@ -80,8 +80,8 @@ export class ProgramSheetService {
     const span = localeColIdx - keyColIdx;
     const rows = allRows
       .slice(1) // skip header
-      .map(row => ({ key: row[0] ?? "", value: row[span] ?? "" }))
-      .filter(r => r.key);
+      .map((row) => ({ key: row[0] ?? "", value: row[span] ?? "" }))
+      .filter((r) => r.key);
 
     return { rows, modifiedTime: meta.modifiedTime };
   }
@@ -96,12 +96,43 @@ export class ProgramSheetService {
    * @param {Array<{key: string, value: string}>} edits
    * @param {string} locale  — target locale column
    * @param {string|null} [modifiedTimeSeen]  — Drive modifiedTime seen at page load (AD-13)
-  * @param {string|import("../utils/sheetRanges.js").SheetTabSelection} [sheetName]
-  *   selected sheet tab or tab object (default "Sheet1")
+   * @param {string|import("../utils/sheetRanges.js").SheetTabSelection} [sheetName]
+   *   selected sheet tab or tab object (default "Sheet1")
    * @returns {Promise<{conflict: boolean, modifiedTime: string}>}
    * @throws if the locale column is not found in the header row
    */
   async writeSheet(edits, locale, modifiedTimeSeen = null, sheetName = DEFAULT_SHEET_TAB_NAME) {
+    return this._writeSheetInternal(edits, locale, modifiedTimeSeen, sheetName, []);
+  }
+
+  /**
+   * Write edited key/value pairs and delete rows from the program sheet.
+   *
+   * Same as writeSheet but additionally deletes rows matching keys in deletedKeys.
+   *
+   * @param {Array<{key: string, value: string}>} edits
+   * @param {string} locale  — target locale column
+   * @param {string|null} [modifiedTimeSeen]  — Drive modifiedTime seen at page load (AD-13)
+   * @param {string|import("../utils/sheetRanges.js").SheetTabSelection} [sheetName]
+   *   selected sheet tab or tab object (default "Sheet1")
+   * @param {string[]} [deletedKeys]  — keys whose rows should be deleted from the sheet
+   * @returns {Promise<{conflict: boolean, modifiedTime: string}>}
+   * @throws if the locale column is not found in the header row
+   */
+  async writeSheetWithDeletes(
+    edits,
+    locale,
+    modifiedTimeSeen = null,
+    sheetName = DEFAULT_SHEET_TAB_NAME,
+    deletedKeys = []
+  ) {
+    if (!deletedKeys || deletedKeys.length === 0) {
+      return this.writeSheet(edits, locale, modifiedTimeSeen, sheetName);
+    }
+    return this._writeSheetInternal(edits, locale, modifiedTimeSeen, sheetName, deletedKeys);
+  }
+
+  async _writeSheetInternal(edits, locale, modifiedTimeSeen, sheetName, deletedKeys = []) {
     const id = this._spreadsheetId;
 
     // Parallel: concurrency check + header read
@@ -132,13 +163,108 @@ export class ProgramSheetService {
 
     const editMap = Object.fromEntries(edits.map(({ key, value }) => [key, value]));
     const span = localeColIdx - keyColIdx;
+    const existingKeys = new Set();
 
     // Merge edits over existing values; only build the locale column
-    const newLocaleValues = dataRows.map(row => {
+    const newLocaleValues = dataRows.map((row) => {
       const key = row[0] ?? "";
+      if (key) {
+        existingKeys.add(key);
+      }
       const existing = row[span] ?? "";
       return [Object.hasOwn(editMap, key) ? editMap[key] : existing];
     });
+
+    const appendedKeys = new Set();
+    const appendedEdits = edits.filter(({ key }) => {
+      if (!key || existingKeys.has(key) || appendedKeys.has(key)) {
+        return false;
+      }
+      appendedKeys.add(key);
+      return true;
+    });
+
+    // Filter out deleted keys from edits so they don't get written back
+    const activeEdits = edits.filter((e) => !deletedKeys.includes(e.key));
+
+    if (deletedKeys.length > 0) {
+      // Identify row indices (1-based, skipping header) for deletion
+      const rowsToDelete = dataRows
+        .map((row, idx) => {
+          const key = row[0] ?? "";
+          return deletedKeys.includes(key) ? idx + 2 : null; // +2 because idx is 0-based and row 1 is header
+        })
+        .filter((idx) => idx !== null);
+
+      if (rowsToDelete.length > 0) {
+        // Delete rows bottom-up to preserve indices
+        rowsToDelete.sort((a, b) => b - a);
+
+        // Build batch requests: delete dimensions + append new rows if any
+        const requests = [];
+
+        for (const rowIndex of rowsToDelete) {
+          requests.push({
+            deleteDimension: {
+              range: {
+                sheetId: undefined,
+                dimension: "ROWS",
+                startIndex: rowIndex - 1, // Sheets API is 0-based
+                endIndex: rowIndex
+              }
+            }
+          });
+        }
+
+        if (appendedEdits.length > 0) {
+          const appendStartRow = dataRows.length - rowsToDelete.length + 2;
+          const appendEndRow = appendStartRow + appendedEdits.length - 1;
+          requests.push({
+            updateRange: {
+              range: toSheetRange(
+                sheetName,
+                `${keyColLetter}${appendStartRow}:${keyColLetter}${appendEndRow}`
+              ),
+              values: appendedEdits.map(({ key }) => [key])
+            }
+          });
+          requests.push({
+            updateRange: {
+              range: toSheetRange(
+                sheetName,
+                `${localeColLetter}${appendStartRow}:${localeColLetter}${appendEndRow}`
+              ),
+              values: appendedEdits.map(({ value }) => [value ?? ""])
+            }
+          });
+        }
+
+        if (requests.length > 0) {
+          await this._client.spreadsheetBatchUpdate(id, requests);
+          return { conflict: false, modifiedTime: meta.modifiedTime };
+        }
+      }
+    }
+
+    if (appendedEdits.length > 0) {
+      const appendStartRow = dataRows.length + 2;
+      const appendEndRow = appendStartRow + appendedEdits.length - 1;
+      await this._client.batchUpdate(id, [
+        {
+          range: toSheetRange(
+            sheetName,
+            `${keyColLetter}${appendStartRow}:${keyColLetter}${appendEndRow}`
+          ),
+          values: appendedEdits.map(({ key }) => [key])
+        },
+        {
+          range: toSheetRange(sheetName, `${localeColLetter}2:${localeColLetter}${appendEndRow}`),
+          values: [...newLocaleValues, ...appendedEdits.map(({ value }) => [value ?? ""])]
+        }
+      ]);
+
+      return { conflict: false, modifiedTime: meta.modifiedTime };
+    }
 
     const rowCount = dataRows.length + 1; // +1 for header row
     await this._client.valueUpdate(
@@ -169,7 +295,7 @@ export class ProgramSheetService {
     if (localeColIdx === undefined) {
       throw new Error(
         `ProgramSheetService: column "${locale}" not found in sheet header. ` +
-        `Available columns: ${Object.keys(colMap).join(", ")}`
+          `Available columns: ${Object.keys(colMap).join(", ")}`
       );
     }
     return { keyColIdx, localeColIdx };

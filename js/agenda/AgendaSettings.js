@@ -6,10 +6,32 @@
 
 import { t } from "../i18n/index.js";
 import * as Profiles from "../profiles.js";
-import { setMetadata } from "../data/IndexedDBManager.js";
 import { showScanner } from "../qr.js";
 
 let currentEditingProfileId = null;
+
+function text(key, fallback) {
+  const translated = t(key);
+  return translated === key ? fallback : translated;
+}
+
+function getAgendaStatusSummary(profile) {
+  if (!profile?.agendaUrl) {
+    return {
+      icon: "",
+      editorStatus: text("agendaNoUrl", "No agenda URL set"),
+      legacyStatus: ""
+    };
+  }
+
+  return {
+    icon: profile.agendaValid ? "✅" : "📝",
+    editorStatus: text("agendaEditorConfigured", "Configured for editor"),
+    legacyStatus: profile.agendaValid
+      ? text("agendaLegacyAvailable", "Available in main app")
+      : text("agendaLegacyPending", "Needs refresh in main app")
+  };
+}
 
 /**
  * Initialize agenda settings UI: bind buttons and global QR listener.
@@ -95,17 +117,13 @@ function createProfileAgendaPanel(profile) {
   panel.className = "agenda-setting-panel";
   panel.dataset.profileId = profile.id;
 
-  // Determine status emoji
-  let statusEmoji = "";
-  if (profile.agendaUrl) {
-    statusEmoji = profile.agendaValid ? "✅" : "⚠️";
-  }
+  const statusSummary = getAgendaStatusSummary(profile);
 
   // Header (clickable to toggle)
   const title = document.createElement("div");
   title.className = "setting-title";
   title.innerHTML = `
-    <span class="status-icon">${statusEmoji}</span>
+    <span class="status-icon">${statusSummary.icon}</span>
     <h3>${escapeHtml(profile.unitName)}${profile.stakeName ? ` (${escapeHtml(profile.stakeName)})` : ""}</h3>
   `;
   panel.appendChild(title);
@@ -130,9 +148,12 @@ function createProfileAgendaPanel(profile) {
       profile.agendaUrl.length > 50
         ? profile.agendaUrl.substring(0, 50) + "..."
         : profile.agendaUrl;
+    const agendaEditorUrl = `cms_agenda/index.html?profileId=${encodeURIComponent(profile.id)}`;
     content.innerHTML = `
       <p><strong>URL:</strong> ${escapeHtml(displayUrl)}</p>
-      <p>${t("agendaStatusValid")}: ${profile.agendaValid ? "✅ Connected" : "⚠️ Issue"}</p>
+      <p>${text("agendaEditorStatus", "Agenda editor")}: ${statusSummary.editorStatus}</p>
+      <p>${text("agendaLegacyStatus", "Main app agenda")}: ${statusSummary.legacyStatus}</p>
+      <a class="edit-agenda-btn" href="${agendaEditorUrl}">${t("editAgenda") || "Edit Agenda"}</a>
       <button class="scan-agenda-btn" data-profile-id="${profile.id}">${t("scanAgendaQR")}</button>
       <div class="manual-agenda-url">
         <input type="text" class="agenda-url-input" value="${escapeHtml(profile.agendaUrl)}">
@@ -204,44 +225,25 @@ async function handleQrScanned(e) {
 /**
  * Save agenda URL for a profile: validate, fetch, cache, update profile.
  */
-async function saveAgendaUrl(profileId, url) {
-  // Basic validation: must be Google Sheets URL
-  if (!url.startsWith("https://docs.google.com/spreadsheets/")) {
-    // We'll still save but mark invalid
-    const profile = await Profiles.getProfile(profileId);
-    if (profile) {
-      profile.agendaUrl = url;
-      profile.agendaValid = false;
-      await Profiles.updateProfile(profile);
-    }
+export async function saveAgendaUrl(profileId, url) {
+  const profile = await Profiles.getProfile(profileId);
+  if (!profile) {
     return;
   }
 
-  try {
-    const csv = await fetchWithTimeout(url, 8000);
-    await setMetadata(`agendaCache_${profileId}`, csv);
+  profile.agendaUrl = url;
+  profile.agendaValid = false;
+  profile.agendaLastLoaded = null;
+  await Profiles.updateProfile(profile);
 
-    const profile = await Profiles.getProfile(profileId);
-    if (profile) {
-      profile.agendaUrl = url;
-      profile.agendaValid = true;
-      profile.agendaLastLoaded = Date.now();
-      await Profiles.updateProfile(profile);
-      // If this is the current profile, refresh leadership state
-      const currentSelected = Profiles.getSelectedProfileId();
-      if (currentSelected && profile.id === currentSelected) {
-        if (typeof window.loadAgendaForCurrentProfile === "function") {
-          await window.loadAgendaForCurrentProfile(profile);
-        }
+  const currentSelected = Profiles.getSelectedProfileId();
+  if (currentSelected && profile.id === currentSelected) {
+    if (typeof window.loadAgendaForCurrentProfile === "function") {
+      try {
+        await window.loadAgendaForCurrentProfile(profile);
+      } catch (err) {
+        console.error("[Agenda] Failed to refresh legacy agenda state after save:", err);
       }
-    }
-  } catch (err) {
-    console.error("[Agenda] Failed to fetch agenda, saving URL as invalid:", err);
-    const profile = await Profiles.getProfile(profileId);
-    if (profile) {
-      profile.agendaUrl = url;
-      profile.agendaValid = false;
-      await Profiles.updateProfile(profile);
     }
   }
 }
@@ -272,17 +274,3 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-// Alias fetchWithTimeout from main.js? We need it here. We can either:
-// - Import from main.js (circular). Better: move fetchWithTimeout to a shared utils module, or duplicate minimal function.
-// For simplicity, we'll import from main.js using dynamic import? That could cause circular.
-// Instead, we'll define our own fetchWithTimeout here.
-async function fetchWithTimeout(url, timeout = 8000) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-  try {
-    const response = await fetch(url, { signal: controller.signal });
-    return await response.text();
-  } finally {
-    clearTimeout(id);
-  }
-}

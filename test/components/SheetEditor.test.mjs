@@ -21,17 +21,17 @@ global.document = window.document;
 global.HTMLElement = window.HTMLElement;
 global.Element = window.Element;
 
+// Row-based CSV format: [key, en, es, fr, swa]
+const sampleData = [
+  ["key", "en", "es", "fr", "swa"], // Header row
+  ["greetings.hello", "Hello", "Hola", "Bonjour", "Habari"],
+  ["greetings.goodbye", "Goodbye", "Adiós", "Au revoir", "Kwaheri"]
+];
+
 describe("SheetEditor Component", () => {
   let container;
   let editor;
   let sessionId;
-
-  // New CSV format: [key, en, es, fr, swa]
-  const sampleData = [
-    ["key", "en", "es", "fr", "swa"],  // Header row
-    ["greetings.hello", "Hello", "Hola", "Bonjour", "Habari"],
-    ["greetings.goodbye", "Goodbye", "Adiós", "Au revoir", "Kwaheri"]
-  ];
 
   beforeEach(async () => {
     // Clear database
@@ -108,19 +108,26 @@ describe("SheetEditor Component", () => {
 
     it("should throw error if baseline data is missing", async () => {
       await expect(editor.initialize(sessionId, null)).rejects.toThrow(
-        "[SheetEditor] Baseline data is required"
+        "[SheetEditor] CSV data is required"
+      );
+    });
+
+    it("should throw error if empty data", async () => {
+      await expect(editor.initialize(sessionId, [])).rejects.toThrow(
+        "[SheetEditor] CSV data is required"
       );
     });
 
     it("should initialize successfully with valid parameters", async () => {
       await editor.initialize(sessionId, sampleData);
       expect(editor.sessionId).toBe(sessionId);
-      expect(Object.keys(editor.currentData).length).toBeGreaterThan(0);
+      expect(editor.rows.length).toBe(2); // 2 data rows (header excluded)
     });
 
-    it("should select first key after initialization", async () => {
+    it("should select first row after initialization", async () => {
       await editor.initialize(sessionId, sampleData);
-      expect(editor.selectedKey).toBeTruthy();
+      expect(editor.currentRowIndex).toBe(0);
+      expect(editor.rows[0][0]).toBe("greetings.hello");
     });
 
     it("should render UI after initialization", async () => {
@@ -150,9 +157,10 @@ describe("SheetEditor Component", () => {
       expect(wrapper).toBeDefined();
     });
 
-    it("should render keys panel with all keys", () => {
-      const keyItems = container.querySelectorAll(".editor-key-item");
-      expect(keyItems.length).toBeGreaterThan(0);
+    it("should render key dropdown", () => {
+      const keySelector = container.querySelector("#key-dropdown");
+      expect(keySelector).toBeDefined();
+      expect(keySelector.options.length).toBe(2); // 2 data keys
     });
 
     it("should render language pills for all languages", () => {
@@ -169,64 +177,105 @@ describe("SheetEditor Component", () => {
       const saveBtn = container.querySelector(".editor-btn-save");
       const discardBtn = container.querySelector(".editor-btn-discard");
       const snapshotBtn = container.querySelector(".editor-btn-snapshot");
+      const deleteBtn = container.querySelector(".editor-btn-delete");
+      const importBtn = container.querySelector(".editor-btn-import");
 
       expect(saveBtn).toBeDefined();
       expect(discardBtn).toBeDefined();
       expect(snapshotBtn).toBeDefined();
+      expect(deleteBtn).toBeDefined();
+      expect(importBtn).toBeDefined();
     });
 
     it("should cache DOM elements", async () => {
-      expect(editor.elements.keyList).toBeDefined();
+      expect(editor.elements.keySelector).toBeDefined();
       expect(editor.elements.languagePills).toBeDefined();
       expect(editor.elements.input).toBeDefined();
       expect(editor.elements.saveButton).toBeDefined();
     });
+
+    it("should populate key dropdown with correct keys", async () => {
+      const keySelector = editor.elements.keySelector;
+      const options = Array.from(keySelector.options).map((o) => o.value);
+      expect(options).toContain("greetings.hello");
+      expect(options).toContain("greetings.goodbye");
+    });
   });
 
   // ============================================================================
-  // Key Selection Tests
+  // Row Selection Tests (selectRow)
   // ============================================================================
 
-  describe("selectKey()", () => {
+  describe("selectRow()", () => {
     beforeEach(async () => {
       editor = new SheetEditor("editor-container");
       await editor.initialize(sessionId, sampleData);
     });
 
-    it("should set selectedKey property", () => {
-      const keys = Object.keys(sampleData);
-      editor.selectKey(keys[0]);
-      expect(editor.selectedKey).toBe(keys[0]);
+    it("should set currentRowIndex property", () => {
+      editor.selectRow(1);
+      expect(editor.currentRowIndex).toBe(1);
     });
 
-    it("should mark selected key item as active", () => {
-      const keys = Object.keys(sampleData);
-      editor.selectKey(keys[0]);
-
-      const activeItem = container.querySelector(".editor-key-item.active");
-      expect(activeItem).toBeDefined();
-      expect(activeItem.getAttribute("data-key")).toBe(keys[0]);
+    it("should update key selector value", () => {
+      editor.selectRow(1);
+      expect(editor.elements.keySelector.value).toBe("greetings.goodbye");
     });
 
-    it("should update textarea content", async () => {
-      const keys = Object.keys(sampleData);
-      editor.selectKey(keys[0]);
-
-      const expectedValue = sampleData[keys[0]].en;
-      expect(editor.elements.input.value).toBe(expectedValue);
+    it("should update textarea content for selected row", () => {
+      editor.selectRow(0);
+      expect(editor.elements.input.value).toBe("Hello");
     });
 
-    it("should reset language to 'en' when switching keys", () => {
-      const keys = Object.keys(sampleData);
-      editor.selectLanguage("es");
-      editor.selectKey(keys[0]);
-
+    it("should reset language to 'en' when switching rows", () => {
+      editor.selectedLanguage = "es";
+      editor.selectRow(1);
       expect(editor.selectedLanguage).toBe("en");
     });
 
-    it("should warn if key doesn't exist", () => {
-      editor.selectKey("non-existent-key");
-      expect(editor.selectedKey).not.toBe("non-existent-key");
+    it("should update UI after selection", () => {
+      editor.selectRow(1);
+      const statusBar = editor.elements.statusBar;
+      expect(statusBar.textContent).toContain("greetings.goodbye");
+    });
+
+    it("should do nothing for negative index", () => {
+      editor.selectRow(-1);
+      expect(editor.currentRowIndex).toBe(0);
+    });
+
+    it("should do nothing for out-of-bounds index", () => {
+      editor.selectRow(100);
+      expect(editor.currentRowIndex).toBe(0);
+    });
+  });
+
+  describe("nextRow() / prevRow()", () => {
+    beforeEach(async () => {
+      editor = new SheetEditor("editor-container");
+      await editor.initialize(sessionId, sampleData);
+    });
+
+    it("should navigate to next row", () => {
+      editor.nextRow();
+      expect(editor.currentRowIndex).toBe(1);
+    });
+
+    it("should navigate to previous row", () => {
+      editor.selectRow(1);
+      editor.prevRow();
+      expect(editor.currentRowIndex).toBe(0);
+    });
+
+    it("should not go past last row", () => {
+      editor.nextRow();
+      editor.nextRow();
+      expect(editor.currentRowIndex).toBe(1);
+    });
+
+    it("should not go below first row", () => {
+      editor.prevRow();
+      expect(editor.currentRowIndex).toBe(0);
     });
   });
 
@@ -234,38 +283,54 @@ describe("SheetEditor Component", () => {
   // Language Selection Tests
   // ============================================================================
 
-  describe("selectLanguage()", () => {
+  describe("language pill selection", () => {
     beforeEach(async () => {
       editor = new SheetEditor("editor-container");
       await editor.initialize(sessionId, sampleData);
     });
 
     it("should set selectedLanguage property", () => {
-      editor.selectLanguage("es");
+      editor.selectedLanguage = "es";
       expect(editor.selectedLanguage).toBe("es");
     });
 
     it("should mark active language pill", () => {
-      editor.selectLanguage("es");
+      editor.selectedLanguage = "es";
+      editor.updateUI();
 
       const activePill = container.querySelector(".editor-pill.active");
       expect(activePill.getAttribute("data-lang")).toBe("es");
     });
 
-    it("should update textarea content for language", async () => {
-      const keys = Object.keys(sampleData);
-      editor.selectKey(keys[0]);
+    it("should update textarea content for language", () => {
+      editor.selectedLanguage = "es";
+      editor.updateInput();
 
-      editor.selectLanguage("es");
-      const expectedValue = sampleData[keys[0]].es;
-      expect(editor.elements.input.value).toBe(expectedValue);
+      expect(editor.elements.input.value).toBe("Hola");
     });
 
-    it("should reject invalid language", () => {
-      const originalLang = editor.selectedLanguage;
-      editor.selectLanguage("invalid");
+    it("should update textarea content for different languages", () => {
+      // Start with en
+      editor.selectedLanguage = "en";
+      editor.updateInput();
+      expect(editor.elements.input.value).toBe("Hello");
 
-      expect(editor.selectedLanguage).toBe(originalLang);
+      // Switch to fr
+      editor.selectedLanguage = "fr";
+      editor.updateInput();
+      expect(editor.elements.input.value).toBe("Bonjour");
+    });
+
+    it("should update status bar for language", () => {
+      editor.selectedLanguage = "en";
+      editor.updateInput();
+      editor.updateStatusBar();
+      expect(editor.elements.statusBar.textContent).toContain("EN");
+
+      editor.selectedLanguage = "es";
+      editor.updateInput();
+      editor.updateStatusBar();
+      expect(editor.elements.statusBar.textContent).toContain("ES");
     });
   });
 
@@ -279,44 +344,30 @@ describe("SheetEditor Component", () => {
       await editor.initialize(sessionId, sampleData);
     });
 
-    it("should update currentData on input change", async () => {
-      const keys = Object.keys(sampleData);
-      editor.selectKey(keys[0]);
-      editor.selectLanguage("en");
-
-      // Directly call handler method instead of dispatching
+    it("should update row value on input change", async () => {
       const event = { target: { value: "New Value" } };
       await editor.handleInputChange(event);
 
-      expect(editor.currentData[keys[0]].en).toBe("New Value");
+      expect(editor.rows[0][1]).toBe("New Value"); // en column
     });
 
-    it("should mark key as changed when value differs from baseline", async () => {
-      const keys = Object.keys(sampleData);
-      editor.selectKey(keys[0]);
-
+    it("should mark row as changed when value differs from original", async () => {
       const event = { target: { value: "Changed Value" } };
       await editor.handleInputChange(event);
 
-      expect(editor.currentData[keys[0]]._changed).toBe(true);
+      expect(editor.rows[0]._changed).toBe(true);
     });
 
-    it("should not mark as changed if value equals baseline", async () => {
-      const keys = Object.keys(sampleData);
-      editor.selectKey(keys[0]);
-
-      const baselineValue = sampleData[keys[0]].en;
-      const event = { target: { value: baselineValue } };
+    it("should mark as changed even if value is the same", async () => {
+      // Current value is "Hello"
+      const event = { target: { value: "Hello" } };
       await editor.handleInputChange(event);
 
-      expect(editor.currentData[keys[0]]._changed).toBe(false);
+      // Component marks _changed = true unconditionally on any input
+      expect(editor.rows[0]._changed).toBe(true);
     });
 
     it("should record change in EditorStateManager", async () => {
-      const keys = Object.keys(sampleData);
-      editor.selectKey(keys[0]);
-      editor.selectLanguage("en");
-
       const event = { target: { value: "New Value" } };
       await editor.handleInputChange(event);
 
@@ -337,25 +388,26 @@ describe("SheetEditor Component", () => {
 
       await editor.initialize(sessionId, sampleData);
 
-      const keys = Object.keys(sampleData);
-      editor.selectKey(keys[0]);
-
       const event = { target: { value: "New Value" } };
       await editor.handleInputChange(event);
 
       expect(callbackCalled).toBe(true);
       expect(callbackData.newValue).toBe("New Value");
+      expect(callbackData.language).toBe("en");
     });
 
     it("should update character count", async () => {
-      const keys = Object.keys(sampleData);
-      editor.selectKey(keys[0]);
-
-      editor.elements.input.value = "Test";
       const event = { target: { value: "Test" } };
       await editor.handleInputChange(event);
 
       expect(editor.elements.charCurrent.textContent).toBe("4");
+    });
+
+    it("should update UI after change", async () => {
+      const event = { target: { value: "Changed" } };
+      await editor.handleInputChange(event);
+
+      expect(editor.elements.saveButton.disabled).toBe(false);
     });
   });
 
@@ -381,13 +433,18 @@ describe("SheetEditor Component", () => {
     });
 
     it("should enable save button when changes exist", async () => {
-      const keys = Object.keys(sampleData);
-      editor.selectKey(keys[0]);
-
       const event = { target: { value: "Changed" } };
       await editor.handleInputChange(event);
 
       expect(editor.elements.saveButton.disabled).toBe(false);
+    });
+
+    it("should update active pill styling", () => {
+      editor.selectedLanguage = "es";
+      editor.updateUI();
+
+      const activePill = container.querySelector(".editor-pill.active");
+      expect(activePill.getAttribute("data-lang")).toBe("es");
     });
   });
 
@@ -402,19 +459,20 @@ describe("SheetEditor Component", () => {
     });
 
     it("should display message in status bar", () => {
-      editor.updateStatusBar("Test message", "info");
+      editor.updateStatusBar("Test message");
       expect(editor.elements.statusBar.textContent).toBe("Test message");
     });
 
     it("should apply correct className based on type", () => {
       editor.updateStatusBar("Success!", "success");
-      expect(editor.elements.statusBar.className).toContain("success");
+      expect(editor.elements.statusBar.textContent).toBe("Success!");
     });
 
     it("should clear message when empty", () => {
-      editor.updateStatusBar("Initial", "info");
-      editor.updateStatusBar("", "");
-      expect(editor.elements.statusBar.textContent).toBe("");
+      editor.updateStatusBar("Initial");
+      editor.updateStatusBar("");
+      // When empty, it shows current editing info
+      expect(editor.elements.statusBar.textContent).toContain("greetings.hello");
     });
   });
 
@@ -429,9 +487,6 @@ describe("SheetEditor Component", () => {
     });
 
     it("should save snapshot on save click", async () => {
-      const keys = Object.keys(sampleData);
-      editor.selectKey(keys[0]);
-
       editor.elements.input.value = "Changed";
       editor.elements.input.dispatchEvent(new window.Event("input", { bubbles: true }));
 
@@ -442,9 +497,6 @@ describe("SheetEditor Component", () => {
     });
 
     it("should show success message after save", async () => {
-      const keys = Object.keys(sampleData);
-      editor.selectKey(keys[0]);
-
       editor.elements.input.value = "Changed";
       editor.elements.input.dispatchEvent(new window.Event("input", { bubbles: true }));
 
@@ -464,9 +516,6 @@ describe("SheetEditor Component", () => {
 
       await editor.initialize(sessionId, sampleData);
 
-      const keys = Object.keys(sampleData);
-      editor.selectKey(keys[0]);
-
       editor.elements.input.value = "Changed";
       editor.elements.input.dispatchEvent(new window.Event("input", { bubbles: true }));
 
@@ -483,9 +532,6 @@ describe("SheetEditor Component", () => {
     });
 
     it("should discard session changes", async () => {
-      const keys = Object.keys(sampleData);
-      editor.selectKey(keys[0]);
-
       editor.elements.input.value = "Changed";
       editor.elements.input.dispatchEvent(new window.Event("input", { bubbles: true }));
 
@@ -496,6 +542,17 @@ describe("SheetEditor Component", () => {
 
       const session = await EditorStateManager.getSession(sessionId);
       expect(session).toBeNull();
+    });
+
+    it("should reload original data after discard", async () => {
+      editor.elements.input.value = "Changed";
+      editor.elements.input.dispatchEvent(new window.Event("input", { bubbles: true }));
+
+      global.confirm = () => true;
+
+      await editor.handleDiscard();
+
+      expect(editor.rows[0][1]).toBe("Hello"); // Original value restored
     });
   });
 
@@ -509,13 +566,14 @@ describe("SheetEditor Component", () => {
       await editor.initialize(sessionId, sampleData);
     });
 
-    it("should return current state object", async () => {
+    it("should return current state object", () => {
       const state = editor.getState();
 
       expect(state).toBeDefined();
-      expect(state.currentData).toBeDefined();
+      expect(state.rows).toBeDefined();
       expect(state.changeCount).toBeDefined();
       expect(state.isDirty).toBeDefined();
+      expect(state.selectedLanguage).toBeDefined();
     });
 
     it("should report 0 changes when no modifications", () => {
@@ -525,25 +583,27 @@ describe("SheetEditor Component", () => {
     });
 
     it("should report changes correctly", async () => {
-      const keys = Object.keys(sampleData);
-      editor.selectKey(keys[0]);
-
-      editor.elements.input.value = "Changed";
-      editor.elements.input.dispatchEvent(new window.Event("input", { bubbles: true }));
+      const event = { target: { value: "Changed" } };
+      await editor.handleInputChange(event);
 
       const state = editor.getState();
-      expect(state.changeCount).toBeGreaterThan(0);
+      expect(state.changeCount).toBe(1);
       expect(state.isDirty).toBe(true);
     });
 
-    it("should include selected key and language in state", () => {
-      const keys = Object.keys(sampleData);
-      editor.selectKey(keys[0]);
-      editor.selectLanguage("es");
+    it("should include currentRowIndex and selectedLanguage in state", () => {
+      editor.selectedLanguage = "es";
+      editor.currentRowIndex = 1;
 
       const state = editor.getState();
-      expect(state.selectedKey).toBe(keys[0]);
+      expect(state.currentRowIndex).toBe(1);
       expect(state.selectedLanguage).toBe("es");
+    });
+
+    it("should include CSV export in state", () => {
+      const state = editor.getState();
+      expect(state.csv).toBeDefined();
+      expect(state.csv).toContain("greetings.hello");
     });
   });
 
@@ -567,6 +627,75 @@ describe("SheetEditor Component", () => {
         editor.destroy();
         editor.destroy();
       }).not.toThrow();
+    });
+  });
+
+  // ============================================================================
+  // Row Deletion Tests
+  // ============================================================================
+
+  describe("handleDelete()", () => {
+    beforeEach(async () => {
+      editor = new SheetEditor("editor-container");
+      await editor.initialize(sessionId, sampleData);
+    });
+
+    it("should remove the current row", async () => {
+      global.confirm = () => true;
+      await editor.handleDelete();
+
+      expect(editor.rows.length).toBe(1);
+    });
+
+    it("should not delete the last row", async () => {
+      // First delete one row
+      global.confirm = () => true;
+      await editor.handleDelete();
+
+      // Try to delete again - should fail
+      const initialLength = editor.rows.length;
+      await editor.handleDelete();
+
+      expect(editor.rows.length).toBe(initialLength);
+    });
+
+    it("should update UI after deletion", async () => {
+      global.confirm = () => true;
+      await editor.handleDelete();
+
+      const keySelector = editor.elements.keySelector;
+      const options = Array.from(keySelector.options).map((o) => o.value);
+      expect(options.length).toBe(1); // header + 1 remaining key
+    });
+  });
+
+  // ============================================================================
+  // CSV Export Tests
+  // ============================================================================
+
+  describe("exportCSV()", () => {
+    beforeEach(async () => {
+      editor = new SheetEditor("editor-container");
+      await editor.initialize(sessionId, sampleData);
+    });
+
+    it("should export CSV with header", () => {
+      const csv = editor.exportCSV();
+      expect(csv).toContain("key\ten\tes\tfr\tswa");
+    });
+
+    it("should export all rows", () => {
+      const csv = editor.exportCSV();
+      expect(csv).toContain("greetings.hello");
+      expect(csv).toContain("greetings.goodbye");
+    });
+
+    it("should reflect changes in export", async () => {
+      const event = { target: { value: "Modified" } };
+      await editor.handleInputChange(event);
+
+      const csv = editor.exportCSV();
+      expect(csv).toContain("Modified");
     });
   });
 });

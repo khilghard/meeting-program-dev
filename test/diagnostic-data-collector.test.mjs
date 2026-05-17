@@ -4,7 +4,10 @@
  */
 
 import { describe, test, expect, beforeEach, vi } from "vitest";
-import { collectDiagnosticData, formatDiagnosticEmail } from "../js/utils/diagnostic-data-collector.js";
+import {
+  collectDiagnosticData,
+  formatDiagnosticEmail
+} from "../js/utils/diagnostic-data-collector.js";
 
 // Mock the dependencies
 vi.mock("../js/utils/console-capture.js", () => ({
@@ -180,9 +183,9 @@ describe("Diagnostic Data Collector Module", () => {
     // Should not contain JSON
     expect(email).not.toMatch(/^{/);
     // Should contain sections separated by ===
-    expect(email.match(/===/g).length).toBeGreaterThanOrEqual(4);
+    expect(email.match(/===/g).length).toBeGreaterThanOrEqual(6);
     // Should have multiple lines
-    expect(email.split("\n").length).toBeGreaterThan(10);
+    expect(email.split("\n").length).toBeGreaterThan(15);
   });
 
   test("handles missing profile gracefully", async () => {
@@ -219,6 +222,45 @@ describe("Diagnostic Data Collector Module", () => {
     expect(data.deviceInfo.timezone.length).toBeGreaterThan(0);
   });
 
+  test("collectDiagnosticData includes pwaInfo", async () => {
+    const data = await collectDiagnosticData();
+
+    expect(data).toHaveProperty("pwaInfo");
+    expect(data.pwaInfo).toHaveProperty("isStandalone");
+    expect(data.pwaInfo).toHaveProperty("isPwaInstalled");
+    expect(data.pwaInfo).toHaveProperty("displayMode");
+    expect(data.pwaInfo).toHaveProperty("hasQueryParams");
+  });
+
+  test("collectDiagnosticData includes urlResolution", async () => {
+    const data = await collectDiagnosticData();
+
+    expect(data).toHaveProperty("urlResolution");
+    expect(data.urlResolution).toHaveProperty("usedChannel");
+    expect(data.urlResolution).toHaveProperty("resolvedUrl");
+    expect(data.urlResolution).toHaveProperty("urlParamPresent");
+    expect(data.urlResolution).toHaveProperty("localStorageUrlPresent");
+    expect(data.urlResolution).toHaveProperty("profileUrlPresent");
+  });
+
+  test("formatDiagnosticEmail includes PWA section when pwaInfo present", async () => {
+    const data = await collectDiagnosticData();
+    const email = formatDiagnosticEmail(data);
+
+    expect(email).toContain("=== PWA LAUNCH INFO ===");
+    expect(email).toContain("PWA Installed:");
+    expect(email).toContain("Display Mode:");
+  });
+
+  test("formatDiagnosticEmail includes URL Resolution section when urlResolution present", async () => {
+    const data = await collectDiagnosticData();
+    const email = formatDiagnosticEmail(data);
+
+    expect(email).toContain("=== URL RESOLUTION ===");
+    expect(email).toContain("Channel used:");
+    expect(email).toContain("Resolved URL:");
+  });
+
   test("all log levels are captured correctly", async () => {
     const testData = {
       timestamp: new Date().toISOString(),
@@ -245,7 +287,22 @@ describe("Diagnostic Data Collector Module", () => {
         { timestamp: "2026-03-24T14:30:46.000Z", level: "warn", message: "Warn message" },
         { timestamp: "2026-03-24T14:30:47.000Z", level: "error", message: "Error message" },
         { timestamp: "2026-03-24T14:30:48.000Z", level: "debug", message: "Debug message" }
-      ]
+      ],
+      pwaInfo: {
+        isPwaInstalled: true,
+        displayMode: "standalone",
+        startUrl: "/manifest.webmanifest",
+        hasQueryParams: false,
+        queryParamKeys: [],
+        fullLaunchUrl: "https://example.com"
+      },
+      urlResolution: {
+        usedChannel: "localStorage",
+        resolvedUrl: "https://example.com/sheet",
+        urlParamPresent: false,
+        localStorageUrlPresent: true,
+        profileUrlPresent: false
+      }
     };
 
     const email = formatDiagnosticEmail(testData);

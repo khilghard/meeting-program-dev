@@ -1,4 +1,56 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import vm from "node:vm";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+function loadServiceWorker({ fetchImpl, cachesImpl, pathname = "/service-worker.js" } = {}) {
+  const listeners = {};
+  const context = {
+    URL,
+    Request,
+    Response,
+    Headers,
+    fetch: fetchImpl,
+    caches: cachesImpl,
+    console,
+    clients: {
+      claim: vi.fn()
+    },
+    self: {
+      location: {
+        pathname,
+        origin: "https://example.test"
+      },
+      addEventListener(type, listener) {
+        listeners[type] = listener;
+      }
+    }
+  };
+
+  context.globalThis = context;
+  context.skipWaiting = vi.fn();
+
+  vm.runInNewContext(
+    readFileSync(resolve(process.cwd(), "service-worker.js"), "utf8"),
+    context,
+    { filename: "service-worker.js" }
+  );
+
+  return { listeners, context };
+}
+
+function createFetchEvent(request) {
+  let responsePromise;
+
+  return {
+    request,
+    respondWith: vi.fn(response => {
+      responsePromise = Promise.resolve(response);
+    }),
+    waitUntil: vi.fn(),
+    getResponse: () => responsePromise
+  };
+}
 
 /**
  * SERVICE WORKER CACHING TESTS
@@ -207,6 +259,40 @@ describe("Service Worker Caching Strategy", () => {
       const normalJs = "/js/main.js";
       expect(isVersionFile(normalJs)).toBe(false);
     });
+
+    it("should map CMS directory navigations to the correct shell index", async () => {
+      const mapShellPath = (path, basePath) => {
+        const cmsBasePath = `${basePath}cms/`;
+        const cmsBasePathWithoutTrailingSlash = cmsBasePath.slice(0, -1);
+        const cmsAgendaBasePath = `${basePath}cms_agenda/`;
+        const cmsAgendaBasePathWithoutTrailingSlash = cmsAgendaBasePath.slice(0, -1);
+
+        if (path === cmsBasePath || path === cmsBasePathWithoutTrailingSlash) {
+          return `${cmsBasePath}index.html`;
+        }
+
+        if (path === cmsAgendaBasePath || path === cmsAgendaBasePathWithoutTrailingSlash) {
+          return `${cmsAgendaBasePath}index.html`;
+        }
+
+        return path;
+      };
+
+      expect(mapShellPath("/meeting-program-dev/cms/", "/meeting-program-dev/")).toBe(
+        "/meeting-program-dev/cms/index.html"
+      );
+      expect(mapShellPath("/meeting-program-dev/cms", "/meeting-program-dev/")).toBe(
+        "/meeting-program-dev/cms/index.html"
+      );
+      expect(mapShellPath("/meeting-program-dev/cms_agenda/", "/meeting-program-dev/")).toBe(
+        "/meeting-program-dev/cms_agenda/index.html"
+      );
+      expect(mapShellPath("/meeting-program-dev/cms_agenda", "/meeting-program-dev/")).toBe(
+        "/meeting-program-dev/cms_agenda/index.html"
+      );
+      expect(mapShellPath("/cms/", "/")).toBe("/cms/index.html");
+      expect(mapShellPath("/cms_agenda/", "/")).toBe("/cms_agenda/index.html");
+    });
   });
 
   describe("Manifest Detection and Updates", () => {
@@ -283,6 +369,72 @@ describe("Service Worker Caching Strategy", () => {
 
       expect(strategies["network-first"].recoversFromTransient).toBe(true);
       expect(strategies["cache-first"].recoversFromTransient).toBe(false);
+    });
+  });
+
+  describe("Real Fetch Routing", () => {
+    it("should bypass shared dynamic caching for authenticated Google API requests", async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        })
+      );
+      const cache = {
+        put: vi.fn().mockResolvedValue(undefined),
+        match: vi.fn().mockResolvedValue(null),
+        keys: vi.fn().mockResolvedValue([])
+      };
+      const cachesImpl = {
+        open: vi.fn().mockResolvedValue(cache),
+        keys: vi.fn().mockResolvedValue([]),
+        delete: vi.fn().mockResolvedValue(true),
+        match: vi.fn().mockResolvedValue(null)
+      };
+      const { listeners } = loadServiceWorker({ fetchImpl, cachesImpl });
+      const event = createFetchEvent(
+        new Request("https://sheets.googleapis.com/v4/spreadsheets/test", {
+          headers: { authorization: "Bearer token" }
+        })
+      );
+
+      listeners.fetch(event);
+      await event.getResponse();
+
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expect(cachesImpl.open).not.toHaveBeenCalled();
+      expect(cache.put).not.toHaveBeenCalled();
+    });
+
+    it("should fall back to cached docs.google.com content when the network fails", async () => {
+      const cachedResponse = new Response("cached sheet", {
+        status: 200,
+        headers: { "cached-at": Date.now().toString() }
+      });
+      const fetchImpl = vi.fn().mockRejectedValue(new Error("offline"));
+      const cache = {
+        put: vi.fn().mockResolvedValue(undefined),
+        match: vi.fn().mockResolvedValue(cachedResponse),
+        keys: vi.fn().mockResolvedValue([])
+      };
+      const cachesImpl = {
+        open: vi.fn().mockResolvedValue(cache),
+        keys: vi.fn().mockResolvedValue([]),
+        delete: vi.fn().mockResolvedValue(true),
+        match: vi.fn().mockResolvedValue(null)
+      };
+      const { listeners } = loadServiceWorker({ fetchImpl, cachesImpl });
+      const event = createFetchEvent(
+        new Request("https://docs.google.com/spreadsheets/d/test/gviz/tq?tqx=out:csv")
+      );
+
+      listeners.fetch(event);
+      const response = await event.getResponse();
+
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expect(cachesImpl.open).toHaveBeenCalledTimes(1);
+      expect(cache.match).toHaveBeenCalledTimes(1);
+      expect(await response.text()).toBe("cached sheet");
     });
   });
 

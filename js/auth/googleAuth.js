@@ -25,7 +25,10 @@ const GoogleAuth = (() => {
   let config = {
     clientId: null,
     redirectUri: null,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"]
+    scopes: [
+      "https://www.googleapis.com/auth/spreadsheets",
+      "https://www.googleapis.com/auth/drive.metadata.readonly"
+    ]
   };
 
   // Internal state

@@ -80,6 +80,12 @@ describe("Sanitization Module", () => {
       expect(entry.value).toBe("John Doe");
     });
 
+    test("Dynamic leader key", () => {
+      const entry = sanitizeEntry("leader2", "Jane Doe | 801-555-0000 | Relief Society President");
+      expect(entry.key).toBe("leader");
+      expect(entry.value).toBe("Jane Doe | 801-555-0000 | Relief Society President");
+    });
+
     test("Unknown key blocked", () => {
       const entry = sanitizeEntry("evilKey", "test");
       expect(entry).toBe(null);
