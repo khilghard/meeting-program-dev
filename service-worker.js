@@ -26,7 +26,7 @@ console.log(`[SW] BASE_PATH detected: "${BASE_PATH}"`);
 // Legacy support - keep old MPPATH for existing users
 const MPPATH = BASE_PATH || "/meeting-program-dev";
 const APP_PREFIX = "smpwa";
-const VERSION = "2.4.4";
+const VERSION = "2.4.5";
 const CACHE_NAME = `${APP_PREFIX}-${VERSION}`;
 
 // All users now on 2.2.x - single unified cache scheme
@@ -44,6 +44,7 @@ const MAX_CACHES_TO_KEEP = 5; // Increased to support dual cache schemes
 const URLS = [
   `${BASE_PATH || MPPATH}/index.html?v=${VERSION}`,
   `${BASE_PATH || MPPATH}/cms/index.html?v=${VERSION}`,
+  `${BASE_PATH || MPPATH}/cms_agenda/index.html?v=${VERSION}`,
   `${BASE_PATH || MPPATH}/css/styles.css?v=${VERSION}`,
   `${BASE_PATH || MPPATH}/js/version.js?v=${VERSION}`,
   `${BASE_PATH || MPPATH}/js/version-parser.js?v=${VERSION}`,
@@ -123,6 +124,14 @@ async function cacheWithTimestamp(cache, request, response) {
   }
 }
 
+function hasAuthorizationHeader(request) {
+  try {
+    return Boolean(request?.headers?.get("authorization"));
+  } catch {
+    return false;
+  }
+}
+
 // ------------------------------------------------------------
 // Helper: Static cache handler (network-first, falls back to cache)
 // This ensures refresh (F5) shows fresh content while supporting offline
@@ -167,23 +176,17 @@ async function handleStaticCache(req) {
 // Helper: Google Sheets network-first handler
 // ------------------------------------------------------------
 async function handleGoogleSheets(req) {
-  try {
-    const res = await fetch(req);
-    if (res.ok && res.body) {
-      const dynamicCache = await caches.open(DYNAMIC_CACHE);
-      await cacheWithTimestamp(dynamicCache, req, res);
-    }
-    return res;
-  } catch (err) {
-    console.warn("[SW] Google Sheets fetch failed:", err);
-    throw err;
-  }
+  return handleDynamicCache(req, new URL(req.url));
 }
 
 // ------------------------------------------------------------
 // Helper: Dynamic cache with fallback
 // ------------------------------------------------------------
 async function handleDynamicCache(req, url) {
+  if (hasAuthorizationHeader(req)) {
+    return fetch(req);
+  }
+
   try {
     const res = await fetch(req);
     if (res.ok && res.body) {
@@ -298,6 +301,8 @@ self.addEventListener("fetch", (event) => {
 
   const cmsBasePath = `${BASE_PATH}cms/`;
   const cmsBasePathWithoutTrailingSlash = cmsBasePath.slice(0, -1);
+  const cmsAgendaBasePath = `${BASE_PATH}cms_agenda/`;
+  const cmsAgendaBasePathWithoutTrailingSlash = cmsAgendaBasePath.slice(0, -1);
 
   // Handle requests to deployment root (e.g., /meeting-program/ → /meeting-program/index.html)
   // This handles cases where users access the path without index.html
@@ -325,6 +330,18 @@ self.addEventListener("fetch", (event) => {
       headers: req.headers
     });
     event.respondWith(handleStaticCache(cmsIndexReq));
+    return;
+  }
+
+  if (
+    url.pathname === cmsAgendaBasePath ||
+    url.pathname === cmsAgendaBasePathWithoutTrailingSlash
+  ) {
+    const cmsAgendaIndexReq = new Request(`${cmsAgendaBasePath}index.html`, {
+      method: req.method,
+      headers: req.headers
+    });
+    event.respondWith(handleStaticCache(cmsAgendaIndexReq));
     return;
   }
 

@@ -89,17 +89,17 @@
     <main class="cms-page">
       <header class="cms-page__header">
         <div>
-          <p>Ward Program CMS</p>
+          <p id="cms-shell-title">Ward Program CMS</p>
           <h1 id="cms-profile-name">Loading profile…</h1>
           <p id="cms-modified-time"></p>
         </div>
         <div id="cms-toolbar" class="cms-page__toolbar">
           <label>
-            Locale
+            <span id="cms-locale-label">Locale</span>
             <select id="cms-locale-select"></select>
           </label>
           <label>
-            Sheet Tab
+            <span id="cms-tab-label">Sheet Tab</span>
             <select id="cms-tab-select"></select>
           </label>
           <button id="cms-save-btn" type="button">Save</button>
@@ -110,9 +110,29 @@
       <div id="cms-page-status" class="cms-page__status" hidden></div>
 
       <section id="cms-auth-panel" hidden>
-        <p>Sign in with Google to edit the selected program sheet.</p>
+        <p id="cms-auth-message">Sign in with Google to edit the selected program sheet.</p>
+        <button id="cms-setup-btn" type="button">Configure Google Settings</button>
         <button id="cms-sign-in-btn" type="button">Sign in with Google</button>
       </section>
+
+      <dialog id="cms-setup-modal">
+        <form method="dialog" class="cms-setup-modal__content">
+          <h2 id="cms-setup-title">Google Settings</h2>
+          <label>
+            <span id="cms-setup-client-id-label">Google Client ID</span>
+            <input id="cms-setup-client-id" type="text" placeholder="12345.apps.googleusercontent.com" />
+          </label>
+          <label>
+            <span id="cms-setup-sheet-url-label">Program Sheet URL</span>
+            <input id="cms-setup-sheet-url" type="text" readonly />
+          </label>
+          <p id="cms-setup-status" class="cms-page__status" hidden></p>
+          <div class="cms-setup-modal__actions">
+            <button id="cms-setup-cancel-btn" type="button">Cancel</button>
+            <button id="cms-setup-save-btn" type="button">Save Settings</button>
+          </div>
+        </form>
+      </dialog>
 
       <div id="cms-loading" class="cms-page__loading">Loading CMS...</div>
 

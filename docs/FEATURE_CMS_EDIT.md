@@ -2,8 +2,8 @@
 
 **Version**: 2.2  
 **Last Updated**: May 16, 2026  
-**Status**: Phases 1-5 complete. Phase 6 is implemented and in active hardening.  
-**Estimated Duration**: 8 phases total
+**Status**: Phases 1-8 are complete. Phase 9 hardening is in progress, with multiple release-blocking review findings now closed.  
+**Estimated Duration**: 9 phases total
 
 ---
 
@@ -41,9 +41,10 @@ This document now subsumes the previous standalone rollout plan from `docs/plans
 | Phase 3 — Dexie v6 drafts   | ✅ Complete    | `js/data/db.js`, `IndexedDBManager.js`, `test/db-v6-migration.test.mjs`                          | Focused migration + profile cleanup tests passing  |
 | Phase 4 — Tab Management    | ✅ Complete    | `SheetTabService.mjs`, `sheetRanges.js`, service tests                                           | Focused service tests passing                      |
 | Phase 5 — `CmsEditor.mjs`   | ✅ Complete    | `js/components/CmsEditor.mjs`, `test/components/CmsEditor.test.mjs`                              | 16 focused tests passing                            |
-| Phase 6 — CMS page          | ⏳ In progress | `cms/index.html`, `js/cms.js`, `test/cms.test.mjs`                                               | 8 focused tests passing; auth/conflict recovery + SW precache in place |
-| Phase 7 — Agenda CMS page   | ⏳ Planned     | `cms_agenda/index.html`, `js/cms-agenda.js`, `AgendaKeyEditor.mjs`                               | —                                                  |
-| Phase 8 — Tests + SW + i18n | ⏳ Planned     | Service worker, E2E, i18n strings                                                                | —                                                  |
+| Phase 6 — CMS page          | ✅ Complete    | `cms/index.html`, `js/cms.js`, `test/cms.test.mjs`                                               | 10 focused tests passing; setup/auth restore/conflict recovery + SW precache in place |
+| Phase 7 — Agenda CMS page   | ✅ Complete    | `cms_agenda/index.html`, `js/cms-agenda.js`, `AgendaKeyEditor.mjs`, `test/cms-agenda.test.mjs`  | 10 focused tests passing; publish/draft/auth + SW route coverage in place |
+| Phase 8 — Tests + SW + i18n | ✅ Complete    | `e2e/scenarios/cms.spec.js`, `e2e/scenarios/cms-agenda.spec.js`, `e2e/helpers/sheetsApiMock.js`, `e2e/fixtures/cmsAuth.js`, `test/cms-i18n.test.mjs` | Focused E2E scenarios passing on desktop/mobile targets + CMS i18n coverage verified |
+| Phase 9 — Hardening Follow-up | 🔄 In Progress | Service worker auth boundaries, CMS save semantics, agenda bulk-publish truthfulness, draft restore, shell i18n, Agenda Settings alignment, release-confidence cleanup | Core hardening slices implemented with focused unit and browser validation; remaining work is broader release evidence |
 
 ---
 
@@ -359,10 +360,10 @@ Same OAuth flow as the main CMS:
 ### Entry Points
 
 **From the main app:**
-The agenda settings modal (`AgendaSettings.js`) gains an "Edit Agenda" button that navigates to `/meeting-program/cms_agenda/`. The active profile is already in IndexedDB, so no URL parameters are needed.
+The agenda settings modal (`AgendaSettings.js`) now includes an "Edit Agenda" button that navigates to `/meeting-program/cms_agenda/?profileId=<id>`, allowing the mobile editor to open the selected profile's agenda sheet directly.
 
 **Direct bookmark:**
-Leaders can bookmark `https://khilghard.github.io/meeting-program/cms_agenda/` and use it directly. On open it reads the active profile from IndexedDB.
+Leaders can bookmark `https://khilghard.github.io/meeting-program/cms_agenda/` and use it directly. On open it reads the active profile from IndexedDB when no `profileId` query parameter is present.
 
 **No profile / no agenda URL:**
 If the active profile has no `agendaUrl`, the page shows a short prompt: "No agenda sheet configured. Open the main app → Agenda Settings to add one."
@@ -548,14 +549,14 @@ js/
 │   ├── db.js                       [COMPLETE ✅] Dexie schema v6 + drafts store
 │   └── IndexedDBManager.js         [COMPLETE ✅] Draft + metadata CRUD
 ├── components/
-│   ├── CmsEditor.mjs               [IN PROGRESS ⏳] Desktop CMS component
+│   ├── CmsEditor.mjs               [COMPLETE ✅] Desktop CMS component
 │   └── AgendaKeyEditor.mjs         [TODO] Mobile agenda component
-├── cms.js                          [IN PROGRESS ⏳] Desktop CMS entry point
+├── cms.js                          [COMPLETE ✅] Desktop CMS entry point
 ├── cms-agenda.js                   [TODO] Mobile agenda entry point
 └── [existing modules unchanged]
 
 cms/
-└── index.html                       [IN PROGRESS ⏳] Desktop CMS page
+└── index.html                       [COMPLETE ✅] Desktop CMS page
 
 cms_agenda/
 └── index.html                       [TODO] Mobile agenda page
@@ -569,10 +570,10 @@ test/
 │   ├── AgendaSheetService.test.mjs  [COMPLETE ✅]
 │   └── SheetTabService.test.mjs    [COMPLETE ✅]
 ├── components/
-│   ├── CmsEditor.test.mjs          [IN PROGRESS ⏳]
+│   ├── CmsEditor.test.mjs          [COMPLETE ✅]
 │   └── AgendaKeyEditor.test.mjs    [TODO]
 ├── db-v6-migration.test.mjs        [COMPLETE ✅]
-└── cms.test.mjs                    [IN PROGRESS ⏳]
+└── cms.test.mjs                    [COMPLETE ✅]
 
 e2e/
 ├── scenarios/
@@ -950,22 +951,19 @@ The `(active)` label in the dropdown always marks the tab at `index === 0`.
 - Tab selector rendered in header (Phase 4)
 - `spreadsheetId` extracted from `profile.url` via `js/utils/sheetsUrl.js`
 
-**Current state:** Implemented and focused-tested. Current behaviour includes:
+**Current state:** Complete and focused-tested. Current behaviour includes:
 
 - active profile load via IndexedDB
 - Google sign-in gate
 - locale selector
 - sheet-tab selector
 - draft persistence per profile/tab/locale
+- setup modal flow that stores `googleClientId` in IndexedDB metadata
 - save back through `ProgramSheetService`
+- session restore messaging when an auth return resumes a saved draft
 - auth-expiry recovery that returns the page to the sign-in gate without discarding drafts
 - concurrency conflict acknowledgement with a "Save anyway?" confirmation path
 - service worker precache coverage for `cms/index.html` with a cache version bump
-
-**Active hardening items:**
-
-- setup modal flow for configuring `googleClientId` from the CMS shell
-- auth-return restore messaging around the `cms_auth_pending` session flag
 
 **Service worker:** `cms/index.html` is now in the `URLS` precache list and the cache `VERSION` has been bumped.
 
@@ -983,19 +981,73 @@ The `(active)` label in the dropdown always marks the tab at `index === 0`.
 - Non-blocking "Tap to sign in again" on re-auth (AD-08)
 - Deep-link from `AgendaSettings.js` "Edit Agenda" button
 
-**Service worker:** Add `cms_agenda/index.html` to `URLS` precache + bump `VERSION` (AD-10 — first commit).
+**Current state:** Complete and focused-tested. Current behaviour includes:
+
+- mobile shell at `cms_agenda/index.html`
+- `AgendaKeyEditor` support for textarea, repeatable-single, and repeatable pair forms
+- dirty draft persistence via `agenda_draft_${profileId}`
+- per-key publish and sequential "Publish All Pending"
+- non-blocking re-auth prompt with setup modal fallback for `googleClientId`
+- sheet-tab selection plus "Make Active" support
+- agenda settings deep-link support via `profileId`
+
+**Service worker:** `cms_agenda/index.html` is now in the `URLS` precache list and the cache `VERSION` has been bumped.
 
 ### Phase 8 — Tests, Service Worker, i18n
 
-Planned items:
+**Current state:** Complete. Phase 8 added:
 
-- `e2e/scenarios/cms.spec.js`
-- `e2e/scenarios/cms-agenda.spec.js`
-- `e2e/helpers/sheetsApiMock.js`
-- `e2e/fixtures/cmsAuth.js`
-- service worker precache entries for the new pages
-- final CMS i18n coverage verification
+- `e2e/scenarios/cms.spec.js` for desktop CMS browser flows
+- `e2e/scenarios/cms-agenda.spec.js` for mobile agenda flows on mobile Playwright projects
+- `e2e/helpers/sheetsApiMock.js` for deterministic Sheets + Drive API routing
+- `e2e/fixtures/cmsAuth.js` for IndexedDB/bootstrap seeding and fake OAuth session setup
+- service worker coverage for both CMS shells with versioned precache entries
+- `test/cms-i18n.test.mjs` for CMS translation-key coverage across supported languages
+
+**Validation summary:**
+
+- `npx vitest run test/cms-i18n.test.mjs`
+- `npx playwright test e2e/scenarios/cms.spec.js e2e/scenarios/cms-agenda.spec.js --project=chromium --project="Mobile iPhone" --project="Mobile Android"`
+
   **Rationale:** The two CMS pages have fundamentally different write semantics (full-CSV batch vs single-key column write). A "shared" service that covers both would need two incompatible interfaces; splitting into domain services keeps each boundary clean and individually testable.
+
+### Phase 9 — Hardening Follow-up
+
+**Objective:** Close the review findings raised after the Phase 8 rollout so the final CMS feature state is production-hardened, not just functionally complete under mocked validation.
+
+**Why this phase exists:** Winston, Murat, and the adversarial review all agreed that the current rollout is close, but still has boundary risks, a few misleading completion claims, and a small set of production-critical gaps.
+
+**Current Phase 9 status:** In progress. The following slices are already implemented and validated:
+
+- newly added CMS rows append correctly instead of being dropped on save
+- CMS and agenda tab selectors render titles as text, not raw HTML
+- agenda bulk publish reports partial failure truthfully
+- authenticated Google API traffic bypasses shared runtime caching and service-worker tests execute the real fetch routing path
+- draft restoration now reapplies saved locale/tab/key context before first load
+- Agenda Settings now reflects editor configuration separately from legacy main-app agenda availability
+- CMS shell labels and setup chrome are localized and covered by translation tests
+- desktop browser coverage now includes auth-expiry save handling and conflict acknowledgement
+
+**Phase 9 action plan:**
+
+1. Fix desktop CMS save semantics so newly added repeatable rows are appended instead of being silently dropped.
+2. Replace raw `innerHTML` tab-option rendering in both CMS pages with safe DOM construction or escaped values.
+3. Change agenda bulk publish so partial failures produce a partial-failure result, not a blanket success message.
+4. Tighten the service worker boundary so authenticated Google API traffic is never cached in the shared dynamic cache.
+5. Reconcile `AgendaSettings.js` with the OAuth-backed agenda CMS flow so "Connected" reflects the actual integration path.
+6. Restore saved draft context by reselecting the saved locale/tab before matching, rather than only restoring when the current default view already matches.
+7. Finish shell-level CMS i18n for `cms/index.html` and `cms_agenda/index.html`, then narrow any remaining completion language until that work is fully shipped.
+8. Replace simulated service-worker decision tests with execution against the real worker logic or a closer harness.
+9. Strengthen auth and browser verification around real-world failure paths: OAuth popup/return, auth expiry, conflict acknowledgement, and setup recovery.
+
+**Acceptance evidence for Phase 9:**
+
+- New or updated focused tests prove newly added CMS rows persist correctly.
+- Browser automation or an equivalent high-fidelity harness covers at least one auth-expiry/recovery path and one conflict-recovery path.
+- Service-worker tests execute the real routing/cache logic for the relevant CMS request classes.
+- CMS shell strings are verified through i18n coverage, not only component-level translation keys.
+- The Agenda Settings to mobile CMS handoff is validated against the real OAuth-backed editor flow, not only legacy URL/cache checks.
+- Feature status language is updated to match the actual evidence after the above fixes land.
 
 ---
 
@@ -1132,11 +1184,13 @@ Focused validation already in place for the implemented phases, with broader E2E
 
 ### Still planned
 
-- [ ] `test/components/AgendaKeyEditor.test.mjs` — 3 form type dispatch, idempotent re-render, dirty state map per key
-- [ ] `e2e/scenarios/cms.spec.js` — 8 desktop CMS flows (see Murat's E2E-CMS-01 through E2E-CMS-08)
-- [ ] `e2e/scenarios/cms-agenda.spec.js` — 6 mobile agenda flows (E2E-AGN-01 through E2E-AGN-06), run on `Mobile iPhone` and `Mobile Android` Playwright projects
-- [ ] `e2e/helpers/sheetsApiMock.js` — shared `page.route()` handler for `**/spreadsheets/v4/**`
-- [ ] `e2e/fixtures/cmsAuth.js` — `injectFakeToken(page)` fixture for bypassing OAuth popup in E2E
+- [x] `test/components/AgendaKeyEditor.test.mjs` — dynamic form dispatch and repeatable row coverage
+- [x] `test/cms-agenda.test.mjs` — focused agenda page coverage for publish, draft, auth, and tab actions
+- [x] `e2e/scenarios/cms.spec.js` — desktop CMS browser flows
+- [x] `e2e/scenarios/cms-agenda.spec.js` — mobile agenda browser flows on `Mobile iPhone` and `Mobile Android`
+- [x] `e2e/helpers/sheetsApiMock.js` — shared `page.route()` handler for Sheets + Drive APIs
+- [x] `e2e/fixtures/cmsAuth.js` — CMS bootstrap + `injectFakeToken(page)` support for E2E
+- [x] `test/cms-i18n.test.mjs` — CMS translation coverage across supported languages
 
 ---
 
@@ -1158,21 +1212,23 @@ js/
     sheetsUrl.js                ✅ Pre-gate — shared spreadsheet URL helpers
   components/
     CmsEditor.mjs               ✅ Phase 5 — desktop CMS component complete
-    AgendaKeyEditor.mjs         ⏳ Phase 7 — mobile agenda form component
-  cms.js                        ⏳ Phase 6 — auth/conflict recovery + focused tests added
-  cms-agenda.js                 ⏳ Phase 7 — mobile agenda entry point
+    AgendaKeyEditor.mjs         ✅ Phase 7 — mobile agenda form component
+  cms.js                        ✅ Phase 6 — desktop CMS flow complete
+  cms-agenda.js                 ✅ Phase 7 — mobile agenda entry point
 
 cms/
-  index.html                    ⏳ Phase 6 — desktop CMS shell + SW precache
+  index.html                    ✅ Phase 6 — desktop CMS shell + SW precache
 
 cms_agenda/
-  index.html                    ⏳ Phase 7
+  index.html                    ✅ Phase 7
 
 test/
   db-path.test.mjs              ✅ Pre-gate
   sheetsUrl.test.mjs            ✅ Pre-gate
   db-v6-migration.test.mjs      ✅ Phase 3
-  cms.test.mjs                  ⏳ Phase 6 — 8 focused tests
+  cms.test.mjs                  ✅ Phase 6 — 10 focused tests
+  cms-agenda.test.mjs           ✅ Phase 7 — 5 focused tests
+  cms-i18n.test.mjs             ✅ Phase 8 — CMS translation coverage
   services/
     SheetsApiClient.test.mjs    ✅ Phase 2
     ProgramSheetService.test.mjs ✅ Phase 2
@@ -1180,7 +1236,7 @@ test/
     SheetTabService.test.mjs    ✅ Phase 4
   components/
     CmsEditor.test.mjs          ✅ Phase 5
-    AgendaKeyEditor.test.mjs    ⏳ Phase 7
+    AgendaKeyEditor.test.mjs    ✅ Phase 7 — 5 focused tests
 
 docs/
   ADR-001-program-sheet-write-strategy.md  ✅ Pre-gate
@@ -1188,29 +1244,19 @@ docs/
 
 e2e/
   scenarios/
-    cms.spec.js                 ⏳ Phase 8
-    cms-agenda.spec.js          ⏳ Phase 8
+    cms.spec.js                 ✅ Phase 8 — desktop CMS browser flows
+    cms-agenda.spec.js          ✅ Phase 8 — mobile agenda browser flows
   helpers/
-    sheetsApiMock.js            ⏳ Phase 8
+    sheetsApiMock.js            ✅ Phase 8 — shared Sheets/Drive route mock
   fixtures/
-    cmsAuth.js                  ⏳ Phase 8
+    cmsAuth.js                  ✅ Phase 8 — CMS auth/storage bootstrap helpers
 ```
 
 ---
 
 ## Next Steps
 
-### Immediate follow-ups from the current review pass
-
-1. Finish the CMS setup modal flow for `googleClientId` configuration.
-2. Add auth-return restore messaging around the `cms_auth_pending` session flag.
-3. Start Phase 7 mobile agenda implementation.
-
-### After those hardening fixes
-
-1. Start Phase 7 mobile agenda implementation.
-2. Expand Phase 8 E2E coverage for desktop and mobile CMS flows.
-3. Verify final CMS i18n coverage across shell/status copy.
+1. Feature rollout is complete; next work can shift to refinement, broader regression depth, or release packaging as needed.
 
 ---
 

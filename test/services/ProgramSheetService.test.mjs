@@ -237,6 +237,40 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
     const [, range] = client.valueUpdate.mock.calls[0];
     expect(range).toBe("'May 18, 2026'!B2:B4");
   });
+
+  test("appends newly added keys instead of dropping them", async () => {
+    const client = makeWriteClient();
+    const svc = new ProgramSheetService(client, EDIT_URL);
+
+    await svc.writeSheet(
+      [
+        { key: "presiding", value: "New Bishop" },
+        { key: "speaker1", value: "Sister Adams" }
+      ],
+      "en",
+      MOD_TIME
+    );
+
+    expect(client.batchUpdate).toHaveBeenCalledTimes(1);
+    expect(client.valueUpdate).not.toHaveBeenCalled();
+    const [, data] = client.batchUpdate.mock.calls[0];
+
+    expect(data).toEqual([
+      {
+        range: "Sheet1!A5:A5",
+        values: [["speaker1"]]
+      },
+      {
+        range: "Sheet1!B2:B5",
+        values: [
+          ["New Bishop"],
+          ["Bishop Smith"],
+          ["How Firm a Foundation"],
+          ["Sister Adams"]
+        ]
+      }
+    ]);
+  });
 });
 
 // ---------------------------------------------------------------------------

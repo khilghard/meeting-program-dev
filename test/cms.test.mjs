@@ -15,14 +15,26 @@ describe("cms.js", () => {
       <html>
         <body>
           <div id="cms-page-status" hidden></div>
-          <section id="cms-auth-panel" hidden><button id="cms-sign-in-btn" type="button">Sign in</button></section>
+          <section id="cms-auth-panel" hidden>
+            <p id="cms-auth-message"></p>
+            <button id="cms-setup-btn" type="button">Configure</button>
+            <button id="cms-sign-in-btn" type="button">Sign in</button>
+          </section>
+          <dialog id="cms-setup-modal" hidden>
+            <input id="cms-setup-client-id" type="text" />
+            <input id="cms-setup-sheet-url" type="text" />
+            <div id="cms-setup-status" hidden></div>
+            <button id="cms-setup-save-btn" type="button">Save settings</button>
+            <button id="cms-setup-cancel-btn" type="button">Cancel</button>
+          </dialog>
           <div id="cms-loading">Loading CMS...</div>
           <section id="cms-content" hidden>
+            <p id="cms-shell-title"></p>
             <h1 id="cms-profile-name"></h1>
             <div id="cms-modified-time"></div>
             <div id="cms-toolbar">
-              <select id="cms-locale-select"></select>
-              <select id="cms-tab-select"></select>
+              <label><span id="cms-locale-label"></span><select id="cms-locale-select"></select></label>
+              <label><span id="cms-tab-label"></span><select id="cms-tab-select"></select></label>
               <button id="cms-save-btn" type="button">Save</button>
               <button id="cms-discard-btn" type="button">Discard</button>
             </div>
@@ -41,6 +53,14 @@ describe("cms.js", () => {
     global.window = window;
     global.navigator = window.navigator;
     global.sessionStorage = window.sessionStorage;
+    document.getElementById("cms-setup-modal").showModal = function() {
+      this.hidden = false;
+      this.open = true;
+    };
+    document.getElementById("cms-setup-modal").close = function() {
+      this.hidden = true;
+      this.open = false;
+    };
   });
 
   test("loads the current profile sheet rows for the active locale and tab", async () => {
@@ -193,6 +213,77 @@ describe("cms.js", () => {
       rows: [{ key: "unitName", value: "Updated Ward" }],
       savedAt: expect.any(Number)
     });
+  });
+
+  test("renders tab titles as text instead of HTML", async () => {
+    const maliciousTitle = '<img src=x onerror="alert(1)">';
+
+    const app = createCmsApp({
+      documentRef: document,
+      windowRef: window,
+      profileManager: {
+        initProfileManager: vi.fn().mockResolvedValue(),
+        getCurrentProfile: vi.fn().mockResolvedValue({
+          id: "profile-1",
+          url: "https://docs.google.com/spreadsheets/d/abc123/edit",
+          unitName: "Test Ward"
+        })
+      },
+      initI18n: vi.fn().mockResolvedValue("en"),
+      getSupportedLanguages: () => ["en"],
+      setLanguage: vi.fn().mockResolvedValue(),
+      t: key => key,
+      getMetadata: vi.fn().mockResolvedValue("test-client-id"),
+      getDraft: vi.fn().mockResolvedValue(null),
+      saveDraft: vi.fn().mockResolvedValue(true),
+      clearDraft: vi.fn().mockResolvedValue(true),
+      auth: {
+        initialize: vi.fn(),
+        isAuthenticated: () => true,
+        getAccessToken: () => "token"
+      },
+      createClient: vi.fn().mockReturnValue({}),
+      ProgramSheetServiceClass: class {
+        async readSheet() {
+          return {
+            rows: [{ key: "unitName", value: "Test Ward" }],
+            modifiedTime: "2026-05-16T12:00:00.000Z"
+          };
+        }
+
+        async writeSheet() {
+          return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
+        }
+      },
+      SheetTabServiceClass: class {
+        async listTabs() {
+          return [{ sheetId: 1, title: maliciousTitle, index: 0, isActive: true }];
+        }
+      },
+      CmsEditorClass: class {
+        constructor(containerId) {
+          this.container = document.getElementById(containerId);
+        }
+
+        initialize(rows) {
+          this.rows = rows;
+          this.container.textContent = JSON.stringify(rows);
+        }
+
+        getRows() {
+          return this.rows;
+        }
+
+        discardChanges() {}
+      }
+    });
+
+    await app.initialize();
+
+    const tabSelect = document.getElementById("cms-tab-select");
+    expect(tabSelect.options).toHaveLength(1);
+    expect(tabSelect.options[0].textContent).toBe(maliciousTitle);
+    expect(tabSelect.querySelector("img")).toBeNull();
   });
 
   test("reloads rows when the locale selection changes", async () => {
@@ -654,5 +745,257 @@ describe("cms.js", () => {
     expect(writeSheet).toHaveBeenCalledTimes(1);
     expect(clearDraft).not.toHaveBeenCalled();
     expect(document.getElementById("cms-page-status").textContent).toContain("Save cancelled");
+  });
+
+  test("saves the Google Client ID from the setup modal", async () => {
+    const getMetadata = vi.fn().mockResolvedValue(null);
+    const setMetadata = vi.fn().mockResolvedValue(true);
+
+    const app = createCmsApp({
+      documentRef: document,
+      windowRef: window,
+      profileManager: {
+        initProfileManager: vi.fn().mockResolvedValue(),
+        getCurrentProfile: vi.fn().mockResolvedValue({
+          id: "profile-8",
+          url: "https://docs.google.com/spreadsheets/d/abc123/edit",
+          unitName: "Setup Ward"
+        })
+      },
+      initI18n: vi.fn().mockResolvedValue("en"),
+      getSupportedLanguages: () => ["en", "es"],
+      setLanguage: vi.fn().mockResolvedValue(),
+      t: key => key,
+      getMetadata,
+      setMetadata,
+      getDraft: vi.fn().mockResolvedValue(null),
+      saveDraft: vi.fn().mockResolvedValue(true),
+      clearDraft: vi.fn().mockResolvedValue(true),
+      auth: {
+        initialize: vi.fn(),
+        isAuthenticated: () => false,
+        getAccessToken: () => "token"
+      },
+      createClient: vi.fn().mockReturnValue({}),
+      ProgramSheetServiceClass: class {},
+      SheetTabServiceClass: class {},
+      CmsEditorClass: class {}
+    });
+
+    await app.initialize();
+    document.getElementById("cms-setup-btn").click();
+    document.getElementById("cms-setup-client-id").value = "client-123.apps.googleusercontent.com";
+    document.getElementById("cms-setup-save-btn").click();
+
+    await vi.waitFor(() => {
+      expect(setMetadata).toHaveBeenCalledWith("googleClientId", "client-123.apps.googleusercontent.com");
+    });
+    expect(document.getElementById("cms-sign-in-btn").hidden).toBe(false);
+    expect(document.getElementById("cms-page-status").textContent).toContain("settings saved");
+  });
+
+  test("shows a restore message after returning with a matching saved draft", async () => {
+    window.sessionStorage.setItem("cms_auth_pending", "1");
+
+    const app = createCmsApp({
+      documentRef: document,
+      windowRef: window,
+      profileManager: {
+        initProfileManager: vi.fn().mockResolvedValue(),
+        getCurrentProfile: vi.fn().mockResolvedValue({
+          id: "profile-9",
+          url: "https://docs.google.com/spreadsheets/d/abc123/edit",
+          unitName: "Restore Ward"
+        })
+      },
+      initI18n: vi.fn().mockResolvedValue("en"),
+      getSupportedLanguages: () => ["en", "es"],
+      setLanguage: vi.fn().mockResolvedValue(),
+      t: key => key,
+      getMetadata: vi.fn().mockResolvedValue("test-client-id"),
+      getDraft: vi.fn().mockResolvedValue({
+        locale: "en",
+        selectedTabTitle: "Sheet1",
+        rows: [{ key: "unitName", value: "Restored Ward" }]
+      }),
+      saveDraft: vi.fn().mockResolvedValue(true),
+      clearDraft: vi.fn().mockResolvedValue(true),
+      auth: {
+        initialize: vi.fn(),
+        isAuthenticated: () => true,
+        getAccessToken: () => "token"
+      },
+      createClient: vi.fn().mockReturnValue({}),
+      ProgramSheetServiceClass: class {
+        async readSheet() {
+          return {
+            rows: [{ key: "unitName", value: "Sheet Ward" }],
+            modifiedTime: "2026-05-16T12:00:00.000Z"
+          };
+        }
+
+        async writeSheet() {
+          return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
+        }
+      },
+      SheetTabServiceClass: class {
+        async listTabs() {
+          return [{ sheetId: 9, title: "Sheet1", index: 0, isActive: true }];
+        }
+      },
+      CmsEditorClass: class {
+        constructor(containerId) {
+          this.container = document.getElementById(containerId);
+        }
+
+        initialize(rows) {
+          this.rows = rows;
+          this.container.textContent = JSON.stringify(rows);
+        }
+
+        getRows() {
+          return this.rows;
+        }
+
+        discardChanges() {}
+      }
+    });
+
+    await app.initialize();
+
+    expect(document.getElementById("cms-editor-container").textContent).toContain("Restored Ward");
+    expect(document.getElementById("cms-page-status").textContent).toContain("Session restored");
+    expect(window.sessionStorage.getItem("cms_auth_pending")).toBeNull();
+  });
+
+  test("restores the saved locale and tab before the first sheet load", async () => {
+    const readSheet = vi.fn().mockResolvedValue({
+      rows: [{ key: "unitName", value: "Sheet Ward" }],
+      modifiedTime: "2026-05-16T12:00:00.000Z"
+    });
+
+    const app = createCmsApp({
+      documentRef: document,
+      windowRef: window,
+      profileManager: {
+        initProfileManager: vi.fn().mockResolvedValue(),
+        getCurrentProfile: vi.fn().mockResolvedValue({
+          id: "profile-restore-view",
+          url: "https://docs.google.com/spreadsheets/d/abc123/edit",
+          unitName: "Restore Ward"
+        })
+      },
+      initI18n: vi.fn().mockResolvedValue("en"),
+      getSupportedLanguages: () => ["en", "es"],
+      setLanguage: vi.fn().mockResolvedValue(),
+      t: key => key,
+      getMetadata: vi.fn().mockResolvedValue("test-client-id"),
+      getDraft: vi.fn().mockResolvedValue({
+        locale: "es",
+        selectedTabTitle: "May 18",
+        rows: [{ key: "unitName", value: "Borrador Restaurado" }]
+      }),
+      saveDraft: vi.fn().mockResolvedValue(true),
+      clearDraft: vi.fn().mockResolvedValue(true),
+      auth: {
+        initialize: vi.fn(),
+        isAuthenticated: () => true,
+        getAccessToken: () => "token"
+      },
+      createClient: vi.fn().mockReturnValue({}),
+      ProgramSheetServiceClass: class {
+        async readSheet(locale, tab) {
+          return readSheet(locale, tab);
+        }
+
+        async writeSheet() {
+          return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
+        }
+      },
+      SheetTabServiceClass: class {
+        async listTabs() {
+          return [
+            { sheetId: 1, title: "Sheet1", index: 0, isActive: true },
+            { sheetId: 2, title: "May 18", index: 1, isActive: false }
+          ];
+        }
+      },
+      CmsEditorClass: class {
+        constructor(containerId) {
+          this.container = document.getElementById(containerId);
+        }
+
+        initialize(rows) {
+          this.rows = rows;
+          this.container.textContent = JSON.stringify(rows);
+        }
+
+        getRows() {
+          return this.rows;
+        }
+
+        discardChanges() {}
+      }
+    });
+
+    await app.initialize();
+
+    expect(readSheet).toHaveBeenCalledWith("es", expect.objectContaining({ title: "May 18" }));
+    expect(document.getElementById("cms-locale-select").value).toBe("es");
+    expect(document.getElementById("cms-tab-select").value).toBe("May 18");
+    expect(document.getElementById("cms-editor-container").textContent).toContain("Borrador Restaurado");
+  });
+
+  test("translates the desktop CMS shell", async () => {
+    const translations = {
+      "cms.pageTitle": "Programa CMS",
+      "cms.localeLabel": "Idioma",
+      "cms.sheetTabLabel": "Pesta\u00f1a",
+      "cms.saveButton": "Guardar",
+      "cms.discardDraftButton": "Descartar borrador",
+      "cms.signInPrompt": "Inicie sesi\u00f3n para editar.",
+      "cms.signInButton": "Entrar",
+      "cms.editGoogleSettings": "Editar Google",
+      "cms.loadingEditor": "Cargando CMS..."
+    };
+
+    const app = createCmsApp({
+      documentRef: document,
+      windowRef: window,
+      profileManager: {
+        initProfileManager: vi.fn().mockResolvedValue(),
+        getCurrentProfile: vi.fn().mockResolvedValue({
+          id: "profile-shell",
+          url: "https://docs.google.com/spreadsheets/d/abc123/edit",
+          unitName: "Test Ward"
+        })
+      },
+      initI18n: vi.fn().mockResolvedValue("en"),
+      getSupportedLanguages: () => ["en"],
+      setLanguage: vi.fn().mockResolvedValue(),
+      t: key => translations[key] ?? key,
+      getMetadata: vi.fn().mockResolvedValue("test-client-id"),
+      getDraft: vi.fn().mockResolvedValue(null),
+      saveDraft: vi.fn().mockResolvedValue(true),
+      clearDraft: vi.fn().mockResolvedValue(true),
+      auth: {
+        initialize: vi.fn(),
+        isAuthenticated: () => false,
+        getAccessToken: () => null
+      },
+      createClient: vi.fn().mockReturnValue({}),
+      ProgramSheetServiceClass: class {},
+      SheetTabServiceClass: class {},
+      CmsEditorClass: class {}
+    });
+
+    await app.initialize();
+
+    expect(document.title).toBe("Programa CMS");
+    expect(document.getElementById("cms-shell-title").textContent).toBe("Programa CMS");
+    expect(document.getElementById("cms-locale-label").textContent).toBe("Idioma");
+    expect(document.getElementById("cms-tab-label").textContent).toBe("Pesta\u00f1a");
+    expect(document.getElementById("cms-save-btn").textContent).toBe("Guardar");
+    expect(document.getElementById("cms-auth-message").textContent).toBe("Inicie sesi\u00f3n para editar.");
   });
 });

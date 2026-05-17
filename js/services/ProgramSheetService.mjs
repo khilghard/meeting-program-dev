@@ -132,13 +132,46 @@ export class ProgramSheetService {
 
     const editMap = Object.fromEntries(edits.map(({ key, value }) => [key, value]));
     const span = localeColIdx - keyColIdx;
+    const existingKeys = new Set();
 
     // Merge edits over existing values; only build the locale column
     const newLocaleValues = dataRows.map(row => {
       const key = row[0] ?? "";
+      if (key) {
+        existingKeys.add(key);
+      }
       const existing = row[span] ?? "";
       return [Object.hasOwn(editMap, key) ? editMap[key] : existing];
     });
+
+    const appendedKeys = new Set();
+    const appendedEdits = edits.filter(({ key }) => {
+      if (!key || existingKeys.has(key) || appendedKeys.has(key)) {
+        return false;
+      }
+      appendedKeys.add(key);
+      return true;
+    });
+
+    if (appendedEdits.length > 0) {
+      const appendStartRow = dataRows.length + 2;
+      const appendEndRow = appendStartRow + appendedEdits.length - 1;
+      await this._client.batchUpdate(id, [
+        {
+          range: toSheetRange(sheetName, `${keyColLetter}${appendStartRow}:${keyColLetter}${appendEndRow}`),
+          values: appendedEdits.map(({ key }) => [key])
+        },
+        {
+          range: toSheetRange(sheetName, `${localeColLetter}2:${localeColLetter}${appendEndRow}`),
+          values: [
+            ...newLocaleValues,
+            ...appendedEdits.map(({ value }) => [value ?? ""])
+          ]
+        }
+      ]);
+
+      return { conflict: false, modifiedTime: meta.modifiedTime };
+    }
 
     const rowCount = dataRows.length + 1; // +1 for header row
     await this._client.valueUpdate(

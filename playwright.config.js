@@ -1,4 +1,22 @@
+import fs from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
+
+const systemChromiumExecutable = [
+  process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+  "/snap/chromium/current/usr/lib/chromium-browser/chrome",
+  "/snap/bin/chromium",
+  "/usr/bin/chromium-browser",
+  "/usr/bin/chromium"
+].find(candidate => candidate && fs.existsSync(candidate));
+
+const chromiumLaunchOptions = {
+  ...(systemChromiumExecutable ? { executablePath: systemChromiumExecutable } : {}),
+  args: [
+    "--use-fake-ui-for-media-stream",
+    "--use-fake-device-for-media-stream",
+    "--no-sandbox"
+  ]
+};
 
 export default defineConfig({
   testDir: "./e2e",
@@ -22,16 +40,19 @@ export default defineConfig({
       use: {
         ...devices["Desktop Chrome"],
         permissions: ["camera"],
-        launchOptions: {
-          args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"]
-        }
+        chromiumSandbox: false,
+        launchOptions: chromiumLaunchOptions
       }
     },
     {
       name: "chromium (no camera)",
       use: {
         ...devices["Desktop Chrome"],
-        permissions: []
+        permissions: [],
+        chromiumSandbox: false,
+        launchOptions: systemChromiumExecutable
+          ? { executablePath: systemChromiumExecutable }
+          : undefined
       }
     },
     {
@@ -39,9 +60,8 @@ export default defineConfig({
       use: {
         ...devices["iPhone 15"],
         permissions: ["camera"],
-        launchOptions: {
-          args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"]
-        },
+        chromiumSandbox: false,
+        launchOptions: chromiumLaunchOptions,
         defaultBrowserType: "chromium"
       }
     },
@@ -50,9 +70,8 @@ export default defineConfig({
       use: {
         ...devices["Galaxy S24"],
         permissions: ["camera"],
-        launchOptions: {
-          args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"]
-        },
+        chromiumSandbox: false,
+        launchOptions: chromiumLaunchOptions,
         defaultBrowserType: "chromium"
       }
     },
@@ -61,9 +80,8 @@ export default defineConfig({
       use: {
         ...devices["iPad Mini"],
         permissions: ["camera"],
-        launchOptions: {
-          args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"]
-        },
+        chromiumSandbox: false,
+        launchOptions: chromiumLaunchOptions,
         defaultBrowserType: "chromium"
       }
     }
