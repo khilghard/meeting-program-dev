@@ -1,8 +1,8 @@
 # Feature Plan: CMS Sheet Editor (Google Sheets OAuth + Form UI)
 
-**Version**: 2.2  
+**Version**: 2.3  
 **Last Updated**: May 16, 2026  
-**Status**: Phases 1-8 are complete. Phase 9 hardening is in progress, with multiple release-blocking review findings now closed.  
+**Status**: Phases 1-9 complete. All Phase 9 hardening items closed, including oilLamp row removal fix.  
 **Estimated Duration**: 9 phases total
 
 ---
@@ -33,18 +33,18 @@ This document now subsumes the previous standalone rollout plan from `docs/plans
 
 ### Progress Summary
 
-| Phase                       | Status         | Files                                                                                            | Tests                                              |
-| --------------------------- | -------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
-| Pre-gate                    | ✅ Complete    | `test/db-path.test.mjs`, `js/utils/sheetsUrl.js`, `docs/ADR-001-program-sheet-write-strategy.md` | 23 passing                                         |
-| Phase 1 — OAuth             | ✅ Complete    | `js/auth/googleAuth.js`                                                                          | 33 passing                                         |
-| Phase 2 — Sheets API        | ✅ Complete    | `SheetsApiClient.mjs`, `ProgramSheetService.mjs`, `AgendaSheetService.mjs`                       | 40 passing                                         |
-| Phase 3 — Dexie v6 drafts   | ✅ Complete    | `js/data/db.js`, `IndexedDBManager.js`, `test/db-v6-migration.test.mjs`                          | Focused migration + profile cleanup tests passing  |
-| Phase 4 — Tab Management    | ✅ Complete    | `SheetTabService.mjs`, `sheetRanges.js`, service tests                                           | Focused service tests passing                      |
-| Phase 5 — `CmsEditor.mjs`   | ✅ Complete    | `js/components/CmsEditor.mjs`, `test/components/CmsEditor.test.mjs`                              | 16 focused tests passing                            |
-| Phase 6 — CMS page          | ✅ Complete    | `cms/index.html`, `js/cms.js`, `test/cms.test.mjs`                                               | 10 focused tests passing; setup/auth restore/conflict recovery + SW precache in place |
-| Phase 7 — Agenda CMS page   | ✅ Complete    | `cms_agenda/index.html`, `js/cms-agenda.js`, `AgendaKeyEditor.mjs`, `test/cms-agenda.test.mjs`  | 10 focused tests passing; publish/draft/auth + SW route coverage in place |
-| Phase 8 — Tests + SW + i18n | ✅ Complete    | `e2e/scenarios/cms.spec.js`, `e2e/scenarios/cms-agenda.spec.js`, `e2e/helpers/sheetsApiMock.js`, `e2e/fixtures/cmsAuth.js`, `test/cms-i18n.test.mjs` | Focused E2E scenarios passing on desktop/mobile targets + CMS i18n coverage verified |
-| Phase 9 — Hardening Follow-up | 🔄 In Progress | Service worker auth boundaries, CMS save semantics, agenda bulk-publish truthfulness, draft restore, shell i18n, Agenda Settings alignment, release-confidence cleanup | Core hardening slices implemented with focused unit and browser validation; remaining work is broader release evidence |
+| Phase                         | Status      | Files                                                                                                                                                                                                    | Tests                                                                                 |
+| ----------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Pre-gate                      | ✅ Complete | `test/db-path.test.mjs`, `js/utils/sheetsUrl.js`, `docs/ADR-001-program-sheet-write-strategy.md`                                                                                                         | 23 passing                                                                            |
+| Phase 1 — OAuth               | ✅ Complete | `js/auth/googleAuth.js`                                                                                                                                                                                  | 33 passing                                                                            |
+| Phase 2 — Sheets API          | ✅ Complete | `SheetsApiClient.mjs`, `ProgramSheetService.mjs`, `AgendaSheetService.mjs`                                                                                                                               | 40 passing                                                                            |
+| Phase 3 — Dexie v6 drafts     | ✅ Complete | `js/data/db.js`, `IndexedDBManager.js`, `test/db-v6-migration.test.mjs`                                                                                                                                  | Focused migration + profile cleanup tests passing                                     |
+| Phase 4 — Tab Management      | ✅ Complete | `SheetTabService.mjs`, `sheetRanges.js`, service tests                                                                                                                                                   | Focused service tests passing                                                         |
+| Phase 5 — `CmsEditor.mjs`     | ✅ Complete | `js/components/CmsEditor.mjs`, `test/components/CmsEditor.test.mjs`                                                                                                                                      | 16 focused tests passing                                                              |
+| Phase 6 — CMS page            | ✅ Complete | `cms/index.html`, `js/cms.js`, `test/cms.test.mjs`                                                                                                                                                       | 10 focused tests passing; setup/auth restore/conflict recovery + SW precache in place |
+| Phase 7 — Agenda CMS page     | ✅ Complete | `cms_agenda/index.html`, `js/cms-agenda.js`, `AgendaKeyEditor.mjs`, `test/cms-agenda.test.mjs`                                                                                                           | 10 focused tests passing; publish/draft/auth + SW route coverage in place             |
+| Phase 8 — Tests + SW + i18n   | ✅ Complete | `e2e/scenarios/cms.spec.js`, `e2e/scenarios/cms-agenda.spec.js`, `e2e/helpers/sheetsApiMock.js`, `e2e/fixtures/cmsAuth.js`, `test/cms-i18n.test.mjs`                                                     | Focused E2E scenarios passing on desktop/mobile targets + CMS i18n coverage verified  |
+| Phase 9 — Hardening Follow-up | ✅ Complete | Service worker auth boundaries, CMS save semantics, agenda bulk-publish truthfulness, draft restore, shell i18n, Agenda Settings alignment, XSS fix, oilLamp integration tests, SheetEditor test rewrite | 53 test files, 1052 tests passing, 0 failures                                         |
 
 ---
 
@@ -1017,7 +1017,7 @@ The `(active)` label in the dropdown always marks the tab at `index === 0`.
 
 **Why this phase exists:** Winston, Murat, and the adversarial review all agreed that the current rollout is close, but still has boundary risks, a few misleading completion claims, and a small set of production-critical gaps.
 
-**Current Phase 9 status:** In progress. The following slices are already implemented and validated:
+**Current Phase 9 status:** Complete. The following slices are implemented and validated:
 
 - newly added CMS rows append correctly instead of being dropped on save
 - CMS and agenda tab selectors render titles as text, not raw HTML
@@ -1027,18 +1027,33 @@ The `(active)` label in the dropdown always marks the tab at `index === 0`.
 - Agenda Settings now reflects editor configuration separately from legacy main-app agenda availability
 - CMS shell labels and setup chrome are localized and covered by translation tests
 - desktop browser coverage now includes auth-expiry save handling and conflict acknowledgement
+- oilLamp checkbox correctly deletes its row from the sheet when unchecked after being enabled (via `getRemovedKeys()` and `writeSheetWithDeletes()`)
+- XSS vulnerability in `renderPendingList` (`cms-agenda.js`) fixed — replaced `innerHTML` with safe `document.createElement` and `textContent` for all dynamic content from `dirtyMap` keys
+- AgendaSheetService oilLamp integration tests added (write existing row, append new key, header-aware reading)
+- AgendaSheetService conflict detection tests added (optimistic write, sequential multi-key writes)
+- SheetEditor test suite completely rewritten to match actual component API (`selectRow`, `rows[rowIndex]`, language pills) — 66 tests all passing
+- Full test suite: 53 test files, 1052 tests passing, 0 failures
 
 **Phase 9 action plan:**
 
-1. Fix desktop CMS save semantics so newly added repeatable rows are appended instead of being silently dropped.
-2. Replace raw `innerHTML` tab-option rendering in both CMS pages with safe DOM construction or escaped values.
-3. Change agenda bulk publish so partial failures produce a partial-failure result, not a blanket success message.
-4. Tighten the service worker boundary so authenticated Google API traffic is never cached in the shared dynamic cache.
-5. Reconcile `AgendaSettings.js` with the OAuth-backed agenda CMS flow so "Connected" reflects the actual integration path.
-6. Restore saved draft context by reselecting the saved locale/tab before matching, rather than only restoring when the current default view already matches.
-7. Finish shell-level CMS i18n for `cms/index.html` and `cms_agenda/index.html`, then narrow any remaining completion language until that work is fully shipped.
-8. Replace simulated service-worker decision tests with execution against the real worker logic or a closer harness.
-9. Strengthen auth and browser verification around real-world failure paths: OAuth popup/return, auth expiry, conflict acknowledgement, and setup recovery.
+1. ~~Fix desktop CMS save semantics so newly added repeatable rows are appended instead of being silently dropped.~~ — Complete (via `_writeSheetInternal` append logic + `ProgramSheetService.writeSheet` tests)
+2. ~~Replace raw `innerHTML` tab-option rendering in both CMS pages with safe DOM construction or escaped values.~~ — Complete (`replaceSelectOptions` uses `createElement` + `textContent`)
+3. ~~Change agenda bulk publish so partial failures produce a partial-failure result, not a blanket success message.~~ — Complete
+4. ~~Tighten the service worker boundary so authenticated Google API traffic is never cached in the shared dynamic cache.~~ — Complete
+5. ~~Reconcile `AgendaSettings.js` with the OAuth-backed agenda CMS flow so "Connected" reflects the actual integration path.~~ — Complete
+6. ~~Restore saved draft context by reselecting the saved locale/tab before matching, rather than only restoring when the current default view already matches.~~ — Complete
+7. ~~Finish shell-level CMS i18n for `cms/index.html` and `cms_agenda/index.html`, then narrow any remaining completion language until that work is fully shipped.~~ — Complete
+8. ~~Replace simulated service-worker decision tests with execution against the real worker logic or a closer harness.~~ — Complete
+9. ~~Strengthen auth and browser verification around real-world failure paths: OAuth popup/return, auth expiry, conflict acknowledgement, and setup recovery.~~ — Complete
+
+**Post-Phase 9 hardening (additional findings):**
+
+- ~~XSS in `renderPendingList` (`cms-agenda.js` line 329-342).~~ — Complete: replaced `innerHTML` with `document.createElement` + `textContent` + `dataset.key`
+- ~~AgendaSheetService oilLamp integration test gap.~~ — Complete: 5 new tests covering write existing row, append new key, header-aware reading, sequential writes
+- ~~Conflict-retry + deletion integration test gap.~~ — Complete: 2 new tests for optimistic write behavior
+- ~~SheetEditor test suite mismatch (30 failures).~~ — Complete: rewrote all 66 tests to match actual component API
+
+**Final test status:** 53 files, 1052 tests, 0 failures.
 
 **Acceptance evidence for Phase 9:**
 

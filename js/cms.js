@@ -8,13 +8,7 @@ import {
 } from "./data/IndexedDBManager.js";
 import GoogleAuth from "./auth/googleAuth.js";
 import CmsEditor from "./components/CmsEditor.mjs";
-import {
-  getLanguage,
-  getSupportedLanguages,
-  initI18n,
-  setLanguage,
-  t
-} from "./i18n/index.js";
+import { getLanguage, getSupportedLanguages, initI18n, setLanguage, t } from "./i18n/index.js";
 import { ProgramSheetService } from "./services/ProgramSheetService.mjs";
 import { SheetTabService } from "./services/SheetTabService.mjs";
 import { SheetsApiClient } from "./services/SheetsApiClient.mjs";
@@ -35,25 +29,27 @@ function getFallbackLocaleFromError(error, supportedLanguages = []) {
 
   const availableColumns = match[1]
     .split(",")
-    .map(column => column.trim())
+    .map((column) => column.trim())
     .filter(Boolean);
 
-  return supportedLanguages.find(locale => availableColumns.includes(locale)) ?? null;
+  return supportedLanguages.find((locale) => availableColumns.includes(locale)) ?? null;
 }
 
 function normalizeSelectedTab(tabs, preferredTitle = "") {
   const normalizedTabs = Array.isArray(tabs) ? tabs : [];
   if (preferredTitle) {
-    const matched = normalizedTabs.find(tab => tab.title === preferredTitle);
+    const matched = normalizedTabs.find((tab) => tab.title === preferredTitle);
     if (matched) return matched;
   }
 
-  return normalizedTabs[0] ?? {
-    sheetId: null,
-    title: preferredTitle || DEFAULT_SHEET_TAB_NAME,
-    index: 0,
-    isActive: true
-  };
+  return (
+    normalizedTabs[0] ?? {
+      sheetId: null,
+      title: preferredTitle || DEFAULT_SHEET_TAB_NAME,
+      index: 0,
+      isActive: true
+    }
+  );
 }
 
 function buildDraftPayload(state) {
@@ -68,7 +64,11 @@ function buildDraftPayload(state) {
 function isAuthError(error) {
   if (!error) return false;
   const message = error instanceof Error ? error.message : String(error);
-  return error.name === "SheetsAuthError" || error.status === 403 || /access token|not authorized/i.test(message);
+  return (
+    error.name === "SheetsAuthError" ||
+    error.status === 403 ||
+    /access token|not authorized/i.test(message)
+  );
 }
 
 function isCmsDraftPayload(draft) {
@@ -108,7 +108,7 @@ export function createCmsApp(dependencies = {}) {
     setLanguage,
     getSupportedLanguages,
     t,
-    createClient: getToken => new SheetsApiClient(getToken),
+    createClient: (getToken) => new SheetsApiClient(getToken),
     ProgramSheetServiceClass: ProgramSheetService,
     SheetTabServiceClass: SheetTabService,
     CmsEditorClass: CmsEditor,
@@ -186,7 +186,10 @@ export function createCmsApp(dependencies = {}) {
     if (authMessage) {
       authMessage.textContent = state.hasConfiguredClientId
         ? text("cms.signInPrompt", "Sign in with Google to edit the selected program sheet.")
-        : text("cms.configurePrompt", "Configure Google settings before signing in to edit this program sheet.");
+        : text(
+            "cms.configurePrompt",
+            "Configure Google settings before signing in to edit this program sheet."
+          );
     }
     if (signInButton) {
       signInButton.hidden = !state.hasConfiguredClientId;
@@ -231,12 +234,18 @@ export function createCmsApp(dependencies = {}) {
     setElementText("cms-save-btn", text("cms.saveButton", "Save"));
     setElementText("cms-discard-btn", text("cms.discardDraftButton", "Discard Draft"));
     setElementText("cms-setup-title", text("cms.googleSettingsTitle", "Google Settings"));
-    setElementText("cms-setup-client-id-label", text("cms.googleClientIdLabel", "Google Client ID"));
+    setElementText(
+      "cms-setup-client-id-label",
+      text("cms.googleClientIdLabel", "Google Client ID")
+    );
     setInputPlaceholder(
       "cms-setup-client-id",
       text("cms.googleClientIdPlaceholder", "12345.apps.googleusercontent.com")
     );
-    setElementText("cms-setup-sheet-url-label", text("cms.programSheetUrlLabel", "Program Sheet URL"));
+    setElementText(
+      "cms-setup-sheet-url-label",
+      text("cms.programSheetUrlLabel", "Program Sheet URL")
+    );
     setElementText("cms-setup-cancel-btn", text("cancel", "Cancel"));
     setElementText("cms-setup-save-btn", text("cms.saveSettingsButton", "Save Settings"));
     setElementText("cms-loading", text("cms.loadingEditor", "Loading CMS..."));
@@ -250,7 +259,7 @@ export function createCmsApp(dependencies = {}) {
 
     [elements.localeSelect, elements.tabSelect, elements.saveButton, elements.discardButton]
       .filter(Boolean)
-      .forEach(control => {
+      .forEach((control) => {
         control.disabled = !isEnabled;
       });
   }
@@ -285,7 +294,7 @@ export function createCmsApp(dependencies = {}) {
 
     if (setupClientId) {
       setupClientId.value = state.hasConfiguredClientId
-        ? (deps.windowRef.sessionStorage.getItem("cms_last_client_id") || "")
+        ? deps.windowRef.sessionStorage.getItem("cms_last_client_id") || ""
         : "";
     }
     if (setupSheetUrl) {
@@ -322,7 +331,10 @@ export function createCmsApp(dependencies = {}) {
       if (setupStatus) {
         setupStatus.hidden = false;
         setupStatus.dataset.tone = "error";
-        setupStatus.textContent = text("cms.invalidClientId", "Enter a valid Google Client ID before saving.");
+        setupStatus.textContent = text(
+          "cms.invalidClientId",
+          "Enter a valid Google Client ID before saving."
+        );
       }
       return false;
     }
@@ -332,12 +344,16 @@ export function createCmsApp(dependencies = {}) {
     deps.auth.initialize(clientId, deps.windowRef.location.href.split(/[?#]/)[0]);
     state.hasConfiguredClientId = true;
     closeSetupModal();
-    showAuthGate(text("cms.settingsSaved", "Google settings saved. Sign in to continue editing."), "success");
+    showAuthGate(
+      text("cms.settingsSaved", "Google settings saved. Sign in to continue editing."),
+      "success"
+    );
     return true;
   }
 
   function maybeNotifyRestoredSession() {
-    const hasPendingAuthReturn = deps.windowRef.sessionStorage.getItem(CMS_AUTH_PENDING_KEY) === "1";
+    const hasPendingAuthReturn =
+      deps.windowRef.sessionStorage.getItem(CMS_AUTH_PENDING_KEY) === "1";
     if (!hasPendingAuthReturn) return;
 
     deps.windowRef.sessionStorage.removeItem(CMS_AUTH_PENDING_KEY);
@@ -364,7 +380,7 @@ export function createCmsApp(dependencies = {}) {
 
     replaceSelectOptions(
       localeSelect,
-      deps.getSupportedLanguages().map(locale => ({
+      deps.getSupportedLanguages().map((locale) => ({
         value: locale,
         label: locale.toUpperCase()
       })),
@@ -379,7 +395,7 @@ export function createCmsApp(dependencies = {}) {
 
     replaceSelectOptions(
       tabSelect,
-      state.tabs.map(tab => ({
+      state.tabs.map((tab) => ({
         value: tab.title,
         label: tab.title
       })),
@@ -389,10 +405,12 @@ export function createCmsApp(dependencies = {}) {
   }
 
   function draftMatchesCurrentView(draft) {
-    return draft &&
+    return (
+      draft &&
       Array.isArray(draft.rows) &&
       draft.locale === state.locale &&
-      draft.selectedTabTitle === (state.selectedTab?.title ?? DEFAULT_SHEET_TAB_NAME);
+      draft.selectedTabTitle === (state.selectedTab?.title ?? DEFAULT_SHEET_TAB_NAME)
+    );
   }
 
   async function persistDraft() {
@@ -451,7 +469,9 @@ export function createCmsApp(dependencies = {}) {
       state.modifiedTime = modifiedTime;
       state.sheetRows = rows;
 
-      const draft = state.pendingDraft ?? (state.profile ? await deps.getDraft(buildCmsDraftKey(state.profile.id)) : null);
+      const draft =
+        state.pendingDraft ??
+        (state.profile ? await deps.getDraft(buildCmsDraftKey(state.profile.id)) : null);
       state.lastDraftRestored = draftMatchesCurrentView(draft);
       mountEditor(state.lastDraftRestored ? draft.rows : rows);
       state.pendingDraft = state.lastDraftRestored ? draft : null;
@@ -509,19 +529,22 @@ export function createCmsApp(dependencies = {}) {
 
     setLoading(true, "Saving CMS...");
     const currentRows = state.editor.getRows();
+    const removedKeys = state.editor.getRemovedKeys();
 
     try {
-      let result = await state.programService.writeSheet(
+      let result = await state.programService.writeSheetWithDeletes(
         currentRows,
         state.locale,
         state.modifiedTime || null,
-        state.selectedTab
+        state.selectedTab,
+        removedKeys
       );
 
       if (result.conflict) {
-        const shouldOverwrite = deps.windowRef?.confirm?.(
-          "This sheet was modified by another user since you opened it. Save anyway?"
-        ) ?? false;
+        const shouldOverwrite =
+          deps.windowRef?.confirm?.(
+            "This sheet was modified by another user since you opened it. Save anyway?"
+          ) ?? false;
 
         if (!shouldOverwrite) {
           state.modifiedTime = result.modifiedTime || state.modifiedTime;
@@ -529,11 +552,12 @@ export function createCmsApp(dependencies = {}) {
           return;
         }
 
-        result = await state.programService.writeSheet(
+        result = await state.programService.writeSheetWithDeletes(
           currentRows,
           state.locale,
           null,
-          state.selectedTab
+          state.selectedTab,
+          removedKeys
         );
       }
 
@@ -698,7 +722,7 @@ export async function initializeCmsPage() {
 
 if (typeof document !== "undefined") {
   const start = () => {
-    initializeCmsPage().catch(error => {
+    initializeCmsPage().catch((error) => {
       console.error("[CMS] Failed to initialize page", error);
       const status = document.getElementById("cms-page-status");
       if (status) {

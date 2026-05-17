@@ -53,11 +53,11 @@ describe("cms.js", () => {
     global.window = window;
     global.navigator = window.navigator;
     global.sessionStorage = window.sessionStorage;
-    document.getElementById("cms-setup-modal").showModal = function() {
+    document.getElementById("cms-setup-modal").showModal = function () {
       this.hidden = false;
       this.open = true;
     };
-    document.getElementById("cms-setup-modal").close = function() {
+    document.getElementById("cms-setup-modal").close = function () {
       this.hidden = true;
       this.open = false;
     };
@@ -83,7 +83,7 @@ describe("cms.js", () => {
       initI18n: vi.fn().mockResolvedValue("es"),
       getSupportedLanguages: () => ["en", "es", "fr"],
       setLanguage: vi.fn().mockResolvedValue(),
-      t: key => key,
+      t: (key) => key,
       getMetadata: vi.fn().mockResolvedValue("test-client-id"),
       getDraft: vi.fn().mockResolvedValue(null),
       saveDraft: vi.fn().mockResolvedValue(true),
@@ -100,6 +100,10 @@ describe("cms.js", () => {
         }
 
         async writeSheet() {
+          return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
+        }
+
+        async writeSheetWithDeletes() {
           return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
         }
       },
@@ -123,6 +127,10 @@ describe("cms.js", () => {
 
         getRows() {
           return this.rows;
+        }
+
+        getRemovedKeys() {
+          return [];
         }
 
         discardChanges() {}
@@ -154,7 +162,7 @@ describe("cms.js", () => {
       initI18n: vi.fn().mockResolvedValue("en"),
       getSupportedLanguages: () => ["en", "es"],
       setLanguage: vi.fn().mockResolvedValue(),
-      t: key => key,
+      t: (key) => key,
       getMetadata: vi.fn().mockResolvedValue("test-client-id"),
       getDraft: vi.fn().mockResolvedValue(null),
       saveDraft,
@@ -174,6 +182,10 @@ describe("cms.js", () => {
         }
 
         async writeSheet() {
+          return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
+        }
+
+        async writeSheetWithDeletes() {
           return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
         }
       },
@@ -197,6 +209,10 @@ describe("cms.js", () => {
 
         getRows() {
           return this.rows;
+        }
+
+        getRemovedKeys() {
+          return [];
         }
 
         discardChanges() {}
@@ -232,7 +248,7 @@ describe("cms.js", () => {
       initI18n: vi.fn().mockResolvedValue("en"),
       getSupportedLanguages: () => ["en"],
       setLanguage: vi.fn().mockResolvedValue(),
-      t: key => key,
+      t: (key) => key,
       getMetadata: vi.fn().mockResolvedValue("test-client-id"),
       getDraft: vi.fn().mockResolvedValue(null),
       saveDraft: vi.fn().mockResolvedValue(true),
@@ -254,6 +270,10 @@ describe("cms.js", () => {
         async writeSheet() {
           return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
         }
+
+        async writeSheetWithDeletes() {
+          return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
+        }
       },
       SheetTabServiceClass: class {
         async listTabs() {
@@ -272,6 +292,10 @@ describe("cms.js", () => {
 
         getRows() {
           return this.rows;
+        }
+
+        getRemovedKeys() {
+          return [];
         }
 
         discardChanges() {}
@@ -313,7 +337,7 @@ describe("cms.js", () => {
       initI18n: vi.fn().mockResolvedValue("en"),
       getSupportedLanguages: () => ["en", "es"],
       setLanguage,
-      t: key => key,
+      t: (key) => key,
       getMetadata: vi.fn().mockResolvedValue("test-client-id"),
       getDraft: vi.fn().mockResolvedValue(null),
       saveDraft: vi.fn().mockResolvedValue(true),
@@ -352,6 +376,10 @@ describe("cms.js", () => {
           return this.rows;
         }
 
+        getRemovedKeys() {
+          return [];
+        }
+
         discardChanges() {}
       }
     });
@@ -369,7 +397,11 @@ describe("cms.js", () => {
     });
 
     expect(setLanguage).toHaveBeenCalledWith("es");
-    expect(readSheet).toHaveBeenNthCalledWith(2, "es", expect.objectContaining({ title: "Sheet1" }));
+    expect(readSheet).toHaveBeenNthCalledWith(
+      2,
+      "es",
+      expect.objectContaining({ title: "Sheet1" })
+    );
   });
 
   test("falls back to the first available supported locale when the selected locale is missing", async () => {
@@ -399,7 +431,7 @@ describe("cms.js", () => {
       initI18n: vi.fn().mockResolvedValue("fr"),
       getSupportedLanguages: () => ["en", "es", "fr"],
       setLanguage: vi.fn().mockResolvedValue(),
-      t: key => key,
+      t: (key) => key,
       getMetadata: vi.fn().mockResolvedValue("test-client-id"),
       getDraft: vi.fn().mockResolvedValue(null),
       saveDraft: vi.fn().mockResolvedValue(true),
@@ -416,6 +448,10 @@ describe("cms.js", () => {
         }
 
         async writeSheet() {
+          return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
+        }
+
+        async writeSheetWithDeletes() {
           return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
         }
       },
@@ -438,14 +474,26 @@ describe("cms.js", () => {
           return this.rows;
         }
 
+        getRemovedKeys() {
+          return [];
+        }
+
         discardChanges() {}
       }
     });
 
     await app.initialize();
 
-    expect(readSheet).toHaveBeenNthCalledWith(1, "fr", expect.objectContaining({ title: "Sheet1" }));
-    expect(readSheet).toHaveBeenNthCalledWith(2, "en", expect.objectContaining({ title: "Sheet1" }));
+    expect(readSheet).toHaveBeenNthCalledWith(
+      1,
+      "fr",
+      expect.objectContaining({ title: "Sheet1" })
+    );
+    expect(readSheet).toHaveBeenNthCalledWith(
+      2,
+      "en",
+      expect.objectContaining({ title: "Sheet1" })
+    );
     expect(document.getElementById("cms-locale-select").value).toBe("en");
     expect(document.getElementById("cms-page-status").textContent).toContain("Switched to EN");
   });
@@ -465,7 +513,7 @@ describe("cms.js", () => {
       initI18n: vi.fn().mockResolvedValue("en"),
       getSupportedLanguages: () => ["en", "es"],
       setLanguage: vi.fn().mockResolvedValue(),
-      t: key => key,
+      t: (key) => key,
       getMetadata: vi.fn().mockResolvedValue("test-client-id"),
       getDraft: vi.fn().mockResolvedValue(null),
       saveDraft: vi.fn().mockResolvedValue(true),
@@ -487,6 +535,10 @@ describe("cms.js", () => {
         async writeSheet() {
           throw new Error("Save failed");
         }
+
+        async writeSheetWithDeletes() {
+          throw new Error("Save failed");
+        }
       },
       SheetTabServiceClass: class {
         async listTabs() {
@@ -506,6 +558,10 @@ describe("cms.js", () => {
 
         getRows() {
           return this.rows;
+        }
+
+        getRemovedKeys() {
+          return [];
         }
 
         discardChanges() {}
@@ -535,7 +591,7 @@ describe("cms.js", () => {
       initI18n: vi.fn().mockResolvedValue("en"),
       getSupportedLanguages: () => ["en", "es"],
       setLanguage: vi.fn().mockResolvedValue(),
-      t: key => key,
+      t: (key) => key,
       getMetadata: vi.fn().mockResolvedValue("test-client-id"),
       getDraft: vi.fn().mockResolvedValue(null),
       saveDraft: vi.fn().mockResolvedValue(true),
@@ -548,13 +604,19 @@ describe("cms.js", () => {
       createClient: vi.fn().mockReturnValue({}),
       ProgramSheetServiceClass: class {
         async readSheet() {
-          const error = new Error("Google Sheets: not authorized (403) — access token may be expired");
+          const error = new Error(
+            "Google Sheets: not authorized (403) — access token may be expired"
+          );
           error.name = "SheetsAuthError";
           error.status = 403;
           throw error;
         }
 
         async writeSheet() {
+          return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
+        }
+
+        async writeSheetWithDeletes() {
           return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
         }
       },
@@ -574,6 +636,10 @@ describe("cms.js", () => {
 
         getRows() {
           return this.rows;
+        }
+
+        getRemovedKeys() {
+          return [];
         }
 
         discardChanges() {}
@@ -611,7 +677,7 @@ describe("cms.js", () => {
       initI18n: vi.fn().mockResolvedValue("en"),
       getSupportedLanguages: () => ["en", "es"],
       setLanguage: vi.fn().mockResolvedValue(),
-      t: key => key,
+      t: (key) => key,
       getMetadata: vi.fn().mockResolvedValue("test-client-id"),
       getDraft: vi.fn().mockResolvedValue(null),
       saveDraft: vi.fn().mockResolvedValue(true),
@@ -631,6 +697,10 @@ describe("cms.js", () => {
         }
 
         async writeSheet(...args) {
+          return writeSheet(...args);
+        }
+
+        async writeSheetWithDeletes(...args) {
           return writeSheet(...args);
         }
       },
@@ -653,6 +723,10 @@ describe("cms.js", () => {
           return this.rows;
         }
 
+        getRemovedKeys() {
+          return [];
+        }
+
         discardChanges() {}
       }
     });
@@ -666,7 +740,8 @@ describe("cms.js", () => {
       [{ key: "unitName", value: "Conflict Ward" }],
       "en",
       null,
-      expect.objectContaining({ title: "Sheet1" })
+      expect.objectContaining({ title: "Sheet1" }),
+      []
     );
     expect(clearDraft).toHaveBeenCalledTimes(1);
   });
@@ -692,7 +767,7 @@ describe("cms.js", () => {
       initI18n: vi.fn().mockResolvedValue("en"),
       getSupportedLanguages: () => ["en", "es"],
       setLanguage: vi.fn().mockResolvedValue(),
-      t: key => key,
+      t: (key) => key,
       getMetadata: vi.fn().mockResolvedValue("test-client-id"),
       getDraft: vi.fn().mockResolvedValue(null),
       saveDraft: vi.fn().mockResolvedValue(true),
@@ -714,6 +789,10 @@ describe("cms.js", () => {
         async writeSheet(...args) {
           return writeSheet(...args);
         }
+
+        async writeSheetWithDeletes(...args) {
+          return writeSheet(...args);
+        }
       },
       SheetTabServiceClass: class {
         async listTabs() {
@@ -732,6 +811,10 @@ describe("cms.js", () => {
 
         getRows() {
           return this.rows;
+        }
+
+        getRemovedKeys() {
+          return [];
         }
 
         discardChanges() {}
@@ -765,7 +848,7 @@ describe("cms.js", () => {
       initI18n: vi.fn().mockResolvedValue("en"),
       getSupportedLanguages: () => ["en", "es"],
       setLanguage: vi.fn().mockResolvedValue(),
-      t: key => key,
+      t: (key) => key,
       getMetadata,
       setMetadata,
       getDraft: vi.fn().mockResolvedValue(null),
@@ -788,7 +871,10 @@ describe("cms.js", () => {
     document.getElementById("cms-setup-save-btn").click();
 
     await vi.waitFor(() => {
-      expect(setMetadata).toHaveBeenCalledWith("googleClientId", "client-123.apps.googleusercontent.com");
+      expect(setMetadata).toHaveBeenCalledWith(
+        "googleClientId",
+        "client-123.apps.googleusercontent.com"
+      );
     });
     expect(document.getElementById("cms-sign-in-btn").hidden).toBe(false);
     expect(document.getElementById("cms-page-status").textContent).toContain("settings saved");
@@ -811,7 +897,7 @@ describe("cms.js", () => {
       initI18n: vi.fn().mockResolvedValue("en"),
       getSupportedLanguages: () => ["en", "es"],
       setLanguage: vi.fn().mockResolvedValue(),
-      t: key => key,
+      t: (key) => key,
       getMetadata: vi.fn().mockResolvedValue("test-client-id"),
       getDraft: vi.fn().mockResolvedValue({
         locale: "en",
@@ -837,6 +923,10 @@ describe("cms.js", () => {
         async writeSheet() {
           return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
         }
+
+        async writeSheetWithDeletes() {
+          return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
+        }
       },
       SheetTabServiceClass: class {
         async listTabs() {
@@ -855,6 +945,10 @@ describe("cms.js", () => {
 
         getRows() {
           return this.rows;
+        }
+
+        getRemovedKeys() {
+          return [];
         }
 
         discardChanges() {}
@@ -888,7 +982,7 @@ describe("cms.js", () => {
       initI18n: vi.fn().mockResolvedValue("en"),
       getSupportedLanguages: () => ["en", "es"],
       setLanguage: vi.fn().mockResolvedValue(),
-      t: key => key,
+      t: (key) => key,
       getMetadata: vi.fn().mockResolvedValue("test-client-id"),
       getDraft: vi.fn().mockResolvedValue({
         locale: "es",
@@ -909,6 +1003,10 @@ describe("cms.js", () => {
         }
 
         async writeSheet() {
+          return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
+        }
+
+        async writeSheetWithDeletes() {
           return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
         }
       },
@@ -934,6 +1032,10 @@ describe("cms.js", () => {
           return this.rows;
         }
 
+        getRemovedKeys() {
+          return [];
+        }
+
         discardChanges() {}
       }
     });
@@ -943,7 +1045,9 @@ describe("cms.js", () => {
     expect(readSheet).toHaveBeenCalledWith("es", expect.objectContaining({ title: "May 18" }));
     expect(document.getElementById("cms-locale-select").value).toBe("es");
     expect(document.getElementById("cms-tab-select").value).toBe("May 18");
-    expect(document.getElementById("cms-editor-container").textContent).toContain("Borrador Restaurado");
+    expect(document.getElementById("cms-editor-container").textContent).toContain(
+      "Borrador Restaurado"
+    );
   });
 
   test("translates the desktop CMS shell", async () => {
@@ -973,7 +1077,7 @@ describe("cms.js", () => {
       initI18n: vi.fn().mockResolvedValue("en"),
       getSupportedLanguages: () => ["en"],
       setLanguage: vi.fn().mockResolvedValue(),
-      t: key => translations[key] ?? key,
+      t: (key) => translations[key] ?? key,
       getMetadata: vi.fn().mockResolvedValue("test-client-id"),
       getDraft: vi.fn().mockResolvedValue(null),
       saveDraft: vi.fn().mockResolvedValue(true),
@@ -996,6 +1100,8 @@ describe("cms.js", () => {
     expect(document.getElementById("cms-locale-label").textContent).toBe("Idioma");
     expect(document.getElementById("cms-tab-label").textContent).toBe("Pesta\u00f1a");
     expect(document.getElementById("cms-save-btn").textContent).toBe("Guardar");
-    expect(document.getElementById("cms-auth-message").textContent).toBe("Inicie sesi\u00f3n para editar.");
+    expect(document.getElementById("cms-auth-message").textContent).toBe(
+      "Inicie sesi\u00f3n para editar."
+    );
   });
 });

@@ -24,26 +24,32 @@ export function buildAgendaDraftKey(profileId) {
 function normalizeSelectedTab(tabs, preferredTitle = "") {
   const normalizedTabs = Array.isArray(tabs) ? tabs : [];
   if (preferredTitle) {
-    const matched = normalizedTabs.find(tab => tab.title === preferredTitle);
+    const matched = normalizedTabs.find((tab) => tab.title === preferredTitle);
     if (matched) return matched;
   }
 
-  return normalizedTabs[0] ?? {
-    sheetId: null,
-    title: preferredTitle || DEFAULT_SHEET_TAB_NAME,
-    index: 0,
-    isActive: true
-  };
+  return (
+    normalizedTabs[0] ?? {
+      sheetId: null,
+      title: preferredTitle || DEFAULT_SHEET_TAB_NAME,
+      index: 0,
+      isActive: true
+    }
+  );
 }
 
 function isAuthError(error) {
   if (!error) return false;
   const message = error instanceof Error ? error.message : String(error);
-  return error.name === "SheetsAuthError" || error.status === 403 || /access token|not authorized/i.test(message);
+  return (
+    error.name === "SheetsAuthError" ||
+    error.status === 403 ||
+    /access token|not authorized/i.test(message)
+  );
 }
 
 function cloneEntries(values) {
-  return (Array.isArray(values) ? values : []).map(row => [...row]);
+  return (Array.isArray(values) ? values : []).map((row) => [...row]);
 }
 
 function stringifyEntries(values) {
@@ -87,7 +93,7 @@ export function createCmsAgendaApp(dependencies = {}) {
     setMetadata,
     initI18n,
     t,
-    createClient: getToken => new SheetsApiClient(getToken),
+    createClient: (getToken) => new SheetsApiClient(getToken),
     AgendaSheetServiceClass: AgendaSheetService,
     SheetTabServiceClass: SheetTabService,
     AgendaKeyEditorClass: AgendaKeyEditor,
@@ -182,24 +188,45 @@ export function createCmsAgendaApp(dependencies = {}) {
 
     setElementText("cms-agenda-shell-title", text("cmsAgenda.pageTitle", "Ward Agenda CMS"));
     if (!state.profile) {
-      setElementText("cms-agenda-profile-name", text("cmsAgenda.loadingProfile", "Loading profile..."));
+      setElementText(
+        "cms-agenda-profile-name",
+        text("cmsAgenda.loadingProfile", "Loading profile...")
+      );
     }
-    setElementText("cms-agenda-setup-title", text("cmsAgenda.googleSettingsTitle", "Google Settings"));
-    setElementText("cms-agenda-setup-client-id-label", text("cmsAgenda.googleClientIdLabel", "Google Client ID"));
+    setElementText(
+      "cms-agenda-setup-title",
+      text("cmsAgenda.googleSettingsTitle", "Google Settings")
+    );
+    setElementText(
+      "cms-agenda-setup-client-id-label",
+      text("cmsAgenda.googleClientIdLabel", "Google Client ID")
+    );
     setInputPlaceholder(
       "cms-agenda-setup-client-id",
       text("cmsAgenda.googleClientIdPlaceholder", "12345.apps.googleusercontent.com")
     );
-    setElementText("cms-agenda-setup-sheet-url-label", text("cmsAgenda.agendaSheetUrlLabel", "Agenda Sheet URL"));
+    setElementText(
+      "cms-agenda-setup-sheet-url-label",
+      text("cmsAgenda.agendaSheetUrlLabel", "Agenda Sheet URL")
+    );
     setElementText("cms-agenda-setup-cancel-btn", text("cancel", "Cancel"));
-    setElementText("cms-agenda-setup-save-btn", text("cmsAgenda.saveSettingsButton", "Save Settings"));
+    setElementText(
+      "cms-agenda-setup-save-btn",
+      text("cmsAgenda.saveSettingsButton", "Save Settings")
+    );
     setElementText("cms-agenda-tab-label", text("cmsAgenda.sheetTabLabel", "Sheet Tab"));
     setElementText("cms-agenda-key-label", text("cmsAgenda.keyLabel", "Agenda Key"));
     setElementText("cms-agenda-make-active-btn", text("cmsAgenda.makeActiveButton", "Make Active"));
     setElementText("cms-agenda-save-draft-btn", text("cmsAgenda.saveDraftButton", "Save Draft"));
     setElementText("cms-agenda-publish-btn", text("cmsAgenda.publishButton", "Publish"));
-    setElementText("cms-agenda-publish-all-btn", text("cmsAgenda.publishAllButton", "Publish All Pending"));
-    setElementText("cms-agenda-pending-title", text("cmsAgenda.pendingChangesTitle", "Pending Changes"));
+    setElementText(
+      "cms-agenda-publish-all-btn",
+      text("cmsAgenda.publishAllButton", "Publish All Pending")
+    );
+    setElementText(
+      "cms-agenda-pending-title",
+      text("cmsAgenda.pendingChangesTitle", "Pending Changes")
+    );
     setElementText("cms-agenda-loading", text("cmsAgenda.loading", "Loading agenda editor..."));
   }
 
@@ -218,7 +245,10 @@ export function createCmsAgendaApp(dependencies = {}) {
     if (authMessage) {
       authMessage.textContent = state.hasConfiguredClientId
         ? text("cmsAgenda.signInAgainPrompt", "Tap to sign in again to publish agenda changes.")
-        : text("cmsAgenda.configurePrompt", "Configure Google settings before signing in to edit the agenda.");
+        : text(
+            "cmsAgenda.configurePrompt",
+            "Configure Google settings before signing in to edit the agenda."
+          );
     }
     if (signInButton) {
       signInButton.hidden = !state.hasConfiguredClientId;
@@ -241,7 +271,7 @@ export function createCmsAgendaApp(dependencies = {}) {
 
   function setActionState() {
     const { publishButton, publishAllButton, makeActiveButton, tabSelect } = getElements();
-    [publishButton, publishAllButton, makeActiveButton].filter(Boolean).forEach(control => {
+    [publishButton, publishAllButton, makeActiveButton].filter(Boolean).forEach((control) => {
       control.disabled = !state.isAuthenticated;
     });
     if (tabSelect) {
@@ -262,7 +292,7 @@ export function createCmsAgendaApp(dependencies = {}) {
 
     replaceSelectOptions(
       keySelect,
-      AGENDA_KEYS.map(key => ({
+      AGENDA_KEYS.map((key) => ({
         value: key,
         label: text(key, key)
       })),
@@ -277,7 +307,7 @@ export function createCmsAgendaApp(dependencies = {}) {
 
     replaceSelectOptions(
       tabSelect,
-      state.tabs.map(tab => ({
+      state.tabs.map((tab) => ({
         value: tab.title,
         label: tab.title
       })),
@@ -296,12 +326,20 @@ export function createCmsAgendaApp(dependencies = {}) {
       return;
     }
 
-    pendingList.innerHTML = dirtyKeys
-      .map(key => {
-        const status = state.publishStatusMap[key] || text("cmsAgenda.pendingStatus", "Pending");
-        return `<div class="cms-agenda__pending-item" data-key="${key}"><strong>${text(key, key)}</strong><span>${status}</span></div>`;
-      })
-      .join("");
+    pendingList.innerHTML = "";
+    for (const key of dirtyKeys) {
+      const item = document.createElement("div");
+      item.className = "cms-agenda__pending-item";
+      item.dataset.key = key;
+      const label = document.createElement("strong");
+      label.textContent = text(key, key);
+      const statusSpan = document.createElement("span");
+      const status = state.publishStatusMap[key] || text("cmsAgenda.pendingStatus", "Pending");
+      statusSpan.textContent = status;
+      item.appendChild(label);
+      item.appendChild(statusSpan);
+      pendingList.appendChild(item);
+    }
   }
 
   function ensureEditor() {
@@ -310,7 +348,7 @@ export function createCmsAgendaApp(dependencies = {}) {
     }
 
     state.editor = new deps.AgendaKeyEditorClass("cms-agenda-editor-container", {
-      onChangeCallback: async values => {
+      onChangeCallback: async (values) => {
         updateDirtyMap(state.selectedKey, values);
         renderPendingList();
         try {
@@ -375,11 +413,13 @@ export function createCmsAgendaApp(dependencies = {}) {
       return;
     }
 
-    state.selectedKey = AGENDA_KEYS.includes(draft.selectedKey) ? draft.selectedKey : state.selectedKey;
+    state.selectedKey = AGENDA_KEYS.includes(draft.selectedKey)
+      ? draft.selectedKey
+      : state.selectedKey;
     state.dirtyMap = Object.fromEntries(
       Object.entries(draft.dirtyMap ?? {}).filter(([key]) => AGENDA_KEYS.includes(key))
     );
-    Object.keys(state.dirtyMap).forEach(key => {
+    Object.keys(state.dirtyMap).forEach((key) => {
       state.publishStatusMap[key] = text("cmsAgenda.pendingStatus", "Pending");
     });
   }
@@ -400,12 +440,20 @@ export function createCmsAgendaApp(dependencies = {}) {
         setAuthPanelState();
         setActionState();
         mountEditor(state.dirtyMap[state.selectedKey] ?? []);
-        setStatus(text("cmsAgenda.signInAgainPrompt", "Tap to sign in again to publish agenda changes."), "warning");
+        setStatus(
+          text("cmsAgenda.signInAgainPrompt", "Tap to sign in again to publish agenda changes."),
+          "warning"
+        );
         return;
       }
 
       console.error("[CMS Agenda] Failed to load agenda key", error);
-      setStatus(error instanceof Error ? error.message : text("cmsAgenda.loadFailed", "Failed to load agenda data."), "error");
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : text("cmsAgenda.loadFailed", "Failed to load agenda data."),
+        "error"
+      );
     } finally {
       setLoading(false);
     }
@@ -479,17 +527,23 @@ export function createCmsAgendaApp(dependencies = {}) {
       if (setupStatus) {
         setupStatus.hidden = false;
         setupStatus.dataset.tone = "error";
-        setupStatus.textContent = text("cmsAgenda.invalidClientId", "Enter a valid Google Client ID before saving.");
+        setupStatus.textContent = text(
+          "cmsAgenda.invalidClientId",
+          "Enter a valid Google Client ID before saving."
+        );
       }
       return false;
     }
 
     await deps.setMetadata("googleClientId", clientId);
-  deps.auth.initialize(clientId, deps.windowRef.location.href.split(/[?#]/)[0]);
+    deps.auth.initialize(clientId, deps.windowRef.location.href.split(/[?#]/)[0]);
     state.hasConfiguredClientId = true;
     closeSetupModal();
     setAuthPanelState();
-    setStatus(text("cmsAgenda.settingsSaved", "Google settings saved. Sign in to continue."), "success");
+    setStatus(
+      text("cmsAgenda.settingsSaved", "Google settings saved. Sign in to continue."),
+      "success"
+    );
     return true;
   }
 
@@ -512,12 +566,23 @@ export function createCmsAgendaApp(dependencies = {}) {
       if (deps.windowRef.sessionStorage.getItem(CMS_AGENDA_AUTH_PENDING_KEY) === "1") {
         deps.windowRef.sessionStorage.removeItem(CMS_AGENDA_AUTH_PENDING_KEY);
         if (Object.keys(state.dirtyMap).length > 0) {
-          setStatus(text("cmsAgenda.sessionRestored", "Draft restored. You can publish pending agenda changes now."), "success");
+          setStatus(
+            text(
+              "cmsAgenda.sessionRestored",
+              "Draft restored. You can publish pending agenda changes now."
+            ),
+            "success"
+          );
         }
       }
     } catch (error) {
       console.error("[CMS Agenda] Google sign-in failed", error);
-      setStatus(error instanceof Error ? error.message : text("cmsAgenda.signInFailed", "Google sign-in failed."), "error");
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : text("cmsAgenda.signInFailed", "Google sign-in failed."),
+        "error"
+      );
     }
   }
 
@@ -556,7 +621,10 @@ export function createCmsAgendaApp(dependencies = {}) {
   async function handlePublishCurrent() {
     if (!state.isAuthenticated) {
       setAuthPanelState();
-      setStatus(text("cmsAgenda.signInAgainPrompt", "Tap to sign in again to publish agenda changes."), "warning");
+      setStatus(
+        text("cmsAgenda.signInAgainPrompt", "Tap to sign in again to publish agenda changes."),
+        "warning"
+      );
       return;
     }
 
@@ -572,21 +640,32 @@ export function createCmsAgendaApp(dependencies = {}) {
         state.isAuthenticated = false;
         setAuthPanelState();
         setActionState();
-        setStatus(text("cmsAgenda.signInAgainPrompt", "Tap to sign in again to publish agenda changes."), "warning");
+        setStatus(
+          text("cmsAgenda.signInAgainPrompt", "Tap to sign in again to publish agenda changes."),
+          "warning"
+        );
         return;
       }
 
       console.error("[CMS Agenda] Failed to publish agenda key", error);
       state.publishStatusMap[state.selectedKey] = text("cmsAgenda.failedStatus", "Failed");
       renderPendingList();
-      setStatus(error instanceof Error ? error.message : text("cmsAgenda.publishFailed", "Failed to publish agenda changes."), "error");
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : text("cmsAgenda.publishFailed", "Failed to publish agenda changes."),
+        "error"
+      );
     }
   }
 
   async function handlePublishAll() {
     if (!state.isAuthenticated) {
       setAuthPanelState();
-      setStatus(text("cmsAgenda.signInAgainPrompt", "Tap to sign in again to publish agenda changes."), "warning");
+      setStatus(
+        text("cmsAgenda.signInAgainPrompt", "Tap to sign in again to publish agenda changes."),
+        "warning"
+      );
       return;
     }
 
@@ -609,7 +688,10 @@ export function createCmsAgendaApp(dependencies = {}) {
           state.isAuthenticated = false;
           setAuthPanelState();
           setActionState();
-          setStatus(text("cmsAgenda.signInAgainPrompt", "Tap to sign in again to publish agenda changes."), "warning");
+          setStatus(
+            text("cmsAgenda.signInAgainPrompt", "Tap to sign in again to publish agenda changes."),
+            "warning"
+          );
           return;
         }
 
@@ -631,7 +713,10 @@ export function createCmsAgendaApp(dependencies = {}) {
       return;
     }
 
-    setStatus(text("cmsAgenda.publishAllComplete", "Finished publishing pending agenda changes."), "success");
+    setStatus(
+      text("cmsAgenda.publishAllComplete", "Finished publishing pending agenda changes."),
+      "success"
+    );
   }
 
   async function handleMakeActive() {
@@ -647,7 +732,12 @@ export function createCmsAgendaApp(dependencies = {}) {
       setStatus(text("cmsAgenda.makeActiveSuccess", "Selected tab is now active."), "success");
     } catch (error) {
       console.error("[CMS Agenda] Failed to make tab active", error);
-      setStatus(error instanceof Error ? error.message : text("cmsAgenda.makeActiveFailed", "Failed to make the selected tab active."), "error");
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : text("cmsAgenda.makeActiveFailed", "Failed to make the selected tab active."),
+        "error"
+      );
     }
   }
 
@@ -658,12 +748,16 @@ export function createCmsAgendaApp(dependencies = {}) {
 
     await deps.profileManager.initProfileManager();
     const requestedProfileId = getRequestedProfileId(deps.windowRef);
-    state.profile = requestedProfileId && typeof deps.profileManager.getProfileById === "function"
-      ? await deps.profileManager.getProfileById(requestedProfileId)
-      : await deps.profileManager.getCurrentProfile();
+    state.profile =
+      requestedProfileId && typeof deps.profileManager.getProfileById === "function"
+        ? await deps.profileManager.getProfileById(requestedProfileId)
+        : await deps.profileManager.getCurrentProfile();
     if (!state.profile?.agendaUrl) {
       setLoading(false);
-      setStatus(text("cmsAgenda.noAgendaProfile", "No agenda sheet is configured for the current profile."), "error");
+      setStatus(
+        text("cmsAgenda.noAgendaProfile", "No agenda sheet is configured for the current profile."),
+        "error"
+      );
       return state;
     }
 
@@ -703,7 +797,10 @@ export function createCmsAgendaApp(dependencies = {}) {
     setActionState();
     populateTabOptions();
     mountEditor(state.dirtyMap[state.selectedKey] ?? []);
-    setStatus(text("cmsAgenda.signInAgainPrompt", "Tap to sign in again to publish agenda changes."), "info");
+    setStatus(
+      text("cmsAgenda.signInAgainPrompt", "Tap to sign in again to publish agenda changes."),
+      "info"
+    );
     return state;
   }
 
@@ -726,7 +823,7 @@ export async function initializeCmsAgendaPage() {
 
 if (typeof document !== "undefined") {
   const start = () => {
-    initializeCmsAgendaPage().catch(error => {
+    initializeCmsAgendaPage().catch((error) => {
       console.error("[CMS Agenda] Failed to initialize page", error);
       const status = document.getElementById("cms-agenda-page-status");
       if (status) {

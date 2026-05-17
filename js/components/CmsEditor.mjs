@@ -304,7 +304,7 @@ const STATIC_TEXT_KEYS = {
   "(optional) Custom title": "cms.input.optionalCustomTitle",
   "Add Intermediate Hymn": "cms.action.addIntermediateHymn",
   "Add Speaker": "cms.action.addSpeaker",
-    "Insert Link Placeholder": "cms.action.insertLinkPlaceholder",
+  "Insert Link Placeholder": "cms.action.insertLinkPlaceholder",
   Name: "cms.input.name",
   "(Optional) Caption/topic": "cms.input.optionalCaptionTopic",
   "(Optional) Section label": "cms.input.optionalSectionLabel",
@@ -396,7 +396,9 @@ export function getFieldsForKeyType(keyType) {
 }
 
 export function sanitisePart(str) {
-  return String(str ?? "").replaceAll("|", "").trim();
+  return String(str ?? "")
+    .replaceAll("|", "")
+    .trim();
 }
 
 function getFieldDefinition(keyType) {
@@ -411,21 +413,24 @@ function getFieldLabel(keyType) {
 
   return translate(
     normalizedKeyType,
-    normalizedKeyType.replace(/([A-Z])/g, " $1").replace(/^./, c => c.toUpperCase()).trim()
+    normalizedKeyType
+      .replace(/([A-Z])/g, " $1")
+      .replace(/^./, (c) => c.toUpperCase())
+      .trim()
   );
 }
 
 function createEmptyValue(keyType) {
   const definition = getFieldDefinition(keyType);
   return Object.fromEntries(
-    definition.fields.map(field => [field.name, field.type === "checkbox" ? false : ""])
+    definition.fields.map((field) => [field.name, field.type === "checkbox" ? false : ""])
   );
 }
 
 function splitParts(raw) {
   return String(raw ?? "")
     .split("|")
-    .map(part => part.trim());
+    .map((part) => part.trim());
 }
 
 function joinParts(parts) {
@@ -534,7 +539,9 @@ function getConcreteKeyForNewItem(keyType, existingKeys, nextOrdinal) {
 
 function sortConcreteRows(rows, keyType) {
   if (isNumberedRepeatableKeyType(keyType)) {
-    return [...rows].sort((left, right) => getTrailingNumber(left.key) - getTrailingNumber(right.key));
+    return [...rows].sort(
+      (left, right) => getTrailingNumber(left.key) - getTrailingNumber(right.key)
+    );
   }
   return rows;
 }
@@ -545,23 +552,26 @@ function getTrailingNumber(key) {
 }
 
 function buildFieldGroups(rows, includeAgenda) {
-  const rowList = Array.isArray(rows) ? rows.map(row => ({ key: row.key, value: row.value ?? "" })) : [];
-  const categories = CATEGORY_ORDER.filter(category => includeAgenda || category.id !== "agenda");
+  const rowList = Array.isArray(rows)
+    ? rows.map((row) => ({ key: row.key, value: row.value ?? "" }))
+    : [];
+  const categories = CATEGORY_ORDER.filter((category) => includeAgenda || category.id !== "agenda");
 
-  return categories.map(category => ({
+  return categories.map((category) => ({
     ...category,
-    fields: category.keys.map(keyType => {
+    fields: category.keys.map((keyType) => {
       const matchingRows = sortConcreteRows(
-        rowList.filter(row => normalizeCmsKeyType(row.key) === keyType),
+        rowList.filter((row) => normalizeCmsKeyType(row.key) === keyType),
         keyType
       );
 
-      const items = matchingRows.length > 0
-        ? matchingRows.map(row => ({
-            key: row.key,
-            value: parseFieldValue(keyType, row.value, { rowExists: true })
-          }))
-        : [{ key: null, value: createEmptyValue(keyType) }];
+      const items =
+        matchingRows.length > 0
+          ? matchingRows.map((row) => ({
+              key: row.key,
+              value: parseFieldValue(keyType, row.value, { rowExists: true })
+            }))
+          : [{ key: null, value: createEmptyValue(keyType) }];
 
       return {
         keyType,
@@ -575,7 +585,7 @@ function buildFieldGroups(rows, includeAgenda) {
 }
 
 function flattenGroups(groups) {
-  return groups.flatMap(category => category.fields);
+  return groups.flatMap((category) => category.fields);
 }
 
 function cloneGroups(groups) {
@@ -614,13 +624,13 @@ class CmsEditor {
   render() {
     this.injectStyles();
     const navHtml = this.groups
-      .map(category => {
+      .map((category) => {
         const activeClass = category.id === this.activeSectionId ? " is-active" : "";
         return `<button type="button" class="cms-editor__nav-item${activeClass}" data-section-id="${category.id}">${category.title}</button>`;
       })
       .join("");
 
-    const sectionsHtml = this.groups.map(category => this.renderCategory(category)).join("");
+    const sectionsHtml = this.groups.map((category) => this.renderCategory(category)).join("");
 
     this.container.innerHTML = `
       <div class="cms-editor">
@@ -636,7 +646,7 @@ class CmsEditor {
   }
 
   renderCategory(category) {
-    const fieldsHtml = category.fields.map(field => this.renderField(field)).join("");
+    const fieldsHtml = category.fields.map((field) => this.renderField(field)).join("");
     return `
       <section class="cms-editor__section" data-section-id="${category.id}">
         <h2 class="cms-editor__section-title">${translateStaticText(category.title)}</h2>
@@ -674,7 +684,7 @@ class CmsEditor {
 
   renderFieldItem(field, item, itemIndex) {
     const inputsHtml = field.definition.fields
-      .map(part => this.renderInput(field.keyType, item.value, part, itemIndex))
+      .map((part) => this.renderInput(field.keyType, item.value, part, itemIndex))
       .join("");
     const removeButton = field.definition.repeatable
       ? `<button type="button" class="cms-editor__remove-item" data-action="remove-item" data-key-type="${field.keyType}" data-item-index="${itemIndex}">${translate("remove", "Remove")}</button>`
@@ -692,9 +702,10 @@ class CmsEditor {
     const inputId = `${keyType}-${itemIndex}-${part.name}`;
     const prompt = translateStaticText(part.label || part.placeholder || "");
     if (part.type === "textarea") {
-      const insertTokenButton = keyType === "generalStatementWithLink" && part.name === "text"
-        ? `<button type="button" class="cms-editor__insert-token" data-action="insert-token" data-key-type="${keyType}" data-item-index="${itemIndex}" data-part-name="${part.name}" data-token="<LINK>">${translateStaticText("Insert Link Placeholder")}</button>`
-        : "";
+      const insertTokenButton =
+        keyType === "generalStatementWithLink" && part.name === "text"
+          ? `<button type="button" class="cms-editor__insert-token" data-action="insert-token" data-key-type="${keyType}" data-item-index="${itemIndex}" data-part-name="${part.name}" data-token="<LINK>">${translateStaticText("Insert Link Placeholder")}</button>`
+          : "";
       return `
         <label class="cms-editor__input-label" for="${inputId}">${prompt}</label>
         <textarea id="${inputId}" class="cms-editor__input cms-editor__textarea" data-key-type="${keyType}" data-item-index="${itemIndex}" data-part-name="${part.name}">${this.escapeHtml(value[part.name] ?? "")}</textarea>
@@ -718,32 +729,34 @@ class CmsEditor {
   }
 
   attachEventListeners() {
-    this.container.querySelectorAll(".cms-editor__nav-item").forEach(button => {
+    this.container.querySelectorAll(".cms-editor__nav-item").forEach((button) => {
       button.addEventListener("click", () => {
         this.activeSectionId = button.dataset.sectionId;
         this.render();
       });
     });
 
-    this.container.querySelectorAll(".cms-editor__input, .cms-editor__textarea, .cms-editor__checkbox").forEach(element => {
-      element.addEventListener("input", event => this.handleValueChange(event));
-      element.addEventListener("change", event => this.handleValueChange(event));
-    });
+    this.container
+      .querySelectorAll(".cms-editor__input, .cms-editor__textarea, .cms-editor__checkbox")
+      .forEach((element) => {
+        element.addEventListener("input", (event) => this.handleValueChange(event));
+        element.addEventListener("change", (event) => this.handleValueChange(event));
+      });
 
-    this.container.querySelectorAll("[data-action='add-item']").forEach(button => {
+    this.container.querySelectorAll("[data-action='add-item']").forEach((button) => {
       button.addEventListener("click", () => {
         this.addRepeatableItem(button.dataset.keyType);
       });
     });
 
-    this.container.querySelectorAll("[data-action='remove-item']").forEach(button => {
+    this.container.querySelectorAll("[data-action='remove-item']").forEach((button) => {
       button.addEventListener("click", () => {
         this.removeRepeatableItem(button.dataset.keyType, Number(button.dataset.itemIndex));
       });
     });
 
-    this.container.querySelectorAll("[data-action='insert-token']").forEach(button => {
-      button.addEventListener("mousedown", event => {
+    this.container.querySelectorAll("[data-action='insert-token']").forEach((button) => {
+      button.addEventListener("mousedown", (event) => {
         event.preventDefault();
       });
       button.addEventListener("click", () => {
@@ -769,7 +782,14 @@ class CmsEditor {
   setPartValue(keyType, itemIndex, partName, value) {
     const field = this.findField(keyType);
     if (!field) return;
-    field.items[itemIndex].value[partName] = value;
+    const item = field.items[itemIndex];
+    const oldValue = { ...item.value };
+    item.value[partName] = value;
+    const serialized = serializeFieldValue(field.keyType, item.value);
+    if (item.key && !serialized && isValueEmpty(field.keyType, item.value)) {
+      field.removedKeys = Array.from(new Set([...(field.removedKeys ?? []), item.key]));
+      item.key = null;
+    }
     this.refreshDirtyState();
   }
 
@@ -827,7 +847,7 @@ class CmsEditor {
   }
 
   findField(keyType) {
-    return flattenGroups(this.groups).find(field => field.keyType === keyType) ?? null;
+    return flattenGroups(this.groups).find((field) => field.keyType === keyType) ?? null;
   }
 
   refreshDirtyState() {
@@ -848,12 +868,12 @@ class CmsEditor {
 
     for (const field of flattenGroups(this.groups)) {
       const trackedKeys = [
-        ...field.items.filter(item => item.key).map(item => item.key),
+        ...field.items.filter((item) => item.key).map((item) => item.key),
         ...(field.removedKeys ?? [])
       ];
       let nextOrdinal = Math.max(0, ...trackedKeys.map(getTrailingNumber)) + 1;
 
-      field.items.forEach(item => {
+      field.items.forEach((item) => {
         const serialized = serializeFieldValue(field.keyType, item.value);
         const originalKey = item.key;
 
@@ -901,6 +921,17 @@ class CmsEditor {
     };
   }
 
+  getRemovedKeys() {
+    const removedKeys = [];
+    for (const group of this.groups) {
+      for (const field of group.fields) {
+        const fieldRemovedKeys = field.removedKeys ?? [];
+        removedKeys.push(...fieldRemovedKeys);
+      }
+    }
+    return removedKeys;
+  }
+
   discardChanges() {
     this.groups = cloneGroups(this.baselineGroups);
     this.isDirty = false;
@@ -914,7 +945,7 @@ class CmsEditor {
   escapeHtml(str) {
     return String(str)
       .replaceAll("&", "&amp;")
-      .replaceAll("\"", "&quot;")
+      .replaceAll('"', "&quot;")
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;");
   }
