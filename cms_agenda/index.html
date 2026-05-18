@@ -30,71 +30,6 @@
         });
       }
     </script>
-    <style>
-      body {
-        margin: 0;
-      }
-
-      .cms-agenda {
-        max-width: 720px;
-        margin: 0 auto;
-        padding: 1rem;
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-      }
-
-      .cms-agenda__header,
-      .cms-agenda__controls,
-      .cms-agenda__actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.75rem;
-      }
-
-      .cms-agenda__controls label,
-      .cms-agenda__actions button,
-      .agenda-key-editor__field {
-        display: flex;
-        flex-direction: column;
-        gap: 0.35rem;
-      }
-
-      .cms-agenda__controls select,
-      .cms-agenda__actions button,
-      .agenda-key-editor__input,
-      .agenda-key-editor__textarea,
-      #cms-agenda-setup-client-id,
-      #cms-agenda-setup-sheet-url {
-        padding: 0.7rem 0.85rem;
-        border-radius: 0.75rem;
-      }
-
-      .agenda-key-editor,
-      .cms-agenda__panel,
-      #cms-agenda-auth-panel,
-      #cms-agenda-setup-modal form {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-      }
-
-      .agenda-key-editor__row,
-      .cms-agenda__pending-item {
-        display: flex;
-        gap: 0.75rem;
-        align-items: end;
-        justify-content: space-between;
-      }
-
-      .cms-agenda__status[data-tone="error"] {
-        color: #b42318;
-      }
-
-      .cms-agenda__status[data-tone="success"] {
-        color: #027a48;
-      }
-    </style>
   </head>
   <body>
     <main class="cms-agenda">
@@ -107,11 +42,11 @@
 
       <div id="cms-agenda-page-status" class="cms-agenda__status" hidden></div>
 
-      <section id="cms-agenda-auth-panel" hidden>
+      <section id="cms-agenda-auth-panel" class="cms-agenda__auth-panel" hidden>
         <p id="cms-agenda-auth-message">Tap to sign in again to publish agenda changes.</p>
         <div class="cms-agenda__actions">
-          <button id="cms-agenda-setup-btn" type="button">Configure Google Settings</button>
-          <button id="cms-agenda-sign-in-btn" type="button">Sign in with Google</button>
+          <button id="cms-agenda-setup-btn" type="button" class="cms-agenda-btn--secondary">Configure Google Settings</button>
+          <button id="cms-agenda-sign-in-btn" type="button" class="cms-agenda-btn--primary">Sign in with Google</button>
         </div>
       </section>
 
@@ -128,8 +63,8 @@
           </label>
           <p id="cms-agenda-setup-status" class="cms-agenda__status" hidden></p>
           <div class="cms-agenda__actions">
-            <button id="cms-agenda-setup-cancel-btn" type="button">Cancel</button>
-            <button id="cms-agenda-setup-save-btn" type="button">Save Settings</button>
+            <button id="cms-agenda-setup-cancel-btn" type="button" class="cms-agenda-btn--secondary">Cancel</button>
+            <button id="cms-agenda-setup-save-btn" type="button" class="cms-agenda-btn--primary">Save Settings</button>
           </div>
         </form>
       </dialog>
@@ -149,10 +84,10 @@
         </div>
 
         <div class="cms-agenda__actions">
-          <button id="cms-agenda-make-active-btn" type="button">Make Active</button>
-          <button id="cms-agenda-save-draft-btn" type="button">Save Draft</button>
-          <button id="cms-agenda-publish-btn" type="button">Publish</button>
-          <button id="cms-agenda-publish-all-btn" type="button">Publish All Pending</button>
+          <button id="cms-agenda-make-active-btn" type="button" class="cms-agenda-btn--secondary">Make Active</button>
+          <button id="cms-agenda-save-draft-btn" type="button" class="cms-agenda-btn--secondary">Save Draft</button>
+          <button id="cms-agenda-publish-btn" type="button" class="cms-agenda-btn--primary">Publish</button>
+          <button id="cms-agenda-publish-all-btn" type="button" class="cms-agenda-btn--primary">Publish All Pending</button>
         </div>
 
         <div id="cms-agenda-editor-container"></div>

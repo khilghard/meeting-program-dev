@@ -67,7 +67,8 @@ async function generateQRCode(
   sheetUrl,
   outputPath,
   forceUpdate = false,
-  nocache = false
+  nocache = false,
+  printSize = 3
 ) {
   let csvUrl = null;
 
@@ -102,10 +103,14 @@ async function generateQRCode(
   console.log("");
 
   try {
+    const DPI = 300;
+    const PIXEL_SIZE = DPI * printSize;
+    const MARGIN_MODULES = 2;
+
     const qrBuffer = await QRCode.toBuffer(programUrl, {
       type: "png",
-      width: 300,
-      margin: 2,
+      width: PIXEL_SIZE,
+      margin: MARGIN_MODULES,
       color: {
         dark: "#000000",
         light: "#FFFFFF"
@@ -114,6 +119,9 @@ async function generateQRCode(
 
     fs.writeFileSync(outputPath, qrBuffer);
     console.log(`QR code saved to: ${outputPath}`);
+    console.log(
+      `Resolution: ${PIXEL_SIZE}x${PIXEL_SIZE} pixels (${DPI} DPI at ${printSize}" print)`
+    );
   } catch (error) {
     console.error("Error generating QR code:", error.message);
     process.exit(1);
@@ -140,6 +148,7 @@ Examples:
   node generate-qr.js -f -o force-update.png
   node generate-qr.js -n -o clear-cache.png
   node generate-qr.js -f -n -o force-clear.png
+  node generate-qr.js -s "https://docs.google.com/spreadsheets/d/ABC123/gviz/tq?tqx=out:csv" -o large.png --print-size 4
   `);
 }
 
@@ -153,7 +162,8 @@ const ARGUMENT_MAP = {
   "-f": { key: "forceUpdate", consumesValue: false },
   "--force-update": { key: "forceUpdate", consumesValue: false },
   "-n": { key: "nocache", consumesValue: false },
-  "--nocache": { key: "nocache", consumesValue: false }
+  "--nocache": { key: "nocache", consumesValue: false },
+  "--print-size": { key: "printSize", consumesValue: true }
 };
 
 function parseArguments(args) {
@@ -162,7 +172,8 @@ function parseArguments(args) {
     sheetUrl: null,
     outputPath: "./program-qr.png",
     forceUpdate: false,
-    nocache: false
+    nocache: false,
+    printSize: 3
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -198,13 +209,14 @@ async function main() {
     process.exit(0);
   }
 
-  const { websiteUrl, sheetUrl, outputPath, forceUpdate, nocache } = parseArguments(args);
+  const { websiteUrl, sheetUrl, outputPath, forceUpdate, nocache, printSize } =
+    parseArguments(args);
 
   if (!validateArguments(sheetUrl, forceUpdate, nocache)) {
     process.exit(1);
   }
 
-  await generateQRCode(websiteUrl, sheetUrl, outputPath, forceUpdate, nocache);
+  await generateQRCode(websiteUrl, sheetUrl, outputPath, forceUpdate, nocache, printSize);
 }
 
 main();

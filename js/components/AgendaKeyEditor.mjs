@@ -177,7 +177,9 @@ export default class AgendaKeyEditor {
         return `
           <div class="agenda-key-editor__row" data-row-index="${rowIndex}">
             ${fields}
-            <button type="button" data-action="remove-item" data-row-index="${rowIndex}">${escapeHtml(t("remove"))}</button>
+            <div class="agenda-key-editor__row-actions">
+              <button type="button" class="cms-agenda-btn--remove" data-action="remove-item" data-row-index="${rowIndex}">${escapeHtml(t("remove"))}</button>
+            </div>
           </div>`;
       })
       .join("");
@@ -188,7 +190,7 @@ export default class AgendaKeyEditor {
           <h2>${escapeHtml(definition.label)}</h2>
         </header>
         <div class="agenda-key-editor__rows">${rowsHtml}</div>
-        <button type="button" data-action="add-item">${escapeHtml(t("cmsAgenda.addItem"))}</button>
+        <button type="button" class="cms-agenda-btn--add" data-action="add-item">${escapeHtml(t("cmsAgenda.addItem"))}</button>
       </section>`;
 
     this.bindRepeatableInputs();
