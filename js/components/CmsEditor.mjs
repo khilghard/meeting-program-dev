@@ -610,7 +610,6 @@ class CmsEditor {
     this.baselineGroups = [];
     this.isDirty = false;
     this.activeSectionId = CATEGORY_ORDER[0].id;
-    this._stylesInjected = false;
   }
 
   initialize(rows = [], { includeAgenda = this.options.includeAgenda } = {}) {
@@ -622,7 +621,6 @@ class CmsEditor {
   }
 
   render() {
-    this.injectStyles();
     const navHtml = this.groups
       .map((category) => {
         const activeClass = category.id === this.activeSectionId ? " is-active" : "";
@@ -636,7 +634,7 @@ class CmsEditor {
       <div class="cms-editor">
         <aside class="cms-editor__nav">${navHtml}</aside>
         <div class="cms-editor__content">
-          <div class="cms-editor__status">${translateStaticText(this.isDirty ? "Unsaved changes" : "All changes saved")}</div>
+          <div class="cms-editor__status" data-dirty="${this.isDirty}">${translateStaticText(this.isDirty ? "Unsaved changes" : "All changes saved")}</div>
           ${sectionsHtml}
         </div>
       </div>
@@ -674,7 +672,7 @@ class CmsEditor {
             <h3 class="cms-editor__field-title">${field.label}</h3>
             ${helpHtml}
           </div>
-          <span class="cms-editor__badge">${badge}</span>
+          <span class="cms-editor__badge" data-badge="${badge}">${badge}</span>
         </div>
         <div class="cms-editor__field-items">${itemsHtml}</div>
         ${addButtonHtml}
@@ -948,112 +946,6 @@ class CmsEditor {
       .replaceAll('"', "&quot;")
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;");
-  }
-
-  injectStyles() {
-    if (this._stylesInjected || document.getElementById("cms-editor-styles")) {
-      this._stylesInjected = true;
-      return;
-    }
-
-    const style = document.createElement("style");
-    style.id = "cms-editor-styles";
-    style.textContent = `
-      .cms-editor {
-        display: grid;
-        grid-template-columns: 220px 1fr;
-        gap: 1rem;
-      }
-      .cms-editor__nav {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-        position: sticky;
-        top: 1rem;
-        align-self: start;
-      }
-      .cms-editor__nav-item {
-        border: 1px solid #d0d7de;
-        background: #fff;
-        border-radius: 0.75rem;
-        padding: 0.75rem 1rem;
-        text-align: left;
-        cursor: pointer;
-      }
-      .cms-editor__nav-item.is-active {
-        border-color: #0969da;
-        background: #eef6ff;
-      }
-      .cms-editor__content {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-      }
-      .cms-editor__status {
-        font-weight: 600;
-      }
-      .cms-editor__section {
-        border: 1px solid #d0d7de;
-        border-radius: 1rem;
-        padding: 1rem;
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-      }
-      .cms-editor__field {
-        border-top: 1px solid #eaeef2;
-        padding-top: 1rem;
-      }
-      .cms-editor__field:first-of-type {
-        border-top: none;
-        padding-top: 0;
-      }
-      .cms-editor__field-header {
-        display: flex;
-        justify-content: space-between;
-        gap: 1rem;
-        align-items: start;
-      }
-      .cms-editor__badge {
-        background: #eef2ff;
-        border-radius: 999px;
-        padding: 0.25rem 0.75rem;
-        font-size: 0.85rem;
-      }
-      .cms-editor__field-items,
-      .cms-editor__field-item {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-      }
-      .cms-editor__input,
-      .cms-editor__textarea {
-        width: 100%;
-        border: 1px solid #d0d7de;
-        border-radius: 0.75rem;
-        padding: 0.75rem;
-      }
-      .cms-editor__textarea {
-        min-height: 5rem;
-      }
-      .cms-editor__add-item,
-      .cms-editor__insert-token,
-      .cms-editor__remove-item {
-        align-self: start;
-        border: none;
-        border-radius: 999px;
-        padding: 0.5rem 0.9rem;
-        background: #eef6ff;
-        cursor: pointer;
-      }
-      .cms-editor__checkbox-label {
-        display: inline-flex;
-        gap: 0.5rem;
-        align-items: center;
-      }
-    `;
-    document.head.appendChild(style);
-    this._stylesInjected = true;
   }
 }
 
