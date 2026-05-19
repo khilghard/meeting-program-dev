@@ -42,6 +42,7 @@ describe("cms-agenda.js", () => {
               </div>
             </label>
             <p id="cms-agenda-sheet-row-hint" hidden></p>
+            <p id="cms-agenda-key-change-hint" hidden></p>
             <button id="cms-agenda-make-active-btn" type="button">Make Active</button>
             <button id="cms-agenda-save-draft-btn" type="button">Save Draft</button>
             <button id="cms-agenda-publish-btn" type="button">Publish</button>
@@ -575,6 +576,75 @@ describe("cms-agenda.js", () => {
 
     expect(keySelect.value).toBe("agendaBusinessCallings");
     expect(document.getElementById("cms-agenda-sheet-row-hint").textContent).toBe("Sheet row 5");
+  });
+
+  test("allows changing the selected row key while preserving the row id on publish", async () => {
+    const writeAgendaRow = vi.fn().mockResolvedValue({
+      action: "update",
+      key: "agendaBusinessNewMoveIns",
+      agendaId: "a3",
+      sheetRow: 4,
+      tabTitle: "Sheet1",
+      range: "Sheet1!A4:C4",
+      rowValues: ["agendaBusinessNewMoveIns", "a3", "Updated note"]
+    });
+
+    const app = createApp({
+      AgendaSheetServiceClass: class {
+        async listAgendaRows() {
+          return [
+            {
+              key: "agendaAnnouncements",
+              agendaId: "a3",
+              sheetRow: 4,
+              values: [["Updated note"]]
+            }
+          ];
+        }
+
+        async writeAgendaRow(row, selectedTab) {
+          return writeAgendaRow(row, selectedTab);
+        }
+      }
+    });
+
+    await app.initialize();
+
+    const rowSelect = document.getElementById("cms-agenda-row-select");
+    const existingRowOption = Array.from(rowSelect.options).find((option) => option.textContent === "a3");
+    rowSelect.value = existingRowOption?.value ?? "";
+    rowSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    await Promise.resolve();
+
+    const keySelect = document.getElementById("cms-agenda-key-select");
+    keySelect.value = "agendaBusinessNewMoveIns";
+    keySelect.dispatchEvent(new Event("change", { bubbles: true }));
+    await Promise.resolve();
+
+    expect(document.getElementById("cms-agenda-key-change-hint").textContent).toContain(
+      "Key changed from agendaAnnouncements to agendaBusinessNewMoveIns"
+    );
+    expect(document.getElementById("cms-agenda-key-change-hint").hidden).toBe(false);
+    expect(document.getElementById("cms-agenda-editor-container").textContent).toContain(
+      "agendaBusinessNewMoveIns"
+    );
+    expect(document.getElementById("cms-agenda-pending-list").textContent).toContain(
+      "agendaBusinessNewMoveIns"
+    );
+
+    await app.handlePublishCurrent();
+
+    expect(writeAgendaRow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "agendaBusinessNewMoveIns",
+        agendaId: "a3",
+        sheetRow: 4,
+        values: [["Updated note"]]
+      }),
+      expect.objectContaining({ title: "Sheet1" })
+    );
+    expect(document.getElementById("cms-agenda-page-status").textContent).toContain("Sheet row 4");
+    expect(document.getElementById("cms-agenda-key-change-hint").hidden).toBe(true);
   });
 
   test("translates the agenda CMS shell", async () => {

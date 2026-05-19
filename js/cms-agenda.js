@@ -150,6 +150,14 @@ export function createCmsAgendaApp(dependencies = {}) {
     return translated === key ? fallback : translated;
   };
 
+  const formatText = (key, fallback, replacements = {}) => {
+    let message = text(key, fallback);
+    Object.entries(replacements).forEach(([token, value]) => {
+      message = message.replaceAll(`{${token}}`, String(value ?? ""));
+    });
+    return message;
+  };
+
   const state = {
     profile: null,
     tabs: [],
@@ -185,6 +193,7 @@ export function createCmsAgendaApp(dependencies = {}) {
       rowPrevButton: documentRef.getElementById("cms-agenda-row-prev-btn"),
       rowNextButton: documentRef.getElementById("cms-agenda-row-next-btn"),
       rowHint: documentRef.getElementById("cms-agenda-sheet-row-hint"),
+      keyChangeHint: documentRef.getElementById("cms-agenda-key-change-hint"),
       publishButton: documentRef.getElementById("cms-agenda-publish-btn"),
       saveDraftButton: documentRef.getElementById("cms-agenda-save-draft-btn"),
       publishAllButton: documentRef.getElementById("cms-agenda-publish-all-btn"),
@@ -391,15 +400,22 @@ export function createCmsAgendaApp(dependencies = {}) {
     return text("cmsAgenda.newRowLabel", "New row");
   }
 
-  function getVisibleRowsForCurrentTab() {
-    const rows = [...state.rowsForTab];
-    const existingTokens = new Set(rows.map((row) => row.rowToken));
+  function getBaseRowForToken(rowToken) {
+    return state.rowsForTab.find((row) => row.rowToken === rowToken) ?? null;
+  }
 
-    Object.values(state.dirtyMap).forEach((entry) => {
-      if (existingTokens.has(entry.rowToken)) {
-        return;
+  function getVisibleRowsForCurrentTab() {
+    const dirtyRowsByToken = new Map(
+      Object.values(state.dirtyMap).map((entry) => [entry.rowToken, createAgendaRowMeta(entry)])
+    );
+
+    const rows = state.rowsForTab.map((row) => dirtyRowsByToken.get(row.rowToken) ?? row);
+    const existingTokens = new Set(state.rowsForTab.map((row) => row.rowToken));
+
+    dirtyRowsByToken.forEach((row, rowToken) => {
+      if (!existingTokens.has(rowToken)) {
+        rows.push(row);
       }
-      rows.push(createAgendaRowMeta(entry));
     });
 
     rows.sort((left, right) => {
@@ -500,6 +516,30 @@ export function createCmsAgendaApp(dependencies = {}) {
     rowHint.textContent = `${text("cmsAgenda.sheetRowPrefix", "Sheet row")} ${selectedRow.sheetRow}`;
   }
 
+  function renderKeyChangeHint() {
+    const { keyChangeHint } = getElements();
+    if (!keyChangeHint) return;
+
+    const selectedRow = getSelectedRow();
+    const baseRow = getBaseRowForToken(selectedRow.rowToken);
+
+    if (!baseRow || !baseRow.key || baseRow.key === state.selectedKey) {
+      keyChangeHint.hidden = true;
+      keyChangeHint.textContent = "";
+      return;
+    }
+
+    keyChangeHint.hidden = false;
+    keyChangeHint.textContent = formatText(
+      "cmsAgenda.keyChangedHint",
+      "Key changed from {from} to {to}.",
+      {
+        from: text(baseRow.key, baseRow.key),
+        to: text(state.selectedKey, state.selectedKey)
+      }
+    );
+  }
+
   function renderPendingList() {
     const { pendingList } = getElements();
     if (!pendingList) return;
@@ -551,6 +591,7 @@ export function createCmsAgendaApp(dependencies = {}) {
     editor.initialize({ key: state.selectedKey, values });
     populateRowOptions();
     renderRowHint();
+    renderKeyChangeHint();
     showContent();
   }
 
@@ -802,11 +843,39 @@ export function createCmsAgendaApp(dependencies = {}) {
   }
 
   async function handleKeyChange(event) {
-    state.selectedKey = event.currentTarget.value;
-    const firstMatchingRow = getVisibleRowsForCurrentTab().find((row) => row.key === state.selectedKey);
-    state.selectedRowToken = firstMatchingRow?.rowToken ?? buildAgendaRowToken("", null);
+    const nextKey = event.currentTarget.value;
+    if (!AGENDA_KEYS.includes(nextKey) || nextKey === state.selectedKey) {
+      return;
+    }
+
+    const previousIdentity = getSelectedRowIdentity();
+    const selectedRow = getSelectedRow();
+    const baseRow = getBaseRowForToken(selectedRow.rowToken) ?? selectedRow;
+    const currentValues = cloneEntries(
+      state.editor?.getValues?.() ?? state.dirtyMap[previousIdentity]?.values ?? selectedRow.values
+    );
+    const baselineIdentity = buildAgendaRowIdentity(baseRow.key, baseRow.rowToken);
+    const baselineValues = cloneEntries(state.loadedMap[baselineIdentity] ?? baseRow.values);
+
+    delete state.dirtyMap[previousIdentity];
+    delete state.publishStatusMap[previousIdentity];
+
+    state.selectedKey = nextKey;
+
+    const nextIdentity = getSelectedRowIdentity();
+    if (nextKey !== baseRow.key || stringifyEntries(currentValues) !== stringifyEntries(baselineValues)) {
+      state.dirtyMap[nextIdentity] = {
+        ...selectedRow,
+        key: nextKey,
+        values: currentValues
+      };
+      state.publishStatusMap[nextIdentity] = text("cmsAgenda.pendingStatus", "Pending");
+    }
+
+    populateKeyOptions();
     renderPendingList();
-    await loadSelectedKey();
+    mountEditor(currentValues);
+    await persistDraft();
   }
 
   async function handleRowChange(event) {
@@ -874,10 +943,23 @@ export function createCmsAgendaApp(dependencies = {}) {
       range: publishResult?.range ?? "",
       rowValues: publishResult?.rowValues ?? row.values
     });
+    const updatedRow = createAgendaRowMeta({
+      key: row.key,
+      agendaId: row.agendaId,
+      sheetRow: publishResult?.sheetRow ?? row.sheetRow,
+      values: row.values
+    });
+    const rowIndex = state.rowsForTab.findIndex((entry) => entry.rowToken === row.rowToken);
+    if (rowIndex >= 0) {
+      state.rowsForTab[rowIndex] = updatedRow;
+    } else {
+      state.rowsForTab.push(updatedRow);
+    }
     state.loadedMap[identity] = cloneEntries(row.values);
     delete state.dirtyMap[identity];
     state.publishStatusMap[identity] = text("cmsAgenda.savedStatus", "Saved");
     await persistDraft();
+    renderKeyChangeHint();
     return publishResult;
   }
 
