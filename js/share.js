@@ -85,18 +85,28 @@ export async function openShareModal() {
 }
 
 async function getCurrentProgramUrl() {
+  // First, check if there's a current profile selected - use its URL
+  const profile = getCurrentProfile();
+  if (profile?.url) {
+    const siteUrl = await getSiteUrl();
+    if (siteUrl) {
+      const fullUrl = new URL(siteUrl);
+      fullUrl.searchParams.set("url", profile.url);
+      return fullUrl.toString();
+    }
+    return profile.url;
+  }
+
+  // If no profile is selected, fall back to the ?url= parameter from the address bar
   const params = new URLSearchParams(globalThis.window.location.search);
   const urlParam = params.get("url");
 
-  // Get the sheet URL
   let sheetUrl = null;
 
-  // If we have a direct Google Sheets URL parameter, use it
   if (urlParam?.startsWith("https://docs.google.com/spreadsheets/")) {
     sheetUrl = urlParam;
   }
 
-  // If we have an app URL with sheet as parameter, extract the sheet URL
   if (!sheetUrl && urlParam) {
     try {
       const parsed = new URL(urlParam);
@@ -109,20 +119,10 @@ async function getCurrentProgramUrl() {
     }
   }
 
-  // If we have a profile, use its URL
-  if (!sheetUrl) {
-    const profile = getCurrentProfile();
-    if (profile?.url) {
-      sheetUrl = profile.url;
-    }
-  }
-
   if (!sheetUrl) {
     return null;
   }
 
-  // Build the full site URL with sheet URL as parameter
-  // Get the site URL from IndexedDB or use default
   const siteUrl = await getSiteUrl();
   if (siteUrl) {
     const fullUrl = new URL(siteUrl);
@@ -130,7 +130,6 @@ async function getCurrentProgramUrl() {
     return fullUrl.toString();
   }
 
-  // Fallback to just the sheet URL if no site URL found
   return sheetUrl;
 }
 
