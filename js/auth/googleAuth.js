@@ -21,6 +21,8 @@
  * Use: GoogleAuth.initialize() first, then signIn(), etc.
  */
 const GoogleAuth = (() => {
+  const GIS_SCRIPT_SRC = "https://accounts.google.com/gsi/client";
+
   // Configuration
   let config = {
     clientId: null,
@@ -51,6 +53,31 @@ const GoogleAuth = (() => {
     REFRESH_TIMEOUT: "gm_refresh_timeout"
   };
 
+  function isGoogleGsiAvailable() {
+    return typeof google !== "undefined" && !!google.accounts?.oauth2?.initTokenClient;
+  }
+
+  function hasGoogleGsiScriptTag() {
+    return !!document.querySelector(`script[src="${GIS_SCRIPT_SRC}"]`);
+  }
+
+  function setupTokenClient() {
+    if (!isGoogleGsiAvailable()) {
+      return false;
+    }
+
+    state.tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: config.clientId,
+      scope: config.scopes.join(" "),
+      ux_mode: "popup",
+      callback: handleAuthCallback
+    });
+
+    state.initialized = true;
+    console.log("[AUTH] Initialized with client");
+    return true;
+  }
+
   /**
    * Initialize Google OAuth
    *
@@ -71,30 +98,27 @@ const GoogleAuth = (() => {
     config.clientId = clientId;
     config.redirectUri = redirectUri;
 
-    // Check if Google GSI library is loaded
-    if (typeof google === "undefined" || !google.accounts) {
-      console.error(
-        "[AUTH] Google Identity Services library not loaded. Ensure CDN script is included in HTML."
-      );
+    state.initialized = false;
+    state.tokenClient = null;
+
+    // Restore any existing session even if the GIS script is still loading.
+    restoreSessionFromStorage();
+
+    if (!setupTokenClient()) {
+      if (hasGoogleGsiScriptTag()) {
+        console.warn(
+          "[AUTH] Google Identity Services script is still loading. Initialization will retry when sign-in starts."
+        );
+      } else {
+        console.error(
+          "[AUTH] Google Identity Services library not loaded. Ensure Google Identity Services script is included in HTML."
+        );
+      }
       return;
     }
 
-    // Initialize token client for PKCE flow (use initTokenClient for access token)
-    state.tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: clientId,
-      scope: config.scopes.join(" "),
-      ux_mode: "popup",
-      callback: handleAuthCallback
-    });
-
-    state.initialized = true;
-    console.log("[AUTH] Initialized with client:", clientId);
-
     // Check if we're returning from OAuth redirect
     checkForAuthCallback();
-
-    // Restore session from sessionStorage if available
-    restoreSessionFromStorage();
   }
 
   /**
@@ -218,7 +242,13 @@ const GoogleAuth = (() => {
    */
   async function signIn() {
     if (!state.initialized) {
-      throw new Error("[AUTH] Must call initialize() first");
+      if (config.clientId && config.redirectUri && setupTokenClient()) {
+        checkForAuthCallback();
+      } else {
+        throw new Error(
+          "[AUTH] Google Identity Services library not loaded yet. Wait a moment and try again."
+        );
+      }
     }
 
     if (state.authenticated) {

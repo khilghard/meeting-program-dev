@@ -290,10 +290,21 @@ export async function selectProfile(id) {
     throw new Error("Profile not found");
   }
 
+  console.log("[ProfileManager] Selecting profile", {
+    profileId: id,
+    profileUrl: profile.url,
+    unitName: profile.unitName
+  });
+
   profile.lastUsed = Date.now();
   await dbSaveProfile(profile);
 
   await setMetadata(SELECTED_PROFILE_KEY, id);
+
+  console.log("[ProfileManager] Selected profile persisted", {
+    profileId: id,
+    selectedProfileKey: SELECTED_PROFILE_KEY
+  });
 }
 
 export async function getSelectedProfileId() {

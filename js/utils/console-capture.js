@@ -5,8 +5,59 @@
  */
 
 const MAX_CONSOLE_MESSAGES = 500;
+const STORAGE_KEY = "meeting_program_console_logs";
 
 let consoleLogs = [];
+let initialized = false;
+let originalConsole = null;
+
+function getStorage() {
+  try {
+    return globalThis.sessionStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function trimLogs(logs) {
+  return logs.slice(-MAX_CONSOLE_MESSAGES);
+}
+
+function loadPersistedLogs() {
+  const storage = getStorage();
+  if (!storage) return [];
+
+  try {
+    const raw = storage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    return trimLogs(
+      parsed.filter(
+        (entry) =>
+          entry &&
+          typeof entry.timestamp === "string" &&
+          typeof entry.level === "string" &&
+          typeof entry.message === "string"
+      )
+    );
+  } catch {
+    return [];
+  }
+}
+
+function persistLogs() {
+  const storage = getStorage();
+  if (!storage) return;
+
+  try {
+    storage.setItem(STORAGE_KEY, JSON.stringify(consoleLogs));
+  } catch {
+    // Ignore storage failures to avoid breaking runtime logging.
+  }
+}
 
 /**
  * @typedef {Object} ConsoleEntry
@@ -19,10 +70,17 @@ let consoleLogs = [];
  * Initialize console capture by intercepting console methods
  */
 export function initConsoleCapture() {
-  const originalLog = console.log;
-  const originalWarn = console.warn;
-  const originalError = console.error;
-  const originalDebug = console.debug;
+  if (initialized) {
+    return;
+  }
+
+  consoleLogs = loadPersistedLogs();
+  originalConsole = {
+    log: console.log,
+    warn: console.warn,
+    error: console.error,
+    debug: console.debug
+  };
 
   const captureMessage = (level, args) => {
     try {
@@ -48,12 +106,8 @@ export function initConsoleCapture() {
         message,
       };
 
-      consoleLogs.push(entry);
-
-      // Keep circular buffer at max size
-      if (consoleLogs.length > MAX_CONSOLE_MESSAGES) {
-        consoleLogs.shift();
-      }
+      consoleLogs = trimLogs([...consoleLogs, entry]);
+      persistLogs();
     } catch (err) {
       // Silently fail to avoid breaking console
     }
@@ -61,23 +115,25 @@ export function initConsoleCapture() {
 
   console.log = function (...args) {
     captureMessage("log", args);
-    originalLog.apply(console, args);
+    originalConsole.log.apply(console, args);
   };
 
   console.warn = function (...args) {
     captureMessage("warn", args);
-    originalWarn.apply(console, args);
+    originalConsole.warn.apply(console, args);
   };
 
   console.error = function (...args) {
     captureMessage("error", args);
-    originalError.apply(console, args);
+    originalConsole.error.apply(console, args);
   };
 
   console.debug = function (...args) {
     captureMessage("debug", args);
-    originalDebug.apply(console, args);
+    originalConsole.debug.apply(console, args);
   };
+
+  initialized = true;
 
   console.log("[ConsoleCapturer] Console capture initialized");
 }
@@ -95,6 +151,15 @@ export function getConsoleLogs() {
  */
 export function clearConsoleLogs() {
   consoleLogs = [];
+
+  const storage = getStorage();
+  if (!storage) return;
+
+  try {
+    storage.removeItem(STORAGE_KEY);
+  } catch {
+    // Ignore storage failures to keep clear non-throwing.
+  }
 }
 
 /**

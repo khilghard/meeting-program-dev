@@ -266,9 +266,10 @@ function debounce(func, wait) {
 async function fetchWithTimeout(url, timeout) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
+  const requestUrl = sanitizeSheetUrl(url);
 
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(requestUrl, { signal: controller.signal });
     clearTimeout(timeoutId);
     return response.text();
   } catch (error) {
@@ -310,28 +311,59 @@ async function initializePrerequisites(currentVersion) {
 // Helper: Determine the sheet URL to load
 async function determineSheetUrl() {
   const params = new URLSearchParams(globalThis.window.location.search);
-  let sheetUrl = params.get("url");
+  const urlParam = params.get("url");
+  const currentProfile = Profiles.getCurrentProfile();
+  const localStorageUrl = localStorage.getItem("sheetUrl");
+  let sheetUrl = null;
+  let source = "none";
 
-  if (!sheetUrl) {
-    const localStorageUrl = localStorage.getItem("sheetUrl");
-    if (localStorageUrl) {
-      sheetUrl = localStorageUrl;
+  if (urlParam) {
+    sheetUrl = urlParam;
+    source = "url-params";
+  }
+
+  if (!sheetUrl && currentProfile?.url) {
+    sheetUrl = currentProfile.url;
+    source = "profile";
+  }
+
+  if (!sheetUrl && localStorageUrl) {
+    sheetUrl = localStorageUrl;
+    source = "localStorage";
+  }
+
+  if (!sheetUrl && !currentProfile) {
+    const { getMetadata } = await import("./data/IndexedDBManager.js");
+    const legacyUrl = await getMetadata("legacy_sheetUrl");
+    if (legacyUrl) {
+      sheetUrl = legacyUrl;
+      source = "indexeddb-legacy";
     }
   }
 
-  const currentProfile = Profiles.getCurrentProfile();
-
-  if (!currentProfile && !sheetUrl) {
-    const { getMetadata } = await import("./data/IndexedDBManager.js");
-    const legacyUrl = await getMetadata("legacy_sheetUrl");
-    if (legacyUrl) sheetUrl = legacyUrl;
-  } else if (currentProfile && !sheetUrl) {
-    sheetUrl = currentProfile.url;
-  }
-
   if (sheetUrl) {
+    const originalSheetUrl = sheetUrl;
     const extractedUrl = extractSheetUrl(sheetUrl);
     if (extractedUrl) sheetUrl = extractedUrl;
+
+    console.log("[INIT] determineSheetUrl candidates:", {
+      urlParam: urlParam || "[none]",
+      currentProfileId: currentProfile?.id || "[none]",
+      currentProfileUrl: currentProfile?.url || "[none]",
+      localStorageUrl: localStorageUrl || "[none]",
+      chosenSource: source,
+      originalChosenUrl: originalSheetUrl,
+      finalSheetUrl: sheetUrl
+    });
+  } else {
+    console.log("[INIT] determineSheetUrl candidates:", {
+      urlParam: urlParam || "[none]",
+      currentProfileId: currentProfile?.id || "[none]",
+      currentProfileUrl: currentProfile?.url || "[none]",
+      localStorageUrl: localStorageUrl || "[none]",
+      chosenSource: source,
+      finalSheetUrl: "[none]"
+    });
   }
 
   return sheetUrl;
@@ -589,6 +621,14 @@ async function ensureProfileExists(sheetUrl, unitName, stakeName) {
   initProfileUI();
 }
 
+function doesCurrentProfileMatchSheetUrl(currentProfile, sheetUrl) {
+  if (!currentProfile?.url || !sheetUrl) {
+    return false;
+  }
+
+  return sanitizeSheetUrl(currentProfile.url) === sanitizeSheetUrl(sheetUrl);
+}
+
 // Helper: Cache program data
 async function cacheProgramData(rowsToCache) {
   const profileToCache = Profiles.getCurrentProfile();
@@ -651,15 +691,25 @@ async function processAndRenderProgram(rows, sheetUrl) {
   const currentProfile = Profiles.getCurrentProfile();
   const unitName = findRowValue(rows, "unitName", "Unknown Unit");
   const stakeName = findRowValue(rows, "stakeName");
+  const currentProfileMatchesSheet = doesCurrentProfileMatchSheetUrl(currentProfile, sheetUrl);
 
   // Update profile metadata
-  if (currentProfile) {
+  if (currentProfileMatchesSheet) {
+    console.log("[INIT] Loaded sheet matches current profile; refreshing profile metadata", {
+      profileId: currentProfile.id,
+      profileUrl: currentProfile.url,
+      sheetUrl
+    });
     await Profiles.addProfile(currentProfile.url, unitName, stakeName);
     initProfileUI();
-  }
-
-  // Create profile from URL if needed
-  if (!currentProfile && sheetUrl) {
+  } else if (sheetUrl) {
+    console.log("[INIT] Loaded sheet does not match current profile; selecting or creating sheet profile", {
+      currentProfileId: currentProfile?.id || "[none]",
+      currentProfileUrl: currentProfile?.url || "[none]",
+      sheetUrl,
+      unitName,
+      stakeName
+    });
     await ensureProfileExists(sheetUrl, unitName, stakeName);
   }
 
@@ -682,11 +732,11 @@ async function processAndRenderProgram(rows, sheetUrl) {
   leadershipState.mainRows = rows;
   console.log(
     "[Leadership] processAndRenderProgram calling loadAgendaForCurrentProfile. Profile:",
-    currentProfile?.id,
+    loadedProfile?.id,
     "agendaUrl:",
-    currentProfile?.agendaUrl
+    loadedProfile?.agendaUrl
   );
-  await loadAgendaForCurrentProfile(currentProfile);
+  await loadAgendaForCurrentProfile(loadedProfile);
   updateTimestamp();
 
   // Archive (uses full rows including agenda key placeholders)
@@ -1465,14 +1515,16 @@ async function init() {
     console.log("[INIT] URL Resolution:", {
       channel: urlParam
         ? "url-params"
-        : localStorageUrl
-          ? "localStorage"
-          : currentProfile?.url
+        : currentProfile?.url
             ? "profile"
+            : localStorageUrl
+              ? "localStorage"
             : "none",
       urlParamPresent: !!urlParam,
       localStorageUrlPresent: !!localStorageUrl,
       profileUrlPresent: !!currentProfile?.url,
+      profileId: currentProfile?.id || "[none]",
+      profileUrl: currentProfile?.url || "[none]",
       resolvedUrl: sheetUrl || "[none]",
       isStandalone: isStandalone
     });
@@ -1489,6 +1541,7 @@ async function init() {
     // Save sheetUrl to localStorage as fallback for future upgrades
     if (sheetUrl) {
       localStorage.setItem("sheetUrl", sheetUrl);
+      console.log("[INIT] Synced resolved sheetUrl to localStorage fallback", { sheetUrl });
     }
 
     // Active state - show loading modal with proper timing
@@ -2056,8 +2109,10 @@ async function handleNewProgramFromQR(url, unitName, stakeName) {
 
 // Helper: Parse QR code data
 async function parseQRCodeData(url) {
+  console.log("[QR] Parsing scanned URL data", { url });
   const csv = await fetchWithTimeout(url, 5000);
   const rows = await createWorker("parseCSV", csv, { language: getLanguage() });
+  console.log("[QR] Parsed scanned URL rows", { rowCount: rows.length });
   return rows;
 }
 
@@ -2067,6 +2122,11 @@ async function handleQRCodeScanned(url) {
   const rows = await parseQRCodeData(url);
   const unitName = findRowValue(rows, "unitName", "Unknown Unit");
   const stakeName = findRowValue(rows, "stakeName");
+  console.log("[QR] Resolved profile metadata from scanned URL", {
+    url,
+    unitName,
+    stakeName
+  });
 
   // Check if profile already exists
   const profiles = Profiles.getProfiles();
@@ -2076,12 +2136,22 @@ async function handleQRCodeScanned(url) {
   await setMetadata("userPreference_helpShown", "true");
 
   if (existingProfile) {
+    console.log("[QR] Existing profile found for scanned URL, switching profile", {
+      profileId: existingProfile.id,
+      unitName: existingProfile.unitName
+    });
     // Profile exists - just switch to it without modal
     await Profiles.selectProfile(existingProfile.id);
+    console.log("[QR] Existing profile selection completed before reload", {
+      selectedProfileId: Profiles.getCurrentProfile()?.id || "[none]",
+      selectedProfileUrl: Profiles.getCurrentProfile()?.url || "[none]",
+      localStorageSheetUrlBeforeReload: localStorage.getItem("sheetUrl") || "[none]"
+    });
     location.reload();
     return;
   }
 
+  console.log("[QR] No existing profile found, opening confirmation modal for scanned URL");
   // Show Confirm Modal for new profile
   await handleNewProgramFromQR(url, unitName, stakeName);
 }
@@ -2096,7 +2166,7 @@ globalThis.window.addEventListener("qr-scanned", async (e) => {
   try {
     await handleQRCodeScanned(url);
   } catch (err) {
-    console.error("QR Scan Failed:", err);
+    console.error("QR Scan Failed:", { url, error: err?.message || String(err) });
     alert("Could not load program from that QR code. Please try again.");
     location.reload();
   }
@@ -2543,4 +2613,4 @@ export {
 export { fetchSheet, parseCSV } from "./utils/csv.js";
 
 // Keep local exports
-export { init, fetchWithTimeout, initNetworkStatus };
+export { init, fetchWithTimeout, initNetworkStatus, determineSheetUrl, doesCurrentProfileMatchSheetUrl };

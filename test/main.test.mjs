@@ -53,7 +53,9 @@ const {
   fetchSheet,
   parseCSV,
   renderers,
-  fetchWithTimeout
+  fetchWithTimeout,
+  determineSheetUrl,
+  doesCurrentProfileMatchSheetUrl
 } = Main;
 
 // Set up test isolation with browser API stubs
@@ -565,6 +567,23 @@ describe("Networking & Errors", () => {
       expect(result).toBe("data");
     });
 
+    test("sanitizes Google Sheets edit URLs before fetching", async () => {
+      global.fetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve("key,en\nunitName,Test Ward")
+      });
+
+      await Main.fetchWithTimeout(
+        "https://docs.google.com/spreadsheets/d/FILE_ID/edit?gid=0",
+        1000
+      );
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "https://docs.google.com/spreadsheets/d/FILE_ID/gviz/tq?tqx=out:csv&gid=0",
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      );
+    });
+
     test("rejects on timeout", async () => {
       vi.useFakeTimers();
       // Mock fetch to respect the abort signal
@@ -589,6 +608,49 @@ describe("Networking & Errors", () => {
 
       await expect(promise).rejects.toThrow(/(timeout|aborted)/i);
       vi.useRealTimers();
+    });
+  });
+
+  describe("determineSheetUrl()", () => {
+    test("prefers current profile URL over stale localStorage fallback", async () => {
+      const staleUrl = "https://docs.google.com/spreadsheets/d/stale-sheet/gviz/tq?tqx=out:csv";
+      const selectedProfileUrl =
+        "https://docs.google.com/spreadsheets/d/selected-sheet/gviz/tq?tqx=out:csv";
+
+      localStorage.setItem("sheetUrl", staleUrl);
+      const getCurrentProfileSpy = vi
+        .spyOn(Profiles, "getCurrentProfile")
+        .mockReturnValue({ id: "selected-profile", url: selectedProfileUrl });
+
+      const resolvedUrl = await determineSheetUrl();
+
+      expect(resolvedUrl).toBe(selectedProfileUrl);
+
+      getCurrentProfileSpy.mockRestore();
+    });
+  });
+
+  describe("doesCurrentProfileMatchSheetUrl()", () => {
+    test("returns false when loaded sheet differs from current profile", () => {
+      const currentProfile = {
+        id: "current-profile",
+        url: "https://docs.google.com/spreadsheets/d/current-sheet/gviz/tq?tqx=out:csv"
+      };
+      const loadedSheetUrl =
+        "https://docs.google.com/spreadsheets/d/new-sheet/gviz/tq?tqx=out:csv";
+
+      expect(doesCurrentProfileMatchSheetUrl(currentProfile, loadedSheetUrl)).toBe(false);
+    });
+
+    test("returns true for equivalent current profile and loaded sheet URLs", () => {
+      const currentProfile = {
+        id: "current-profile",
+        url: "https://docs.google.com/spreadsheets/d/current-sheet/edit?gid=0"
+      };
+      const loadedSheetUrl =
+        "https://docs.google.com/spreadsheets/d/current-sheet/gviz/tq?tqx=out:csv&gid=0";
+
+      expect(doesCurrentProfileMatchSheetUrl(currentProfile, loadedSheetUrl)).toBe(true);
     });
   });
 

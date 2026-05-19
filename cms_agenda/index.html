@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-title" content="Ward Agenda CMS" />
     <title>Ward Agenda CMS</title>
     <script src="../js/theme-early.js"></script>
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://accounts.google.com/gsi/client" defer></script>
     <script>
       window.GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
     </script>
@@ -81,7 +81,17 @@
             <span id="cms-agenda-key-label">Agenda Key</span>
             <select id="cms-agenda-key-select"></select>
           </label>
+          <label id="cms-agenda-row-field" hidden>
+            <span id="cms-agenda-row-label">Agenda Row</span>
+            <div class="cms-agenda__row-selector">
+              <button id="cms-agenda-row-prev-btn" type="button" class="cms-agenda-btn--secondary cms-agenda-btn--nav" aria-label="Previous agenda row">&larr;</button>
+              <select id="cms-agenda-row-select"></select>
+              <button id="cms-agenda-row-next-btn" type="button" class="cms-agenda-btn--secondary cms-agenda-btn--nav" aria-label="Next agenda row">&rarr;</button>
+            </div>
+          </label>
         </div>
+
+        <p id="cms-agenda-sheet-row-hint" class="cms-agenda__row-hint" hidden></p>
 
         <div class="cms-agenda__actions">
           <button id="cms-agenda-make-active-btn" type="button" class="cms-agenda-btn--secondary">Make Active</button>

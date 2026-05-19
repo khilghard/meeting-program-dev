@@ -146,6 +146,34 @@ describe("GoogleAuth Module", () => {
       GoogleAuth.signOut();
     });
 
+    it("should recover when GIS finishes loading after initialize", async () => {
+      const requestAccessToken = vi.fn();
+      const script = document.createElement("script");
+      script.src = "https://accounts.google.com/gsi/client";
+      document.head.appendChild(script);
+
+      global.google = undefined;
+      GoogleAuth.initialize("test-client-id", "http://localhost/callback");
+
+      global.google = {
+        accounts: {
+          oauth2: {
+            initTokenClient: vi.fn((authConfig) => {
+              requestAccessToken.mockImplementation(() => {
+                authConfig.callback({ access_token: "late-token", expires_in: 3600 });
+              });
+              return { requestAccessToken, requestAuthorizationCode: vi.fn() };
+            })
+          }
+        }
+      };
+
+      const result = await GoogleAuth.signIn();
+
+      expect(requestAccessToken).toHaveBeenCalled();
+      expect(result.token).toBe("late-token");
+    });
+
     it("should throw error if not initialized", () => {
       // Don't initialize - should throw
       // Note: GoogleAuth is a singleton, so we test that signIn throws when config not set

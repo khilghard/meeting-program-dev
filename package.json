@@ -6,6 +6,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "husky": "husky install",
+    "vendor:sync": "node scripts/sync-vendor-libs.mjs",
+    "vendor:update": "npm update dexie qrcode jsqr uuid && npm run vendor:sync",
     "dev": "node server.cjs",
     "test": "vitest",
     "test:run": "vitest --run",
@@ -42,6 +44,8 @@
     "@rigour-labs/core": "^2.22.0",
     "@rigour-labs/mcp": "^2.22.0",
     "@vitest/coverage-v8": "^4.0.18",
-    "fake-indexeddb": "^6.2.5"
+    "esbuild": "^0.28.0",
+    "fake-indexeddb": "^6.2.5",
+    "jsqr": "^1.4.0"
   }
 }

@@ -106,6 +106,10 @@ const translationsData = {
     "diagnostic.sending": "Sending diagnostic data...",
     "diagnostic.success": "Opening your email client...",
     "diagnostic.error": "Failed to collect diagnostic data. Please try again.",
+    "diagnostic.mailtoTooLarge":
+      "Diagnostic report was too large to attach automatically. Please describe the issue and include recent steps.",
+    "diagnostic.mailtoTooLargeCopied":
+      "Full diagnostic report was copied to your clipboard. Please paste it into this email.",
     // Private Agenda (legacy)
     managePrivateAgenda: "Manage Private Agenda",
     privateAgenda: "Private Agenda",
@@ -198,6 +202,9 @@ const translationsData = {
     "cmsAgenda.saveSettingsButton": "Save Settings",
     "cmsAgenda.sheetTabLabel": "Sheet Tab",
     "cmsAgenda.keyLabel": "Agenda Key",
+    "cmsAgenda.rowLabel": "Agenda Row",
+    "cmsAgenda.sheetRowPrefix": "Sheet row",
+    "cmsAgenda.newRowLabel": "New row",
     "cmsAgenda.makeActiveButton": "Make Active",
     "cmsAgenda.saveDraftButton": "Save Draft",
     "cmsAgenda.publishButton": "Publish",
@@ -376,6 +383,10 @@ const translationsData = {
     "diagnostic.sending": "Enviando datos de diagnóstico...",
     "diagnostic.success": "Abriendo su cliente de correo electrónico...",
     "diagnostic.error": "Error al recopilar datos de diagnóstico. Por favor intente de nuevo.",
+    "diagnostic.mailtoTooLarge":
+      "El informe de diagnóstico era demasiado grande para adjuntarlo automáticamente. Describa el problema e incluya los pasos recientes.",
+    "diagnostic.mailtoTooLargeCopied":
+      "El informe de diagnóstico completo se copió al portapapeles. Péguelo en este correo electrónico.",
     // Private Agenda (legacy)
     managePrivateAgenda: "Manage Private Agenda",
     privateAgenda: "Private Agenda",
@@ -468,6 +479,9 @@ const translationsData = {
     "cmsAgenda.saveSettingsButton": "Guardar configuraci\u00f3n",
     "cmsAgenda.sheetTabLabel": "Pesta\u00f1a de hoja",
     "cmsAgenda.keyLabel": "Clave de agenda",
+    "cmsAgenda.rowLabel": "Fila de agenda",
+    "cmsAgenda.sheetRowPrefix": "Fila de hoja",
+    "cmsAgenda.newRowLabel": "Fila nueva",
     "cmsAgenda.makeActiveButton": "Activar",
     "cmsAgenda.saveDraftButton": "Guardar borrador",
     "cmsAgenda.publishButton": "Publicar",
@@ -647,6 +661,10 @@ const translationsData = {
     "diagnostic.sending": "Envoi des données de diagnostic...",
     "diagnostic.success": "Ouverture de votre client e-mail...",
     "diagnostic.error": "Échec de la collecte des données de diagnostic. Veuillez réessayer.",
+    "diagnostic.mailtoTooLarge":
+      "Le rapport de diagnostic était trop volumineux pour être joint automatiquement. Décrivez le problème et incluez les étapes récentes.",
+    "diagnostic.mailtoTooLargeCopied":
+      "Le rapport de diagnostic complet a été copié dans votre presse-papiers. Veuillez le coller dans cet e-mail.",
     // Private Agenda (legacy)
     managePrivateAgenda: "Manage Private Agenda",
     privateAgenda: "Private Agenda",
@@ -739,6 +757,9 @@ const translationsData = {
     "cmsAgenda.saveSettingsButton": "Enregistrer les param\u00e8tres",
     "cmsAgenda.sheetTabLabel": "Onglet de feuille",
     "cmsAgenda.keyLabel": "Cl\u00e9 d'ordre du jour",
+    "cmsAgenda.rowLabel": "Ligne d'ordre du jour",
+    "cmsAgenda.sheetRowPrefix": "Ligne de feuille",
+    "cmsAgenda.newRowLabel": "Nouvelle ligne",
     "cmsAgenda.makeActiveButton": "Rendre actif",
     "cmsAgenda.saveDraftButton": "Enregistrer le brouillon",
     "cmsAgenda.publishButton": "Publier",
@@ -917,6 +938,10 @@ const translationsData = {
     "diagnostic.sending": "Inatuma data ya kuchacha...",
     "diagnostic.success": "Inafungua mteja wako wa barua pepe...",
     "diagnostic.error": "Imeshindwa kukusanya data ya kuchacha. Tafadhali jaribu tena.",
+    "diagnostic.mailtoTooLarge":
+      "Ripoti ya uchunguzi ilikuwa kubwa sana kuambatishwa moja kwa moja. Tafadhali eleza tatizo na ujumuishe hatua za hivi karibuni.",
+    "diagnostic.mailtoTooLargeCopied":
+      "Ripoti kamili ya uchunguzi imenakiliwa kwenye clipboard yako. Tafadhali ibandike kwenye barua pepe hii.",
     // Private Agenda (legacy)
     managePrivateAgenda: "Manage Private Agenda",
     privateAgenda: "Private Agenda",
@@ -1009,6 +1034,9 @@ const translationsData = {
     "cmsAgenda.saveSettingsButton": "Hifadhi mipangilio",
     "cmsAgenda.sheetTabLabel": "Kichupo cha lahajedwali",
     "cmsAgenda.keyLabel": "Ufunguo wa ajenda",
+    "cmsAgenda.rowLabel": "Mstari wa ajenda",
+    "cmsAgenda.sheetRowPrefix": "Mstari wa laha",
+    "cmsAgenda.newRowLabel": "Mstari mpya",
     "cmsAgenda.makeActiveButton": "Weka hai",
     "cmsAgenda.saveDraftButton": "Hifadhi rasimu",
     "cmsAgenda.publishButton": "Chapisha",

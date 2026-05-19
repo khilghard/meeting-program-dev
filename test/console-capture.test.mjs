@@ -13,12 +13,14 @@ import {
 
 describe("Console Capture Module", () => {
   beforeEach(() => {
+    sessionStorage.clear();
     clearConsoleLogs();
     // Re-initialize to set up the intercepts
     initConsoleCapture();
   });
 
   afterEach(() => {
+    sessionStorage.clear();
     clearConsoleLogs();
   });
 
@@ -109,6 +111,17 @@ describe("Console Capture Module", () => {
 
     clearConsoleLogs();
     expect(getConsoleLogCount()).toBe(0);
+    expect(sessionStorage.getItem("meeting_program_console_logs")).toBeNull();
+  });
+
+  test("persists captured logs in sessionStorage across reloads", () => {
+    console.error("Persist this failure");
+
+    const persisted = JSON.parse(sessionStorage.getItem("meeting_program_console_logs"));
+    const persistedLog = persisted.find((log) => log.message.includes("Persist this failure"));
+
+    expect(persistedLog).toBeDefined();
+    expect(persistedLog.level).toBe("error");
   });
 
   test("handles mixed argument types", () => {

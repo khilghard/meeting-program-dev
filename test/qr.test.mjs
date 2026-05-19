@@ -252,9 +252,16 @@ describe("QR Module", () => {
   describe("Scanner State", () => {
     test("showScanner unhides section and updates button", () => {
       const btn = document.getElementById("qr-action-btn");
+      const manualBtn = document.getElementById("manual-url-btn");
+      const manualContainer = document.getElementById("manual-url-container");
+
       showScanner();
+
       expect(document.getElementById("qr-scanner").hidden).toBe(false);
       expect(btn.textContent).toBe("Cancel");
+      expect(manualBtn.hidden).toBe(false);
+      expect(manualBtn.textContent).toBe("Enter Sheet URL Manually");
+      expect(manualContainer.hidden).toBe(true);
     });
 
     test("hideScanner hides section and restores button", async () => {
@@ -357,6 +364,19 @@ describe("QR Module", () => {
 
   // ---------- Manual URL Entry ----------
   describe("Manual URL Entry", () => {
+    test("normal scanner flow reveals manual entry button before camera failure", () => {
+      navigator.mediaDevices.getUserMedia.mockResolvedValue({
+        getTracks: () => [{ stop: vi.fn() }]
+      });
+      const manualBtn = document.getElementById("manual-url-btn");
+      const manualContainer = document.getElementById("manual-url-container");
+
+      showScanner();
+
+      expect(manualBtn.hidden).toBe(false);
+      expect(manualContainer.hidden).toBe(true);
+    });
+
     test("showManualUrlEntry shows button when camera fails", async () => {
       const error = new Error("Permission denied");
       navigator.mediaDevices.getUserMedia.mockRejectedValue(error);

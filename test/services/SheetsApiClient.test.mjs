@@ -30,6 +30,21 @@ function mockFetchStatus(status) {
       ok: false,
       status,
       json: () => Promise.resolve({ error: { code: status } }),
+      text: () => Promise.resolve("")
+    })
+  );
+}
+
+function mockFetchError(status, error) {
+  global.fetch = vi.fn(() =>
+    Promise.resolve({
+      ok: false,
+      status,
+      clone() {
+        return this;
+      },
+      json: () => Promise.resolve({ error }),
+      text: () => Promise.resolve(error?.message || "")
     })
   );
 }
@@ -99,6 +114,23 @@ describe("SheetsApiClient — getValues", () => {
     mockFetchStatus(403);
     const client = makeClient();
     await expect(client.getValues(SHEET_ID, "A:A")).rejects.toThrow(SheetsAuthError);
+  });
+
+  test("preserves Google 403 details in SheetsAuthError message", async () => {
+    mockFetchError(403, {
+      code: 403,
+      message: "The caller does not have permission",
+      status: "PERMISSION_DENIED",
+      errors: [{ reason: "forbidden" }]
+    });
+    const client = makeClient();
+
+    await expect(client.getValues(SHEET_ID, "A:A")).rejects.toMatchObject({
+      name: "SheetsAuthError",
+      status: 403,
+      reason: "PERMISSION_DENIED",
+      message: expect.stringContaining("The caller does not have permission")
+    });
   });
 
   test("throws SheetsRateLimitError on 429", async () => {
