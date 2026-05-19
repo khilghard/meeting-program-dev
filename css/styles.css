@@ -2627,6 +2627,21 @@ hr.help-razor {
   opacity: 0.65;
 }
 
+.cms-agenda__key-change-hint {
+  margin: 0.15rem 0 0.55rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  background: rgba(33, 150, 243, 0.1);
+  color: #1565c0;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+[data-theme="dark"] .cms-agenda__key-change-hint {
+  background: rgba(100, 181, 246, 0.16);
+  color: #90caf9;
+}
+
 /* Action buttons */
 .cms-agenda__actions {
   display: flex;
