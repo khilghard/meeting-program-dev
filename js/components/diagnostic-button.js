@@ -9,8 +9,57 @@ import { t } from "../i18n/index.js";
 
 const BUTTON_ID = "diagnostic-button";
 const EMAIL_SUBJECT = "Sacrament Meeting Program Debug Data";
+const MAX_MAILTO_URL_LENGTH = 1800;
 
 let isLoading = false;
+
+function translateOrFallback(key, fallback) {
+  const translated = t(key);
+  return translated && translated !== key ? translated : fallback;
+}
+
+function buildMailtoUrl(subject, body) {
+  return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+async function copyDiagnosticToClipboard(text) {
+  try {
+    if (!navigator.clipboard?.writeText) {
+      return false;
+    }
+
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function buildFallbackBody(diagnosticData, copiedToClipboard) {
+  const intro = copiedToClipboard
+    ? translateOrFallback(
+      "diagnostic.mailtoTooLargeCopied",
+      "Full diagnostic report was copied to your clipboard. Please paste it into this email."
+    )
+    : translateOrFallback(
+      "diagnostic.mailtoTooLarge",
+      "Diagnostic report was too large to attach automatically. Please describe the issue and include recent steps."
+    );
+
+  const lines = [intro, ""];
+
+  if (diagnosticData?.timestamp) {
+    lines.push(`Timestamp: ${diagnosticData.timestamp}`);
+  }
+  if (diagnosticData?.siteUrl) {
+    lines.push(`Site URL: ${diagnosticData.siteUrl}`);
+  }
+  if (diagnosticData?.googleSheetUrl) {
+    lines.push(`Google Sheet URL: ${diagnosticData.googleSheetUrl}`);
+  }
+
+  return lines.join("\n");
+}
 
 /**
  * Initialize the diagnostic button on page load
@@ -45,10 +94,22 @@ async function handleDiagnosticClick() {
     const diagnosticData = await collectDiagnosticData();
     const emailBody = formatDiagnosticEmail(diagnosticData);
 
-    // Create mailto link
-    const subject = encodeURIComponent(EMAIL_SUBJECT);
-    const body = encodeURIComponent(emailBody);
-    const mailto = `mailto:?subject=${subject}&body=${body}`;
+    let mailto = buildMailtoUrl(EMAIL_SUBJECT, emailBody);
+
+    if (mailto.length > MAX_MAILTO_URL_LENGTH) {
+      const copiedToClipboard = await copyDiagnosticToClipboard(emailBody);
+      const fallbackBody = buildFallbackBody(diagnosticData, copiedToClipboard);
+
+      console.warn(
+        "[DiagnosticButton] Diagnostic payload exceeded mailto size limit; using short draft fallback",
+        {
+          mailtoLength: mailto.length,
+          copiedToClipboard
+        }
+      );
+
+      mailto = buildMailtoUrl(EMAIL_SUBJECT, fallbackBody);
+    }
 
     // Update button to opening email state
     updateButtonState("opening");
