@@ -26,7 +26,7 @@ console.log(`[SW] BASE_PATH detected: "${BASE_PATH}"`);
 // Legacy support - keep old MPPATH for existing users
 const MPPATH = BASE_PATH || "/meeting-program-dev";
 const APP_PREFIX = "smpwa";
-const VERSION = "2.4.7";
+const VERSION = "2.4.8";
 const CACHE_NAME = `${APP_PREFIX}-${VERSION}`;
 
 // All users now on 2.2.x - single unified cache scheme
@@ -67,7 +67,8 @@ const URLS = [
   `${BASE_PATH || MPPATH}/manifest.webmanifest`,
   `${BASE_PATH || MPPATH}/js/vendor/dexie.mjs?v=${VERSION}`,
   `${BASE_PATH || MPPATH}/js/vendor/uuid-v4.mjs?v=${VERSION}`,
-  "https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"
+  `${BASE_PATH || MPPATH}/js/vendor/jsQR.js?v=${VERSION}`,
+  `${BASE_PATH || MPPATH}/js/vendor/qrcode.js?v=${VERSION}`
 ];
 
 // ------------------------------------------------------------

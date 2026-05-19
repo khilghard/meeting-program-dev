@@ -18,13 +18,18 @@ function makeClient(overrides = {}) {
 
 // Stub agenda sheet — no header row (first cell is NOT "key")
 const SHEET_ROWS_NO_HEADER = [
-  ["agendaGeneral", "Opening prayer by Elder Brown"],
-  ["agendaAnnouncements", "Announcement one||Announcement two"],
-  ["agendaBusinessCallings", "John Smith|Elder||Jane Doe|Relief Society President"]
+  ["agendaGeneral", "gen1", "Opening prayer by Elder Brown"],
+  ["agendaAnnouncements", "ann1", "Announcement one", "Announcement two"],
+  [
+    "agendaBusinessCallings",
+    "call1",
+    "John Smith|Elder",
+    "Jane Doe|Relief Society President"
+  ]
 ];
 
 // Stub with a "key" header row
-const SHEET_ROWS_WITH_HEADER = [["key", "value"], ...SHEET_ROWS_NO_HEADER];
+const SHEET_ROWS_WITH_HEADER = [["key", "id", "value1", "value2"], ...SHEET_ROWS_NO_HEADER];
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -80,7 +85,7 @@ describe("AgendaSheetService — readAgendaKey", () => {
     });
     const svc = new AgendaSheetService(client, AGENDA_URL);
     await svc.readAgendaKey("agendaGeneral", "May 18, 2026");
-    expect(client.getValues).toHaveBeenCalledWith(expect.any(String), "'May 18, 2026'!A:B");
+    expect(client.getValues).toHaveBeenCalledWith(expect.any(String), "'May 18, 2026'!A:ZZ");
   });
 
   test("accepts a selected-tab object from SheetTabService", async () => {
@@ -94,7 +99,7 @@ describe("AgendaSheetService — readAgendaKey", () => {
       index: 0,
       isActive: true
     });
-    expect(client.getValues).toHaveBeenCalledWith(expect.any(String), "'May 18, 2026'!A:B");
+    expect(client.getValues).toHaveBeenCalledWith(expect.any(String), "'May 18, 2026'!A:ZZ");
   });
 
   test("returns empty array when value cell is empty", async () => {
@@ -117,23 +122,22 @@ describe("AgendaSheetService — readAgendaKey", () => {
 // ---------------------------------------------------------------------------
 
 describe("AgendaSheetService — writeAgendaKey (update existing)", () => {
-  test("updates only column B of the matching row", async () => {
+  test("updates the matching row and preserves the linked agenda id", async () => {
     const client = makeClient({
-      getValues: vi.fn(() => Promise.resolve([["agendaGeneral"], ["agendaAnnouncements"]]))
+      getValues: vi.fn(() => Promise.resolve(SHEET_ROWS_NO_HEADER))
     });
     const svc = new AgendaSheetService(client, AGENDA_URL);
     await svc.writeAgendaKey("agendaAnnouncements", [["New announcement"]], "Sheet1");
 
     expect(client.valueUpdate).toHaveBeenCalledTimes(1);
     const [, range, values] = client.valueUpdate.mock.calls[0];
-    // Row 2 in the sheet (index 1 in the array + 1 for 1-based = row 2)
-    expect(range).toBe("Sheet1!B2");
-    expect(values).toEqual([["New announcement"]]);
+    expect(range).toBe("Sheet1!A2:D2");
+    expect(values).toEqual([["agendaAnnouncements", "ann1", "New announcement", ""]]);
   });
 
-  test("serialises multi-part entries with pipe separators", async () => {
+  test("serialises multi-part entries into separate sheet cells", async () => {
     const client = makeClient({
-      getValues: vi.fn(() => Promise.resolve([["agendaBusinessCallings"]]))
+      getValues: vi.fn(() => Promise.resolve(SHEET_ROWS_NO_HEADER))
     });
     const svc = new AgendaSheetService(client, AGENDA_URL);
     await svc.writeAgendaKey(
@@ -146,7 +150,12 @@ describe("AgendaSheetService — writeAgendaKey (update existing)", () => {
     );
 
     const [, , values] = client.valueUpdate.mock.calls[0];
-    expect(values[0][0]).toBe("John Smith|Elder||Jane Doe|Relief Society President");
+    expect(values[0]).toEqual([
+      "agendaBusinessCallings",
+      "call1",
+      "John Smith|Elder",
+      "Jane Doe|Relief Society President"
+    ]);
   });
 
   test("uses named sheet tab in range", async () => {
@@ -184,16 +193,14 @@ describe("AgendaSheetService — writeAgendaKey (update existing)", () => {
 describe("AgendaSheetService — writeAgendaKey (append new key)", () => {
   test("appends key+value row when key not found in sheet", async () => {
     const client = makeClient({
-      getValues: vi.fn(() => Promise.resolve([["agendaGeneral", "Some value"]]))
+      getValues: vi.fn(() => Promise.resolve(SHEET_ROWS_NO_HEADER))
     });
     const svc = new AgendaSheetService(client, AGENDA_URL);
     await svc.writeAgendaKey("agendaAnnouncements", [["New ann"]], "Sheet1");
 
     expect(client.valueUpdate).toHaveBeenCalledTimes(1);
-    const [, range, values] = client.valueUpdate.mock.calls[0];
-    // Sheet has 1 row, so append at row 2
-    expect(range).toBe("Sheet1!A2:B2");
-    expect(values).toEqual([["agendaAnnouncements", "New ann"]]);
+    const [, range] = client.valueUpdate.mock.calls[0];
+    expect(range).toBe("Sheet1!A2:D2");
   });
 
   test("appends after all existing rows on an empty sheet", async () => {
@@ -204,7 +211,63 @@ describe("AgendaSheetService — writeAgendaKey (append new key)", () => {
     await svc.writeAgendaKey("agendaGeneral", [["Hello"]], "Sheet1");
 
     const [, range] = client.valueUpdate.mock.calls[0];
-    expect(range).toBe("Sheet1!A1:B1");
+    expect(range).toBe("Sheet1!A1:C1");
+  });
+});
+
+describe("AgendaSheetService — row metadata", () => {
+  test("lists matching rows with sheet row numbers and ids", async () => {
+    const client = makeClient({
+      getValues: vi.fn(() =>
+        Promise.resolve([
+          ["key", "id", "value1", "value2"],
+          ["agendaAnnouncements", "ann1", "Announcement one", "Announcement two"],
+          ["agendaAnnouncements", "ann2", "Follow up announcement"],
+          ["agendaBusinessCallings", "call1", "John Smith|Elder"]
+        ])
+      )
+    });
+    const svc = new AgendaSheetService(client, AGENDA_URL);
+
+    const rows = await svc.readAgendaRows("agendaAnnouncements");
+
+    expect(rows).toEqual([
+      {
+        key: "agendaAnnouncements",
+        agendaId: "ann1",
+        values: [["Announcement one"], ["Announcement two"]],
+        sheetRow: 2,
+        columnCount: 4
+      },
+      {
+        key: "agendaAnnouncements",
+        agendaId: "ann2",
+        values: [["Follow up announcement"]],
+        sheetRow: 3,
+        columnCount: 3
+      }
+    ]);
+  });
+
+  test("writes a specific row and clears stale trailing cells", async () => {
+    const client = makeClient({
+      getValues: vi.fn(() => Promise.resolve(SHEET_ROWS_NO_HEADER))
+    });
+    const svc = new AgendaSheetService(client, AGENDA_URL);
+
+    await svc.writeAgendaRow(
+      {
+        key: "agendaAnnouncements",
+        agendaId: "ann1",
+        values: [["Only announcement left"]],
+        sheetRow: 2
+      },
+      "Sheet1"
+    );
+
+    const [, range, values] = client.valueUpdate.mock.calls[0];
+    expect(range).toBe("Sheet1!A2:D2");
+    expect(values).toEqual([["agendaAnnouncements", "ann1", "Only announcement left", ""]]);
   });
 });
 
@@ -229,6 +292,16 @@ describe("AgendaSheetService — serialisation", () => {
     const original = [["Simple text value"]];
     expect(svc._deserialize(svc._serialize(original))).toEqual(original);
   });
+
+  test("row entry serialisation trims trailing blank cells but preserves interior blanks", () => {
+    const svc = new AgendaSheetService(makeClient(), AGENDA_URL);
+
+    expect(svc._serializeRowEntries([["One"], [""], ["Two"], [""]])).toEqual([
+      "One",
+      "",
+      "Two"
+    ]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -240,8 +313,8 @@ describe("AgendaSheetService — oilLamp integration", () => {
     const client = makeClient({
       getValues: vi.fn(() =>
         Promise.resolve([
-          ["agendaGeneral", "Original prayer"],
-          ["agendaAnnouncements", "Old announcement"]
+          ["agendaGeneral", "gen1", "Original prayer"],
+          ["agendaAnnouncements", "ann1", "Old announcement"]
         ])
       ),
       valueUpdate: vi.fn(() => Promise.resolve({ updatedCells: 1 }))
@@ -251,13 +324,12 @@ describe("AgendaSheetService — oilLamp integration", () => {
 
     expect(client.valueUpdate).toHaveBeenCalledTimes(1);
     const [, range] = client.valueUpdate.mock.calls[0];
-    // Row 1 in array → sheet row 1 (no header offset)
-    expect(range).toBe("Sheet1!B1");
+    expect(range).toBe("Sheet1!A1:C1");
   });
 
   test("writeAgendaKey with new key appends row", async () => {
     const client = makeClient({
-      getValues: vi.fn(() => Promise.resolve([["agendaGeneral", "Some prayer"]])),
+      getValues: vi.fn(() => Promise.resolve([["agendaGeneral", "gen1", "Some prayer"]])),
       valueUpdate: vi.fn(() => Promise.resolve({ updatedCells: 1 }))
     });
     const svc = new AgendaSheetService(client, AGENDA_URL);
@@ -265,16 +337,16 @@ describe("AgendaSheetService — oilLamp integration", () => {
 
     expect(client.valueUpdate).toHaveBeenCalledTimes(1);
     const [, range] = client.valueUpdate.mock.calls[0];
-    expect(range).toBe("Sheet1!A2:B2");
+    expect(range).toBe("Sheet1!A2:C2");
   });
 
   test("readAgendaKey with header row returns correct data", async () => {
     const client = makeClient({
       getValues: vi.fn(() =>
         Promise.resolve([
-          ["key", "value"],
-          ["agendaGeneral", "Opening prayer"],
-          ["agendaAnnouncements", "Announcement 1||Announcement 2"]
+          ["key", "id", "value1", "value2"],
+          ["agendaGeneral", "gen1", "Opening prayer"],
+          ["agendaAnnouncements", "ann1", "Announcement 1", "Announcement 2"]
         ])
       )
     });
@@ -291,7 +363,7 @@ describe("AgendaSheetService — oilLamp integration", () => {
 describe("AgendaSheetService — conflict detection", () => {
   test("does not have built-in conflict detection (relies on Sheets API)", async () => {
     const client = makeClient({
-      getValues: vi.fn(() => Promise.resolve([["agendaGeneral", "Some value"]]))
+      getValues: vi.fn(() => Promise.resolve([["agendaGeneral", "gen1", "Some value"]]))
     });
     const svc = new AgendaSheetService(client, AGENDA_URL);
     // Should not throw — write is optimistic
@@ -303,8 +375,8 @@ describe("AgendaSheetService — conflict detection", () => {
     const client = makeClient({
       getValues: vi.fn(() =>
         Promise.resolve([
-          ["agendaGeneral", "Prayer"],
-          ["agendaHymn", "Hymn 100"]
+          ["agendaGeneral", "gen1", "Prayer"],
+          ["agendaHymn", "hymn1", "Hymn 100"]
         ])
       ),
       valueUpdate: vi.fn(() => Promise.resolve({ updatedCells: 1 }))
@@ -316,8 +388,7 @@ describe("AgendaSheetService — conflict detection", () => {
     expect(client.valueUpdate).toHaveBeenCalledTimes(2);
     const [, range1] = client.valueUpdate.mock.calls[0];
     const [, range2] = client.valueUpdate.mock.calls[1];
-    // Row 0 → sheet row 1, Row 1 → sheet row 2
-    expect(range1).toBe("Sheet1!B1");
-    expect(range2).toBe("Sheet1!B2");
+    expect(range1).toBe("Sheet1!A1:C1");
+    expect(range2).toBe("Sheet1!A2:C2");
   });
 });

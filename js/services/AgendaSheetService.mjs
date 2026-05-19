@@ -26,7 +26,22 @@
  */
 
 import { extractSpreadsheetId } from "../utils/sheetsUrl.js";
-import { DEFAULT_SHEET_TAB_NAME, toSheetRange } from "../utils/sheetRanges.js";
+import { DEFAULT_SHEET_TAB_NAME, normalizeSheetTabName, toSheetRange } from "../utils/sheetRanges.js";
+
+const AGENDA_ROW_SCAN_RANGE = "A:ZZ";
+
+function toColumnLetter(index) {
+  let value = index + 1;
+  let result = "";
+
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    result = String.fromCharCode(65 + remainder) + result;
+    value = Math.floor((value - 1) / 26);
+  }
+
+  return result;
+}
 
 export class AgendaSheetService {
   /**
@@ -55,24 +70,119 @@ export class AgendaSheetService {
    * @returns {Promise<void>}
    */
   async writeAgendaKey(key, values, sheetName = DEFAULT_SHEET_TAB_NAME) {
+    const existingRow = (await this.readAgendaRows(key, sheetName))[0] ?? null;
+    await this.writeAgendaRow(
+      {
+        key,
+        agendaId: existingRow?.agendaId ?? "",
+        values,
+        sheetRow: existingRow?.sheetRow ?? null
+      },
+      sheetName
+    );
+  }
+
+  /**
+   * Write a specific agenda sheet row.
+   *
+   * @param {{key: string, agendaId?: string, values?: string[][], sheetRow?: number|null}} row
+   * @param {string|import("../utils/sheetRanges.js").SheetTabSelection} [sheetName]
+   * @returns {Promise<void>}
+   */
+  async writeAgendaRow(row, sheetName = DEFAULT_SHEET_TAB_NAME) {
+    const key = String(row?.key ?? "").trim();
+    if (!key) {
+      throw new Error("AgendaSheetService.writeAgendaRow requires a key");
+    }
+
+    const agendaId = String(row?.agendaId ?? "").trim();
     const id = this._spreadsheetId;
-    const serialized = this._serialize(values);
+    const tabTitle = normalizeSheetTabName(sheetName);
+    const rawRows = await this._client.getValues(id, toSheetRange(sheetName, AGENDA_ROW_SCAN_RANGE));
+    const offset = this._headerOffset(rawRows);
+    const parsedRows = rawRows
+      .slice(offset)
+      .map((rawRow, index) => this._toAgendaRow(rawRow, offset + index + 1))
+      .filter(Boolean);
 
-    const keyCol = await this._client.getValues(id, toSheetRange(sheetName, "A:A"));
-    const rowIdx = this._findKeyRow(keyCol, key); // 1-based sheet row, or -1
+    const existingRow = parsedRows.find((candidate) => {
+      if (Number.isInteger(row?.sheetRow) && row.sheetRow > 0) {
+        return candidate.sheetRow === row.sheetRow;
+      }
+      return candidate.key === key && candidate.agendaId === agendaId;
+    });
 
-    if (rowIdx === -1) {
-      // Key not in sheet — append after last row
-      const appendAt = keyCol.length + 1;
+    const serializedValues = this._serializeRowEntries(row?.values ?? []);
+    const rowValues = [key, agendaId, ...serializedValues];
+
+    if (existingRow) {
+      const targetWidth = Math.max(existingRow.columnCount, rowValues.length);
+      const paddedRow = [...rowValues, ...Array.from({ length: targetWidth - rowValues.length }, () => "")];
+      const lastColumn = toColumnLetter(targetWidth - 1);
+      const range = toSheetRange(sheetName, `A${existingRow.sheetRow}:${lastColumn}${existingRow.sheetRow}`);
       await this._client.valueUpdate(
         id,
-        toSheetRange(sheetName, `A${appendAt}:B${appendAt}`),
-        [[key, serialized]]
+        range,
+        [paddedRow]
       );
-    } else {
-      // Update existing row's value column only
-      await this._client.valueUpdate(id, toSheetRange(sheetName, `B${rowIdx}`), [[serialized]]);
+      return {
+        action: "update",
+        key,
+        agendaId,
+        sheetRow: existingRow.sheetRow,
+        tabTitle,
+        range,
+        rowValues: paddedRow
+      };
     }
+
+    const appendAt = rawRows.length + 1;
+    const lastColumn = toColumnLetter(rowValues.length - 1);
+    const range = toSheetRange(sheetName, `A${appendAt}:${lastColumn}${appendAt}`);
+    await this._client.valueUpdate(
+      id,
+      range,
+      [rowValues]
+    );
+    return {
+      action: "append",
+      key,
+      agendaId,
+      sheetRow: appendAt,
+      tabTitle,
+      range,
+      rowValues
+    };
+  }
+
+  /**
+   * Read all agenda rows for a specific agenda key.
+   *
+   * @param {string} key
+   * @param {string|import("../utils/sheetRanges.js").SheetTabSelection} [sheetName]
+   * @returns {Promise<Array<{key: string, agendaId: string, values: string[][], sheetRow: number, columnCount: number}>>}
+   */
+  async readAgendaRows(key, sheetName = DEFAULT_SHEET_TAB_NAME) {
+    const normalizedKey = String(key ?? "").trim();
+    const rows = await this.listAgendaRows(sheetName);
+    return rows.filter((row) => row.key === normalizedKey);
+  }
+
+  /**
+   * Read all agenda sheet rows in the selected tab.
+   *
+   * @param {string|import("../utils/sheetRanges.js").SheetTabSelection} [sheetName]
+   * @returns {Promise<Array<{key: string, agendaId: string, values: string[][], sheetRow: number, columnCount: number}>>}
+   */
+  async listAgendaRows(sheetName = DEFAULT_SHEET_TAB_NAME) {
+    const id = this._spreadsheetId;
+    const rows = await this._client.getValues(id, toSheetRange(sheetName, AGENDA_ROW_SCAN_RANGE));
+    const offset = this._headerOffset(rows);
+
+    return rows
+      .slice(offset)
+      .map((row, index) => this._toAgendaRow(row, offset + index + 1))
+      .filter(Boolean);
   }
 
   /**
@@ -84,14 +194,8 @@ export class AgendaSheetService {
    * @returns {Promise<string[][]>}  — array of entries (empty array if key not found)
    */
   async readAgendaKey(key, sheetName = DEFAULT_SHEET_TAB_NAME) {
-    const id = this._spreadsheetId;
-    const rows = await this._client.getValues(id, toSheetRange(sheetName, "A:B"));
-
-    const dataRow = rows.slice(this._headerOffset(rows)).find(r => r[0] === key);
-    if (!dataRow) return [];
-
-    const raw = dataRow[1] ?? "";
-    return raw ? this._deserialize(raw) : [];
+    const rows = await this.readAgendaRows(key, sheetName);
+    return rows[0]?.values ?? [];
   }
 
   // -------------------------------------------------------------------------
@@ -107,7 +211,7 @@ export class AgendaSheetService {
    * @returns {string}
    */
   _serialize(entries) {
-    return entries.map(parts => parts.join("|")).join("||");
+    return this._serializeRowEntries(entries).join("||");
   }
 
   /**
@@ -119,7 +223,57 @@ export class AgendaSheetService {
    * @returns {string[][]}
    */
   _deserialize(raw) {
-    return raw.split("||").map(entry => entry.split("|"));
+    return String(raw ?? "")
+      .split("||")
+      .filter((entry) => entry !== "")
+      .map((entry) => this._deserializeCell(entry));
+  }
+
+  _serializeRowEntries(entries) {
+    const normalizedEntries = Array.isArray(entries) ? entries : [];
+    const rowValues = normalizedEntries.map((parts) => this._serializeEntryCell(parts));
+
+    while (rowValues.length > 0 && rowValues[rowValues.length - 1].trim() === "") {
+      rowValues.pop();
+    }
+
+    return rowValues;
+  }
+
+  _serializeEntryCell(parts) {
+    const normalizedParts = Array.isArray(parts) ? parts : [parts];
+    return normalizedParts.map((part) => String(part ?? "").trim()).join("|");
+  }
+
+  _deserializeCell(raw) {
+    return String(raw ?? "").split("|");
+  }
+
+  _deserializeRowEntries(cells) {
+    const normalizedCells = Array.isArray(cells) ? [...cells] : [];
+    while (
+      normalizedCells.length > 0 &&
+      String(normalizedCells[normalizedCells.length - 1] ?? "").trim() === ""
+    ) {
+      normalizedCells.pop();
+    }
+
+    return normalizedCells.map((cell) => this._deserializeCell(cell));
+  }
+
+  _toAgendaRow(row, sheetRow) {
+    const key = String(row?.[0] ?? "").trim();
+    if (!key) {
+      return null;
+    }
+
+    return {
+      key,
+      agendaId: String(row?.[1] ?? "").trim(),
+      values: this._deserializeRowEntries(row?.slice(2) ?? []),
+      sheetRow,
+      columnCount: Math.max(Array.isArray(row) ? row.length : 0, 2)
+    };
   }
 
   // -------------------------------------------------------------------------

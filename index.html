@@ -222,10 +222,29 @@
 
       localStorage.setItem("app_version", VERSION);
 
-      const mainScript = document.createElement("script");
-      mainScript.type = "module";
-      mainScript.src = `js/main.js?v=${VERSION}`;
-      document.head.appendChild(mainScript);
+      const loadClassicScript = (src) =>
+        new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = src;
+          script.async = false;
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error(`Failed to load ${src}`));
+          document.head.appendChild(script);
+        });
+
+      (async () => {
+        try {
+          await loadClassicScript(`js/vendor/jsQR.js?v=${VERSION}`);
+          await loadClassicScript(`js/vendor/qrcode.js?v=${VERSION}`);
+        } catch (error) {
+          console.error("[Init] Failed to load local vendor libraries", error);
+        }
+
+        const mainScript = document.createElement("script");
+        mainScript.type = "module";
+        mainScript.src = `js/main.js?v=${VERSION}`;
+        document.head.appendChild(mainScript);
+      })();
 
       // Register service worker after version is loaded
       (async () => {
@@ -598,10 +617,6 @@
         </div>
       </dialog>
     </main>
-
-    <!-- MODULES -->
-    <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
   </body>
 
   <footer>

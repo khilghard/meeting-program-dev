@@ -28,9 +28,14 @@ export class SheetsApiError extends Error {
 }
 
 export class SheetsAuthError extends SheetsApiError {
-  constructor() {
-    super("Google Sheets: not authorized (403) — access token may be expired", 403);
+  constructor(detail = "request forbidden", reason = "") {
+    const reasonText = reason ? ` [${reason}]` : "";
+    super(
+      `Google Sheets: not authorized (403) — ${detail}${reasonText}. Check spreadsheet sharing, OAuth scopes, API enablement, and signed-in account access.`,
+      403
+    );
     this.name = "SheetsAuthError";
+    this.reason = reason || null;
   }
 }
 
@@ -70,6 +75,29 @@ export class SheetsApiClient {
   // Internal
   // -------------------------------------------------------------------------
 
+  async _readErrorBody(response) {
+    try {
+      const payload = await response.clone().json();
+      const error = payload?.error ?? {};
+      return {
+        message: typeof error.message === "string" ? error.message : "",
+        reason:
+          typeof error.status === "string"
+            ? error.status
+            : Array.isArray(error.errors) && typeof error.errors[0]?.reason === "string"
+              ? error.errors[0].reason
+              : ""
+      };
+    } catch {
+      try {
+        const text = await response.clone().text();
+        return { message: text || "", reason: "" };
+      } catch {
+        return { message: "", reason: "" };
+      }
+    }
+  }
+
   async _fetch(url, options = {}) {
     const token = await this._getToken();
     const controller = new AbortController();
@@ -92,11 +120,15 @@ export class SheetsApiClient {
       clearTimeout(timer);
     }
 
-    if (response.status === 403) throw new SheetsAuthError();
+    if (response.status === 403) {
+      const { message, reason } = await this._readErrorBody(response);
+      throw new SheetsAuthError(message || "request forbidden", reason);
+    }
     if (response.status === 429) throw new SheetsRateLimitError();
     if (!response.ok) {
+      const { message } = await this._readErrorBody(response);
       throw new SheetsApiError(
-        `Google Sheets API error ${response.status}`,
+        message ? `Google Sheets API error ${response.status} — ${message}` : `Google Sheets API error ${response.status}`,
         response.status
       );
     }

@@ -56,6 +56,49 @@ function stringifyEntries(values) {
   return JSON.stringify(cloneEntries(values));
 }
 
+function buildAgendaRowToken(agendaId = "", sheetRow = null) {
+  return JSON.stringify([String(agendaId ?? ""), Number.isInteger(sheetRow) ? sheetRow : null]);
+}
+
+function buildAgendaRowIdentity(key, rowToken) {
+  return JSON.stringify([String(key ?? ""), String(rowToken ?? "")]);
+}
+
+function createAgendaRowMeta({ key, agendaId = "", sheetRow = null, values = [] } = {}) {
+  const normalizedSheetRow = Number.isInteger(sheetRow) ? sheetRow : null;
+  const normalizedAgendaId = String(agendaId ?? "").trim();
+  return {
+    key: String(key ?? "").trim(),
+    agendaId: normalizedAgendaId,
+    sheetRow: normalizedSheetRow,
+    rowToken: buildAgendaRowToken(normalizedAgendaId, normalizedSheetRow),
+    values: cloneEntries(values)
+  };
+}
+
+function normalizeDraftRows(dirtyMap = {}) {
+  const normalized = {};
+
+  for (const [draftKey, draftValue] of Object.entries(dirtyMap)) {
+    if (draftValue && typeof draftValue === "object" && Array.isArray(draftValue.values)) {
+      if (!AGENDA_KEYS.includes(draftValue.key)) {
+        continue;
+      }
+
+      const row = createAgendaRowMeta(draftValue);
+      normalized[buildAgendaRowIdentity(row.key, row.rowToken)] = row;
+      continue;
+    }
+
+    if (Array.isArray(draftValue) && AGENDA_KEYS.includes(draftKey)) {
+      const row = createAgendaRowMeta({ key: draftKey, values: draftValue });
+      normalized[buildAgendaRowIdentity(row.key, row.rowToken)] = row;
+    }
+  }
+
+  return normalized;
+}
+
 function getRequestedProfileId(windowRef) {
   try {
     return new URL(windowRef.location.href).searchParams.get("profileId") || "";
@@ -112,6 +155,8 @@ export function createCmsAgendaApp(dependencies = {}) {
     tabs: [],
     selectedTab: null,
     selectedKey: AGENDA_KEYS[0],
+    selectedRowToken: buildAgendaRowToken("", null),
+    rowsForTab: [],
     dirtyMap: {},
     loadedMap: {},
     publishStatusMap: {},
@@ -135,6 +180,11 @@ export function createCmsAgendaApp(dependencies = {}) {
       profileName: documentRef.getElementById("cms-agenda-profile-name"),
       tabSelect: documentRef.getElementById("cms-agenda-tab-select"),
       keySelect: documentRef.getElementById("cms-agenda-key-select"),
+      rowField: documentRef.getElementById("cms-agenda-row-field"),
+      rowSelect: documentRef.getElementById("cms-agenda-row-select"),
+      rowPrevButton: documentRef.getElementById("cms-agenda-row-prev-btn"),
+      rowNextButton: documentRef.getElementById("cms-agenda-row-next-btn"),
+      rowHint: documentRef.getElementById("cms-agenda-sheet-row-hint"),
       publishButton: documentRef.getElementById("cms-agenda-publish-btn"),
       saveDraftButton: documentRef.getElementById("cms-agenda-save-draft-btn"),
       publishAllButton: documentRef.getElementById("cms-agenda-publish-all-btn"),
@@ -216,6 +266,7 @@ export function createCmsAgendaApp(dependencies = {}) {
     );
     setElementText("cms-agenda-tab-label", text("cmsAgenda.sheetTabLabel", "Sheet Tab"));
     setElementText("cms-agenda-key-label", text("cmsAgenda.keyLabel", "Agenda Key"));
+    setElementText("cms-agenda-row-label", text("cmsAgenda.rowLabel", "Agenda Row"));
     setElementText("cms-agenda-make-active-btn", text("cmsAgenda.makeActiveButton", "Make Active"));
     setElementText("cms-agenda-save-draft-btn", text("cmsAgenda.saveDraftButton", "Save Draft"));
     setElementText("cms-agenda-publish-btn", text("cmsAgenda.publishButton", "Publish"));
@@ -239,6 +290,14 @@ export function createCmsAgendaApp(dependencies = {}) {
 
   function setAuthPanelState() {
     const { authPanel, authMessage, signInButton, setupButton } = getElements();
+    if (state.isAuthenticated) {
+      hideAuthPanel();
+      if (signInButton) {
+        signInButton.hidden = true;
+        signInButton.disabled = true;
+      }
+      return;
+    }
     if (authPanel) {
       authPanel.hidden = false;
     }
@@ -263,9 +322,13 @@ export function createCmsAgendaApp(dependencies = {}) {
   }
 
   function hideAuthPanel() {
-    const { authPanel } = getElements();
+    const { authPanel, signInButton } = getElements();
     if (authPanel) {
       authPanel.hidden = true;
+    }
+    if (signInButton && state.isAuthenticated) {
+      signInButton.hidden = true;
+      signInButton.disabled = true;
     }
   }
 
@@ -316,25 +379,146 @@ export function createCmsAgendaApp(dependencies = {}) {
     );
   }
 
+  function buildRowLabel(row) {
+    if (row.agendaId) {
+      return row.agendaId;
+    }
+
+    if (row.sheetRow) {
+      return `${text("cmsAgenda.sheetRowPrefix", "Sheet row")} ${row.sheetRow}`;
+    }
+
+    return text("cmsAgenda.newRowLabel", "New row");
+  }
+
+  function getVisibleRowsForCurrentTab() {
+    const rows = [...state.rowsForTab];
+    const existingTokens = new Set(rows.map((row) => row.rowToken));
+
+    Object.values(state.dirtyMap).forEach((entry) => {
+      if (existingTokens.has(entry.rowToken)) {
+        return;
+      }
+      rows.push(createAgendaRowMeta(entry));
+    });
+
+    rows.sort((left, right) => {
+      const leftRow = left.sheetRow ?? Number.MAX_SAFE_INTEGER;
+      const rightRow = right.sheetRow ?? Number.MAX_SAFE_INTEGER;
+      return leftRow - rightRow || left.agendaId.localeCompare(right.agendaId);
+    });
+
+    return rows;
+  }
+
+  function getRowsForSelectedKey() {
+    return getVisibleRowsForCurrentTab().filter((row) => row.key === state.selectedKey);
+  }
+
+  function getSelectedRow() {
+    const allRows = getVisibleRowsForCurrentTab();
+    const matchedByToken = allRows.find((row) => row.rowToken === state.selectedRowToken);
+    if (matchedByToken) {
+      return matchedByToken;
+    }
+
+    const matchedByKey = getRowsForSelectedKey()[0];
+    if (matchedByKey) {
+      return matchedByKey;
+    }
+
+    return createAgendaRowMeta({ key: state.selectedKey, values: [] });
+  }
+
+  function getSelectedRowIdentity() {
+    return buildAgendaRowIdentity(state.selectedKey, state.selectedRowToken);
+  }
+
+  function updateRowNavigationState() {
+    const { rowSelect, rowPrevButton, rowNextButton } = getElements();
+    if (!rowSelect || !rowPrevButton || !rowNextButton) {
+      return;
+    }
+
+    const selectedIndex = rowSelect.selectedIndex;
+    const hasMultiple = rowSelect.options.length > 1;
+    rowPrevButton.disabled = !hasMultiple || selectedIndex <= 0;
+    rowNextButton.disabled = !hasMultiple || selectedIndex === -1 || selectedIndex >= rowSelect.options.length - 1;
+  }
+
+  function populateRowOptions() {
+    const { rowField, rowSelect } = getElements();
+    if (!rowField || !rowSelect) return;
+
+    const rows = getVisibleRowsForCurrentTab();
+    const hasSelectedRow = rows.some((row) => row.rowToken === state.selectedRowToken);
+    const firstRowForKey = rows.find((row) => row.key === state.selectedKey);
+
+    if (!hasSelectedRow) {
+      state.selectedRowToken = firstRowForKey?.rowToken ?? buildAgendaRowToken("", null);
+    }
+
+    const options = [];
+    if (!firstRowForKey || state.selectedRowToken === buildAgendaRowToken("", null)) {
+      options.push({
+        value: buildAgendaRowToken("", null),
+        label: `${text("cmsAgenda.newRowLabel", "New row")} — ${text(state.selectedKey, state.selectedKey)}`
+      });
+    }
+
+    rows.forEach((row) => {
+      options.push({
+        value: row.rowToken,
+        label: buildRowLabel(row)
+      });
+    });
+
+    replaceSelectOptions(
+      rowSelect,
+      options,
+      state.selectedRowToken,
+      deps.documentRef
+    );
+
+    rowField.hidden = options.length <= 1;
+    rowSelect.disabled = options.length <= 1;
+    updateRowNavigationState();
+  }
+
+  function renderRowHint() {
+    const { rowHint } = getElements();
+    if (!rowHint) return;
+
+    const selectedRow = getSelectedRow();
+    if (!selectedRow?.sheetRow) {
+      rowHint.hidden = true;
+      rowHint.textContent = "";
+      return;
+    }
+
+    rowHint.hidden = false;
+    rowHint.textContent = `${text("cmsAgenda.sheetRowPrefix", "Sheet row")} ${selectedRow.sheetRow}`;
+  }
+
   function renderPendingList() {
     const { pendingList } = getElements();
     if (!pendingList) return;
 
-    const dirtyKeys = Object.keys(state.dirtyMap);
-    if (dirtyKeys.length === 0) {
+    const dirtyEntries = Object.entries(state.dirtyMap);
+    if (dirtyEntries.length === 0) {
       pendingList.innerHTML = `<p>${text("cmsAgenda.noPendingChanges", "No pending changes.")}</p>`;
       return;
     }
 
     pendingList.innerHTML = "";
-    for (const key of dirtyKeys) {
+    for (const [identity, entry] of dirtyEntries) {
       const item = document.createElement("div");
       item.className = "cms-agenda__pending-item";
-      item.dataset.key = key;
+      item.dataset.key = entry.key;
       const label = document.createElement("strong");
-      label.textContent = text(key, key);
+      label.textContent = `${text(entry.key, entry.key)}${entry.agendaId ? ` — ${entry.agendaId}` : ""}`;
       const statusSpan = document.createElement("span");
-      const status = state.publishStatusMap[key] || text("cmsAgenda.pendingStatus", "Pending");
+      const status = state.publishStatusMap[identity] || text("cmsAgenda.pendingStatus", "Pending");
       statusSpan.textContent = status;
       item.appendChild(label);
       item.appendChild(statusSpan);
@@ -349,7 +533,7 @@ export function createCmsAgendaApp(dependencies = {}) {
 
     state.editor = new deps.AgendaKeyEditorClass("cms-agenda-editor-container", {
       onChangeCallback: async (values) => {
-        updateDirtyMap(state.selectedKey, values);
+        updateDirtyMap(values);
         renderPendingList();
         try {
           await persistDraft();
@@ -365,20 +549,28 @@ export function createCmsAgendaApp(dependencies = {}) {
   function mountEditor(values) {
     const editor = ensureEditor();
     editor.initialize({ key: state.selectedKey, values });
+    populateRowOptions();
+    renderRowHint();
     showContent();
   }
 
-  function updateDirtyMap(key, values) {
+  function updateDirtyMap(values) {
+    const selectedRow = getSelectedRow();
+    const identity = getSelectedRowIdentity();
     const draftValues = cloneEntries(values);
-    const loadedValues = state.loadedMap[key] ?? [];
+    const loadedValues = state.loadedMap[identity] ?? [];
     if (stringifyEntries(draftValues) === stringifyEntries(loadedValues)) {
-      delete state.dirtyMap[key];
-      delete state.publishStatusMap[key];
+      delete state.dirtyMap[identity];
+      delete state.publishStatusMap[identity];
       return;
     }
 
-    state.dirtyMap[key] = draftValues;
-    state.publishStatusMap[key] = text("cmsAgenda.pendingStatus", "Pending");
+    state.dirtyMap[identity] = {
+      ...selectedRow,
+      key: state.selectedKey,
+      values: draftValues
+    };
+    state.publishStatusMap[identity] = text("cmsAgenda.pendingStatus", "Pending");
   }
 
   async function persistDraft() {
@@ -392,6 +584,7 @@ export function createCmsAgendaApp(dependencies = {}) {
     await deps.saveDraft(draftKey, {
       selectedTabTitle: state.selectedTab?.title ?? DEFAULT_SHEET_TAB_NAME,
       selectedKey: state.selectedKey,
+      selectedRowToken: state.selectedRowToken,
       dirtyMap: state.dirtyMap,
       savedAt: Date.now()
     });
@@ -416,9 +609,11 @@ export function createCmsAgendaApp(dependencies = {}) {
     state.selectedKey = AGENDA_KEYS.includes(draft.selectedKey)
       ? draft.selectedKey
       : state.selectedKey;
-    state.dirtyMap = Object.fromEntries(
-      Object.entries(draft.dirtyMap ?? {}).filter(([key]) => AGENDA_KEYS.includes(key))
-    );
+    state.selectedRowToken =
+      typeof draft.selectedRowToken === "string"
+        ? draft.selectedRowToken
+        : buildAgendaRowToken("", null);
+    state.dirtyMap = normalizeDraftRows(draft.dirtyMap ?? {});
     Object.keys(state.dirtyMap).forEach((key) => {
       state.publishStatusMap[key] = text("cmsAgenda.pendingStatus", "Pending");
     });
@@ -427,11 +622,30 @@ export function createCmsAgendaApp(dependencies = {}) {
   async function loadSelectedKey() {
     setLoading(true);
     try {
-      let values = state.dirtyMap[state.selectedKey];
-      if (!values && state.isAuthenticated && state.agendaService) {
-        values = await state.agendaService.readAgendaKey(state.selectedKey, state.selectedTab);
-        state.loadedMap[state.selectedKey] = cloneEntries(values);
+      if (state.isAuthenticated && state.agendaService) {
+        const rowSource =
+          typeof state.agendaService.listAgendaRows === "function"
+            ? await state.agendaService.listAgendaRows(state.selectedTab)
+            : await state.agendaService.readAgendaRows(state.selectedKey, state.selectedTab);
+        state.rowsForTab = rowSource.map((row) => createAgendaRowMeta(row));
+      } else {
+        state.rowsForTab = [];
       }
+
+      populateRowOptions();
+      const selectedRow = getSelectedRow();
+      state.selectedRowToken = selectedRow.rowToken;
+      state.selectedKey = selectedRow.key || state.selectedKey;
+      populateKeyOptions();
+      populateRowOptions();
+
+      const identity = getSelectedRowIdentity();
+      let values = state.dirtyMap[identity]?.values;
+      if (!values) {
+        values = selectedRow.values;
+        state.loadedMap[identity] = cloneEntries(values);
+      }
+
       mountEditor(values ?? []);
       setStatus("");
     } catch (error) {
@@ -439,7 +653,8 @@ export function createCmsAgendaApp(dependencies = {}) {
         state.isAuthenticated = false;
         setAuthPanelState();
         setActionState();
-        mountEditor(state.dirtyMap[state.selectedKey] ?? []);
+        populateRowOptions();
+        mountEditor(state.dirtyMap[getSelectedRowIdentity()]?.values ?? []);
         setStatus(
           text("cmsAgenda.signInAgainPrompt", "Tap to sign in again to publish agenda changes."),
           "warning"
@@ -588,18 +803,48 @@ export function createCmsAgendaApp(dependencies = {}) {
 
   async function handleKeyChange(event) {
     state.selectedKey = event.currentTarget.value;
+    const firstMatchingRow = getVisibleRowsForCurrentTab().find((row) => row.key === state.selectedKey);
+    state.selectedRowToken = firstMatchingRow?.rowToken ?? buildAgendaRowToken("", null);
     renderPendingList();
     await loadSelectedKey();
+  }
+
+  async function handleRowChange(event) {
+    state.selectedRowToken = event.currentTarget.value;
+    const selectedRow = getSelectedRow();
+    state.selectedKey = selectedRow.key || state.selectedKey;
+    populateKeyOptions();
+    await loadSelectedKey();
+  }
+
+  async function handleRowStep(offset) {
+    const { rowSelect } = getElements();
+    if (!rowSelect || rowSelect.options.length <= 1) {
+      return;
+    }
+
+    const currentIndex = Math.max(rowSelect.selectedIndex, 0);
+    const nextIndex = currentIndex + offset;
+    if (nextIndex < 0 || nextIndex >= rowSelect.options.length) {
+      return;
+    }
+
+    rowSelect.selectedIndex = nextIndex;
+    updateRowNavigationState();
+    await handleRowChange({ currentTarget: rowSelect });
   }
 
   async function handleTabChange(event) {
     state.selectedTab = normalizeSelectedTab(state.tabs, event.currentTarget.value);
     state.loadedMap = {};
+    state.rowsForTab = [];
     state.selectedKey = AGENDA_KEYS[0];
+    state.selectedRowToken = buildAgendaRowToken("", null);
     state.dirtyMap = {};
     state.publishStatusMap = {};
     await restoreDraft(state.selectedTab.title);
     populateKeyOptions();
+    populateRowOptions();
     renderPendingList();
     await loadSelectedKey();
   }
@@ -610,12 +855,30 @@ export function createCmsAgendaApp(dependencies = {}) {
     setStatus(text("cmsAgenda.draftSaved", "Draft saved on this device."), "success");
   }
 
-  async function publishKey(key, values) {
-    await state.agendaService.writeAgendaKey(key, values, state.selectedTab);
-    state.loadedMap[key] = cloneEntries(values);
-    delete state.dirtyMap[key];
-    state.publishStatusMap[key] = text("cmsAgenda.savedStatus", "Saved");
+  async function publishRow(row) {
+    const identity = buildAgendaRowIdentity(row.key, row.rowToken);
+    const publishResult = await state.agendaService.writeAgendaRow(
+      {
+        key: row.key,
+        agendaId: row.agendaId,
+        values: row.values,
+        sheetRow: row.sheetRow
+      },
+      state.selectedTab
+    );
+    console.info("[CMS Agenda] Published agenda row", {
+      tabTitle: publishResult?.tabTitle ?? state.selectedTab?.title ?? DEFAULT_SHEET_TAB_NAME,
+      key: row.key,
+      agendaId: row.agendaId || "(new)",
+      sheetRow: publishResult?.sheetRow ?? row.sheetRow ?? null,
+      range: publishResult?.range ?? "",
+      rowValues: publishResult?.rowValues ?? row.values
+    });
+    state.loadedMap[identity] = cloneEntries(row.values);
+    delete state.dirtyMap[identity];
+    state.publishStatusMap[identity] = text("cmsAgenda.savedStatus", "Saved");
     await persistDraft();
+    return publishResult;
   }
 
   async function handlePublishCurrent() {
@@ -629,12 +892,18 @@ export function createCmsAgendaApp(dependencies = {}) {
     }
 
     const values = state.editor?.getValues?.() ?? [];
+    updateDirtyMap(values);
+    const identity = getSelectedRowIdentity();
+    const selectedRow = getSelectedRow();
     try {
-      state.publishStatusMap[state.selectedKey] = text("cmsAgenda.savingStatus", "Saving");
+      state.publishStatusMap[identity] = text("cmsAgenda.savingStatus", "Saving");
       renderPendingList();
-      await publishKey(state.selectedKey, values);
+      const publishResult = await publishRow({ ...selectedRow, key: state.selectedKey, values });
       renderPendingList();
-      setStatus(text("cmsAgenda.publishSuccess", "Agenda changes published."), "success");
+      const debugSuffix = publishResult?.sheetRow
+        ? ` ${text("cmsAgenda.publishSuccess", "Agenda changes published.")} ${publishResult.tabTitle} / ${text("cmsAgenda.sheetRowPrefix", "Sheet row")} ${publishResult.sheetRow}`
+        : text("cmsAgenda.publishSuccess", "Agenda changes published.");
+      setStatus(debugSuffix, "success");
     } catch (error) {
       if (isAuthError(error)) {
         state.isAuthenticated = false;
@@ -648,7 +917,7 @@ export function createCmsAgendaApp(dependencies = {}) {
       }
 
       console.error("[CMS Agenda] Failed to publish agenda key", error);
-      state.publishStatusMap[state.selectedKey] = text("cmsAgenda.failedStatus", "Failed");
+      state.publishStatusMap[identity] = text("cmsAgenda.failedStatus", "Failed");
       renderPendingList();
       setStatus(
         error instanceof Error
@@ -670,18 +939,20 @@ export function createCmsAgendaApp(dependencies = {}) {
     }
 
     const currentValues = state.editor?.getValues?.() ?? [];
-    updateDirtyMap(state.selectedKey, currentValues);
+    updateDirtyMap(currentValues);
     await persistDraft();
     renderPendingList();
 
     let failedCount = 0;
     let publishedCount = 0;
 
-    for (const key of Object.keys(state.dirtyMap)) {
+    for (const [identity, entry] of Object.entries(state.dirtyMap)) {
       try {
-        state.publishStatusMap[key] = text("cmsAgenda.savingStatus", "Saving");
+        state.publishStatusMap[identity] = text("cmsAgenda.savingStatus", "Saving");
         renderPendingList();
-        await publishKey(key, key === state.selectedKey ? currentValues : state.dirtyMap[key]);
+        await publishRow(
+          identity === getSelectedRowIdentity() ? { ...entry, values: currentValues } : entry
+        );
         publishedCount += 1;
       } catch (error) {
         if (isAuthError(error)) {
@@ -696,7 +967,7 @@ export function createCmsAgendaApp(dependencies = {}) {
         }
 
         console.error("[CMS Agenda] Failed to publish pending agenda key", error);
-        state.publishStatusMap[key] = text("cmsAgenda.failedStatus", "Failed");
+        state.publishStatusMap[identity] = text("cmsAgenda.failedStatus", "Failed");
         failedCount += 1;
       }
       renderPendingList();
@@ -766,6 +1037,17 @@ export function createCmsAgendaApp(dependencies = {}) {
     const elements = getElements();
     elements.keySelect?.addEventListener("change", handleKeyChange);
     elements.tabSelect?.addEventListener("change", handleTabChange);
+    elements.rowSelect?.addEventListener("change", handleRowChange);
+    elements.rowPrevButton?.addEventListener("click", () => {
+      handleRowStep(-1).catch((error) => {
+        console.error("[CMS Agenda] Failed to navigate to previous row", error);
+      });
+    });
+    elements.rowNextButton?.addEventListener("click", () => {
+      handleRowStep(1).catch((error) => {
+        console.error("[CMS Agenda] Failed to navigate to next row", error);
+      });
+    });
     elements.publishButton?.addEventListener("click", handlePublishCurrent);
     elements.saveDraftButton?.addEventListener("click", handleSaveDraft);
     elements.publishAllButton?.addEventListener("click", handlePublishAll);
@@ -778,6 +1060,7 @@ export function createCmsAgendaApp(dependencies = {}) {
     state.selectedTab = normalizeSelectedTab([], DEFAULT_SHEET_TAB_NAME);
     await restoreDraft();
     populateKeyOptions();
+    populateRowOptions();
     renderPendingList();
 
     state.isAuthenticated = await initializeAuth();
@@ -788,6 +1071,7 @@ export function createCmsAgendaApp(dependencies = {}) {
       setActionState();
       await restoreDraft(state.selectedTab.title);
       populateKeyOptions();
+      populateRowOptions();
       renderPendingList();
       await loadSelectedKey();
       return state;
@@ -796,7 +1080,8 @@ export function createCmsAgendaApp(dependencies = {}) {
     setAuthPanelState();
     setActionState();
     populateTabOptions();
-    mountEditor(state.dirtyMap[state.selectedKey] ?? []);
+    populateRowOptions();
+    await loadSelectedKey();
     setStatus(
       text("cmsAgenda.signInAgainPrompt", "Tap to sign in again to publish agenda changes."),
       "info"

@@ -1,0 +1,29 @@
+{
+  "generatedAt": "2026-05-19T02:52:43.031Z",
+  "libraries": [
+    {
+      "packageName": "dexie",
+      "version": "4.3.0",
+      "license": "Apache-2.0",
+      "outputFile": "js/vendor/dexie.mjs"
+    },
+    {
+      "packageName": "uuid",
+      "version": "13.0.2",
+      "license": "MIT",
+      "outputFile": "js/vendor/uuid-v4.mjs"
+    },
+    {
+      "packageName": "jsqr",
+      "version": "1.4.0",
+      "license": "Apache-2.0",
+      "outputFile": "js/vendor/jsQR.js"
+    },
+    {
+      "packageName": "qrcode",
+      "version": "1.5.4",
+      "license": "MIT",
+      "outputFile": "js/vendor/qrcode.js"
+    }
+  ]
+}

@@ -33,6 +33,15 @@ describe("cms-agenda.js", () => {
             <h1 id="cms-agenda-profile-name"></h1>
             <label><span id="cms-agenda-tab-label"></span><select id="cms-agenda-tab-select"></select></label>
             <label><span id="cms-agenda-key-label"></span><select id="cms-agenda-key-select"></select></label>
+            <label id="cms-agenda-row-field" hidden>
+              <span id="cms-agenda-row-label"></span>
+              <div class="cms-agenda__row-selector">
+                <button id="cms-agenda-row-prev-btn" type="button">&larr;</button>
+                <select id="cms-agenda-row-select"></select>
+                <button id="cms-agenda-row-next-btn" type="button">&rarr;</button>
+              </div>
+            </label>
+            <p id="cms-agenda-sheet-row-hint" hidden></p>
             <button id="cms-agenda-make-active-btn" type="button">Make Active</button>
             <button id="cms-agenda-save-draft-btn" type="button">Save Draft</button>
             <button id="cms-agenda-publish-btn" type="button">Publish</button>
@@ -91,8 +100,10 @@ describe("cms-agenda.js", () => {
       createClient: vi.fn().mockReturnValue({}),
       AgendaSheetServiceClass: class {
         constructor() {
-          this.readAgendaKey = vi.fn().mockResolvedValue([["General note"]]);
-          this.writeAgendaKey = vi.fn().mockResolvedValue();
+          this.readAgendaRows = vi.fn().mockResolvedValue([
+            { key: "agendaGeneral", agendaId: "gen1", sheetRow: 2, values: [["General note"]] }
+          ]);
+          this.writeAgendaRow = vi.fn().mockResolvedValue();
         }
       },
       SheetTabServiceClass: class {
@@ -127,21 +138,23 @@ describe("cms-agenda.js", () => {
   }
 
   test("loads the selected agenda key for the current profile", async () => {
-    const readAgendaKey = vi.fn().mockResolvedValue([["General note"]]);
+    const readAgendaRows = vi.fn().mockResolvedValue([
+      { key: "agendaGeneral", agendaId: "gen1", sheetRow: 2, values: [["General note"]] }
+    ]);
 
     const app = createApp({
       AgendaSheetServiceClass: class {
-        async readAgendaKey(key, selectedTab) {
-          return readAgendaKey(key, selectedTab);
+        async readAgendaRows(key, selectedTab) {
+          return readAgendaRows(key, selectedTab);
         }
 
-        async writeAgendaKey() {}
+        async writeAgendaRow() {}
       }
     });
 
     await app.initialize();
 
-    expect(readAgendaKey).toHaveBeenCalledWith(
+    expect(readAgendaRows).toHaveBeenCalledWith(
       "agendaGeneral",
       expect.objectContaining({ title: "Sheet1" })
     );
@@ -160,16 +173,23 @@ describe("cms-agenda.js", () => {
     editorInstance.values = [["Updated note"]];
     await editorInstance.options.onChangeCallback(editorInstance.values);
 
-    expect(saveDraft).toHaveBeenCalledWith(buildAgendaDraftKey("profile-1"), {
-      selectedTabTitle: "Sheet1",
-      selectedKey: "agendaGeneral",
-      dirtyMap: { agendaGeneral: [["Updated note"]] },
-      savedAt: expect.any(Number)
-    });
+    expect(saveDraft).toHaveBeenCalled();
+    const [, payload] = saveDraft.mock.calls.at(-1);
+    expect(payload.selectedTabTitle).toBe("Sheet1");
+    expect(payload.selectedKey).toBe("agendaGeneral");
+    expect(payload.selectedRowToken).toEqual(expect.any(String));
+    expect(Object.values(payload.dirtyMap)).toEqual([
+      expect.objectContaining({
+        key: "agendaGeneral",
+        agendaId: "gen1",
+        sheetRow: 2,
+        values: [["Updated note"]]
+      })
+    ]);
   });
 
   test("publishes all pending agenda keys and clears the draft", async () => {
-    const writeAgendaKey = vi.fn().mockResolvedValue();
+    const writeAgendaRow = vi.fn().mockResolvedValue();
     const clearDraft = vi.fn().mockResolvedValue(true);
 
     const app = createApp({
@@ -183,12 +203,18 @@ describe("cms-agenda.js", () => {
       }),
       clearDraft,
       AgendaSheetServiceClass: class {
-        async readAgendaKey() {
+        async readAgendaRows(key) {
+          if (key === "agendaGeneral") {
+            return [{ key, agendaId: "gen1", sheetRow: 2, values: [["General note"]] }];
+          }
+          if (key === "agendaBusinessCallings") {
+            return [{ key, agendaId: "call1", sheetRow: 3, values: [["Alice", "Primary President"]] }];
+          }
           return [];
         }
 
-        async writeAgendaKey(key, values, selectedTab) {
-          return writeAgendaKey(key, values, selectedTab);
+        async writeAgendaRow(row, selectedTab) {
+          return writeAgendaRow(row, selectedTab);
         }
       }
     });
@@ -196,15 +222,19 @@ describe("cms-agenda.js", () => {
     await app.initialize();
     await app.handlePublishAll();
 
-    expect(writeAgendaKey).toHaveBeenCalledTimes(2);
-    expect(writeAgendaKey).toHaveBeenCalledWith(
-      "agendaGeneral",
-      [["General note"]],
+    expect(writeAgendaRow).toHaveBeenCalledTimes(2);
+    expect(writeAgendaRow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "agendaGeneral",
+        values: [["General note"]]
+      }),
       expect.objectContaining({ title: "Sheet1" })
     );
-    expect(writeAgendaKey).toHaveBeenCalledWith(
-      "agendaBusinessCallings",
-      [["Alice", "Primary President"]],
+    expect(writeAgendaRow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "agendaBusinessCallings",
+        values: [["Alice", "Primary President"]]
+      }),
       expect.objectContaining({ title: "Sheet1" })
     );
     expect(clearDraft).toHaveBeenCalledWith(buildAgendaDraftKey("profile-1"));
@@ -236,8 +266,8 @@ describe("cms-agenda.js", () => {
   });
 
   test("reports a partial failure when publish all does not fully succeed", async () => {
-    const writeAgendaKey = vi.fn().mockImplementation(async key => {
-      if (key === "agendaBusinessCallings") {
+    const writeAgendaRow = vi.fn().mockImplementation(async row => {
+      if (row.key === "agendaBusinessCallings") {
         throw new Error("Write failed");
       }
     });
@@ -252,12 +282,18 @@ describe("cms-agenda.js", () => {
         }
       }),
       AgendaSheetServiceClass: class {
-        async readAgendaKey() {
+        async readAgendaRows(key) {
+          if (key === "agendaGeneral") {
+            return [{ key, agendaId: "gen1", sheetRow: 2, values: [["General note"]] }];
+          }
+          if (key === "agendaBusinessCallings") {
+            return [{ key, agendaId: "call1", sheetRow: 3, values: [["Alice", "Primary President"]] }];
+          }
           return [];
         }
 
-        async writeAgendaKey(key, values, selectedTab) {
-          return writeAgendaKey(key, values, selectedTab);
+        async writeAgendaRow(row, selectedTab) {
+          return writeAgendaRow(row, selectedTab);
         }
       }
     });
@@ -265,7 +301,7 @@ describe("cms-agenda.js", () => {
     await app.initialize();
     await app.handlePublishAll();
 
-    expect(writeAgendaKey).toHaveBeenCalledTimes(2);
+    expect(writeAgendaRow).toHaveBeenCalledTimes(2);
     expect(document.getElementById("cms-agenda-page-status").dataset.tone).toBe("warning");
     expect(document.getElementById("cms-agenda-page-status").textContent).toContain(
       "some items failed"
@@ -289,6 +325,22 @@ describe("cms-agenda.js", () => {
     expect(document.getElementById("cms-agenda-auth-panel").hidden).toBe(false);
     expect(document.getElementById("cms-agenda-sign-in-btn").hidden).toBe(true);
     expect(document.getElementById("cms-agenda-content").hidden).toBe(false);
+  });
+
+  test("keeps the sign-in control hidden when the session is already authenticated", async () => {
+    const app = createApp({
+      auth: {
+        initialize: vi.fn(),
+        isAuthenticated: () => true,
+        getAccessToken: () => "token",
+        signIn: vi.fn().mockResolvedValue({ token: "token" })
+      }
+    });
+
+    await app.initialize();
+
+    expect(document.getElementById("cms-agenda-auth-panel").hidden).toBe(true);
+    expect(document.getElementById("cms-agenda-sign-in-btn").hidden).toBe(true);
   });
 
   test("makes the selected tab active", async () => {
@@ -316,7 +368,14 @@ describe("cms-agenda.js", () => {
   });
 
   test("restores the saved tab and key before the first agenda load", async () => {
-    const readAgendaKey = vi.fn().mockResolvedValue([]);
+    const readAgendaRows = vi.fn().mockResolvedValue([
+      {
+        key: "agendaBusinessCallings",
+        agendaId: "call1",
+        sheetRow: 3,
+        values: [["Existing value"]]
+      }
+    ]);
 
     const app = createApp({
       getDraft: vi.fn().mockResolvedValue({
@@ -327,11 +386,11 @@ describe("cms-agenda.js", () => {
         }
       }),
       AgendaSheetServiceClass: class {
-        async readAgendaKey(key, selectedTab) {
-          return readAgendaKey(key, selectedTab);
+        async readAgendaRows(key, selectedTab) {
+          return readAgendaRows(key, selectedTab);
         }
 
-        async writeAgendaKey() {}
+        async writeAgendaRow() {}
       },
       SheetTabServiceClass: class {
         constructor() {
@@ -346,11 +405,176 @@ describe("cms-agenda.js", () => {
 
     await app.initialize();
 
-    expect(readAgendaKey).not.toHaveBeenCalled();
+    expect(readAgendaRows).toHaveBeenCalledWith(
+      "agendaBusinessCallings",
+      expect.objectContaining({ title: "May 18" })
+    );
     expect(document.getElementById("cms-agenda-tab-select").value).toBe("May 18");
     expect(document.getElementById("cms-agenda-key-select").value).toBe("agendaBusinessCallings");
     expect(document.getElementById("cms-agenda-editor-container").textContent).toContain("agendaBusinessCallings");
     expect(document.getElementById("cms-agenda-editor-container").textContent).toContain("Alice");
+  });
+
+  test("shows row choices and a sheet-row cue for duplicate agenda keys", async () => {
+    const app = createApp({
+      AgendaSheetServiceClass: class {
+        async listAgendaRows() {
+          return [
+            {
+              key: "agendaGeneral",
+              agendaId: "gen1",
+              sheetRow: 2,
+              values: [["First note"]]
+            },
+            {
+              key: "agendaGeneral",
+              agendaId: "gen2",
+              sheetRow: 4,
+              values: [["Second note"]]
+            }
+          ];
+        }
+
+        async writeAgendaRow() {}
+      }
+    });
+
+    await app.initialize();
+
+    const rowField = document.getElementById("cms-agenda-row-field");
+    const rowSelect = document.getElementById("cms-agenda-row-select");
+    const rowHint = document.getElementById("cms-agenda-sheet-row-hint");
+
+    expect(rowField.hidden).toBe(false);
+    expect(rowSelect.options).toHaveLength(2);
+    expect(rowSelect.options[0].textContent).toBe("gen1");
+    expect(rowHint.hidden).toBe(false);
+    expect(rowHint.textContent).toBe("Sheet row 2");
+
+    rowSelect.value = rowSelect.options[1].value;
+    rowSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    await Promise.resolve();
+
+    expect(document.getElementById("cms-agenda-editor-container").textContent).toContain("Second note");
+    expect(rowHint.textContent).toBe("Sheet row 4");
+  });
+
+  test("shows all agenda ids across keys and syncs the key when a row id is selected", async () => {
+    const app = createApp({
+      AgendaSheetServiceClass: class {
+        async listAgendaRows() {
+          return [
+            {
+              key: "agendaAnnouncements",
+              agendaId: "a1",
+              sheetRow: 2,
+              values: [["Announcement one"]]
+            },
+            {
+              key: "agendaBusinessCallings",
+              agendaId: "a4",
+              sheetRow: 5,
+              values: [["Brother Smith", "Clerk"]]
+            },
+            {
+              key: "agendaBusinessNewConverts",
+              agendaId: "a14",
+              sheetRow: 15,
+              values: [["Jane Doe"]]
+            }
+          ];
+        }
+
+        async readAgendaRows() {
+          return [];
+        }
+
+        async writeAgendaRow() {}
+      }
+    });
+
+    await app.initialize();
+
+    const rowSelect = document.getElementById("cms-agenda-row-select");
+    const keySelect = document.getElementById("cms-agenda-key-select");
+
+    expect(Array.from(rowSelect.options).map((option) => option.textContent)).toEqual(
+      expect.arrayContaining(["a1", "a4", "a14"])
+    );
+
+    const targetOption = Array.from(rowSelect.options).find((option) => option.textContent === "a14");
+    rowSelect.value = targetOption?.value ?? "";
+    rowSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    await Promise.resolve();
+
+    expect(keySelect.value).toBe("agendaBusinessNewConverts");
+    expect(document.getElementById("cms-agenda-editor-container").textContent).toContain("Jane Doe");
+    expect(document.getElementById("cms-agenda-sheet-row-hint").textContent).toBe("Sheet row 15");
+  });
+
+  test("moves between agenda rows with previous and next buttons", async () => {
+    const app = createApp({
+      AgendaSheetServiceClass: class {
+        async listAgendaRows() {
+          return [
+            {
+              key: "agendaAnnouncements",
+              agendaId: "a1",
+              sheetRow: 2,
+              values: [["Announcement one"]]
+            },
+            {
+              key: "agendaBusinessCallings",
+              agendaId: "a4",
+              sheetRow: 5,
+              values: [["Brother Smith", "Clerk"]]
+            },
+            {
+              key: "agendaBusinessNewConverts",
+              agendaId: "a14",
+              sheetRow: 15,
+              values: [["Jane Doe"]]
+            }
+          ];
+        }
+
+        async writeAgendaRow() {}
+      }
+    });
+
+    await app.initialize();
+
+    const prevButton = document.getElementById("cms-agenda-row-prev-btn");
+    const nextButton = document.getElementById("cms-agenda-row-next-btn");
+    const keySelect = document.getElementById("cms-agenda-key-select");
+
+    expect(prevButton.disabled).toBe(true);
+    nextButton.click();
+    await Promise.resolve();
+
+    expect(keySelect.value).toBe("agendaAnnouncements");
+    expect(document.getElementById("cms-agenda-editor-container").textContent).toContain("Announcement one");
+    expect(document.getElementById("cms-agenda-sheet-row-hint").textContent).toBe("Sheet row 2");
+
+    nextButton.click();
+    await Promise.resolve();
+
+    expect(keySelect.value).toBe("agendaBusinessCallings");
+    expect(document.getElementById("cms-agenda-editor-container").textContent).toContain("Brother Smith");
+    expect(document.getElementById("cms-agenda-sheet-row-hint").textContent).toBe("Sheet row 5");
+
+    nextButton.click();
+    await Promise.resolve();
+
+    expect(keySelect.value).toBe("agendaBusinessNewConverts");
+    expect(document.getElementById("cms-agenda-editor-container").textContent).toContain("Jane Doe");
+    expect(nextButton.disabled).toBe(true);
+
+    prevButton.click();
+    await Promise.resolve();
+
+    expect(keySelect.value).toBe("agendaBusinessCallings");
+    expect(document.getElementById("cms-agenda-sheet-row-hint").textContent).toBe("Sheet row 5");
   });
 
   test("translates the agenda CMS shell", async () => {
