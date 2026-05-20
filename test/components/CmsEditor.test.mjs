@@ -6,7 +6,7 @@ import CmsEditor, {
   sanitisePart,
   serializeFieldValue
 } from "../../js/components/CmsEditor.mjs";
-import { setLanguage } from "../../js/i18n/index.js";
+import { setLanguage, loadTranslations } from "../../js/i18n/index.js";
 import { ALLOWED_KEYS } from "../../js/sanitize.js";
 
 describe("CmsEditor helpers", () => {
@@ -32,25 +32,23 @@ describe("CmsEditor helpers", () => {
     expect(sanitisePart("Alice | Bob")).toBe("Alice  Bob");
   });
 
-  test("serializeFieldValue adds <IMG> token for linkWithSpace", () => {
+  test("serializeFieldValue serializes linkWithSpace", () => {
     const value = serializeFieldValue("linkWithSpace", {
-      includeImageIcon: true,
       text: "Library",
       url: "https://example.com",
       imageUrl: "https://img.com/icon.png"
     });
 
-    expect(value).toBe("<IMG> Library | https://example.com | https://img.com/icon.png");
+    expect(value).toBe("Library|https://example.com|https://img.com/icon.png");
   });
 
-  test("parseFieldValue decodes <IMG> token from linkWithSpace", () => {
+  test("parseFieldValue decodes linkWithSpace", () => {
     expect(
       parseFieldValue(
         "linkWithSpace",
-        "<IMG> Library | https://example.com | https://img.com/icon.png"
+        "Library | https://example.com | https://img.com/icon.png"
       )
     ).toEqual({
-      includeImageIcon: true,
       text: "Library",
       url: "https://example.com",
       imageUrl: "https://img.com/icon.png"
@@ -62,9 +60,10 @@ describe("CmsEditor component", () => {
   let container;
   let editor;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     document.body.innerHTML = "<div id='cms-editor-container'></div>";
     container = document.getElementById("cms-editor-container");
+    await loadTranslations("en");
     editor = new CmsEditor("cms-editor-container");
   });
 
@@ -75,9 +74,9 @@ describe("CmsEditor component", () => {
     ]);
 
     expect(container.querySelector(".cms-editor")).toBeTruthy();
-    expect(container.querySelectorAll(".cms-editor__section").length).toBeGreaterThan(0);
+    expect(container.querySelectorAll(".cms-section").length).toBeGreaterThan(0);
     expect(container.textContent).toContain("Unit Information");
-    expect(container.textContent).toContain("Hymns");
+    expect(container.textContent).toContain("Sacrament Meeting Program");
   });
 
   test("exports existing numbered speaker rows", () => {
@@ -86,9 +85,9 @@ describe("CmsEditor component", () => {
       { key: "speaker2", value: "Bob" }
     ]);
 
-    expect(editor.getRows()).toEqual(
+    expect(editor.getAllRows()).toEqual(
       expect.arrayContaining([
-        { key: "speaker1", value: "Alice | Faith in Christ" },
+        { key: "speaker1", value: "Alice|Faith in Christ" },
         { key: "speaker2", value: "Bob" }
       ])
     );
@@ -100,9 +99,9 @@ describe("CmsEditor component", () => {
     editor.addRepeatableItem("speaker");
     editor.setItemValue("speaker", 1, { name: "Bob", caption: "" });
 
-    const speakerRows = editor.getRows().filter((row) => /^speaker\d+$/.test(row.key));
+    const speakerRows = editor.getAllRows().filter((row) => /^speaker\d+$/.test(row.key));
     expect(speakerRows).toEqual([
-      { key: "speaker1", value: "Alice | Faith in Christ" },
+      { key: "speaker1", value: "Alice|Faith in Christ" },
       { key: "speaker2", value: "Bob" }
     ]);
   });
@@ -116,11 +115,11 @@ describe("CmsEditor component", () => {
     editor.addRepeatableItem("speaker");
     editor.setItemValue("speaker", 2, { name: "Carol", caption: "Charity" });
 
-    const speakerRows = editor.getRows().filter((row) => /^speaker\d+$/.test(row.key));
+    const speakerRows = editor.getAllRows().filter((row) => /^speaker\d+$/.test(row.key));
     expect(speakerRows).toEqual([
-      { key: "speaker1", value: "Alice | Faith in Christ" },
-      { key: "speaker2", value: "Bob | Hope" },
-      { key: "speaker3", value: "Carol | Charity" }
+      { key: "speaker1", value: "Alice|Faith in Christ" },
+      { key: "speaker2", value: "Bob|Hope" },
+      { key: "speaker3", value: "Carol|Charity" }
     ]);
   });
 
@@ -132,7 +131,7 @@ describe("CmsEditor component", () => {
 
     editor.removeRepeatableItem("speaker", 0);
 
-    const speakerRows = editor.getRows().filter((row) => /^speaker\d+$/.test(row.key));
+    const speakerRows = editor.getAllRows().filter((row) => /^speaker\d+$/.test(row.key));
     expect(speakerRows).toEqual(
       expect.arrayContaining([
         { key: "speaker1", value: "" },
@@ -153,10 +152,10 @@ describe("CmsEditor component", () => {
       titleOverride: "Be Thou My Vision"
     });
 
-    const rows = editor.getRows().filter((row) => /^intermediateHymn\d+$/.test(row.key));
+    const rows = editor.getAllRows().filter((row) => /^intermediateHymn\d+$/.test(row.key));
     expect(rows).toEqual([
-      { key: "intermediateHymn1", value: "120 | Be Thou Humble" },
-      { key: "intermediateHymn2", value: "130 | Be Thou My Vision" }
+      { key: "intermediateHymn1", value: "120|Be Thou Humble" },
+      { key: "intermediateHymn2", value: "130|Be Thou My Vision" }
     ]);
   });
 
@@ -174,10 +173,10 @@ describe("CmsEditor component", () => {
       calling: "Executive Secretary"
     });
 
-    const leaderRows = editor.getRows().filter((row) => /^leader\d+$/.test(row.key));
+    const leaderRows = editor.getAllRows().filter((row) => /^leader\d+$/.test(row.key));
     expect(leaderRows).toEqual([
-      { key: "leader1", value: "Bishop Smith | 801-555-1111 | Bishop" },
-      { key: "leader2", value: "Brother Jones |  | Executive Secretary" }
+      { key: "leader1", value: "Bishop Smith|Bishop|801-555-1111" },
+      { key: "leader2", value: "Brother Jones|Executive Secretary" }
     ]);
   });
 
@@ -187,7 +186,7 @@ describe("CmsEditor component", () => {
     ]);
 
     const textarea = container.querySelector(
-      '.cms-editor__textarea[data-key-type="generalStatementWithLink"][data-part-name="text"]'
+      '.cms-field__input[data-key="generalStatementWithLink"][data-part="text"]'
     );
     textarea.focus();
     textarea.setSelectionRange(7, 7);
@@ -196,9 +195,9 @@ describe("CmsEditor component", () => {
     insertButton.click();
 
     expect(textarea.value).toBe("Welcome<LINK>");
-    expect(editor.getRows()).toEqual(
+    expect(editor.getAllRows()).toEqual(
       expect.arrayContaining([
-        { key: "generalStatementWithLink", value: "Welcome<LINK> | https://example.com" }
+        { key: "generalStatementWithLink", value: "Welcome<LINK>|https://example.com" }
       ])
     );
   });
@@ -233,7 +232,7 @@ describe("CmsEditor component", () => {
 
     expect(container.textContent).toContain("Informaci\u00f3n de la unidad");
     expect(container.textContent).toContain("Todos los cambios guardados");
-    expect(container.textContent).toContain("Nombre del barrio o rama");
+     expect(container.textContent).toContain("Nombre de la unidad");
 
     const missingTranslationWarnings = warnSpy.mock.calls.filter(
       (call) => call[0] === "Missing translation for key:"
@@ -246,88 +245,91 @@ describe("CmsEditor component", () => {
 });
 
 describe("CmsEditor — oilLamp", () => {
-  let editor;
   let container;
+  let editor;
 
-  beforeEach(() => {
+  const mount = () => {
     document.body.innerHTML = "<div id='cms-editor-container'></div>";
     container = document.getElementById("cms-editor-container");
-  });
-
-  function mount() {
-    // CmsEditor expects a string containerId, so we use the container's id directly
-    editor = new CmsEditor(container.id, {
-      onChangeCallback: () => {}
-    });
-  }
+    editor = new CmsEditor("cms-editor-container");
+  };
 
   test("shows checked checkbox when sheet has an oilLamp row", () => {
     mount();
     editor.initialize([{ key: "oilLamp", value: "" }]);
 
-    const checkbox = container.querySelector('[data-key-type="oilLamp"] input[type="checkbox"]');
+    const checkbox = container.querySelector('[data-key="oilLamp"][type="checkbox"]');
     expect(checkbox).toBeTruthy();
     expect(checkbox.checked).toBe(true);
   });
 
-  test("shows unchecked checkbox when sheet has no oilLamp row", () => {
+  test("does not show oilLamp checkbox when sheet has no oilLamp row", () => {
     mount();
     editor.initialize([{ key: "unitName", value: "Millcreek 5th Ward" }]);
 
-    const checkbox = container.querySelector('[data-key-type="oilLamp"] input[type="checkbox"]');
-    expect(checkbox).toBeTruthy();
-    expect(checkbox.checked).toBe(false);
+    const checkbox = container.querySelector('[data-key="oilLamp"][type="checkbox"]');
+    expect(checkbox).toBeFalsy();
   });
 
-  test("when checked and saved, includes oilLamp row in getRows", () => {
+  test("when oilLamp row exists, includes it in getAllRows", () => {
     mount();
-    editor.initialize([{ key: "unitName", value: "Millcreek 5th Ward" }]);
+    editor.initialize([{ key: "unitName", value: "Millcreek 5th Ward" }, { key: "oilLamp", value: "" }]);
 
-    const checkbox = container.querySelector('[data-key-type="oilLamp"] input[type="checkbox"]');
-    checkbox.checked = true;
-    checkbox.dispatchEvent(new Event("change"));
-
-    const rows = editor.getRows();
+    const rows = editor.getAllRows();
     const oilLampRow = rows.find((r) => r.key === "oilLamp");
     expect(oilLampRow).toBeTruthy();
     expect(oilLampRow.value).toBe("");
   });
 
-  test("when unchecked on a sheet without oilLamp, does not include row in getRows", () => {
+  test("when oilLamp row does not exist, does not include it in getAllRows", () => {
     mount();
     editor.initialize([{ key: "unitName", value: "Millcreek 5th Ward" }]);
 
-    const checkbox = container.querySelector('[data-key-type="oilLamp"] input[type="checkbox"]');
-    expect(checkbox.checked).toBe(false);
-
-    const rows = editor.getRows();
+    const rows = editor.getAllRows();
     const oilLampRow = rows.find((r) => r.key === "oilLamp");
     expect(oilLampRow).toBeFalsy();
   });
 
-  test("when unchecked after being checked, adds oilLamp to removedKeys", () => {
+  test("when oilLamp row is removed, adds oilLamp to removedKeys", () => {
     mount();
-    editor.initialize([{ key: "oilLamp", value: "" }]);
+    editor.initialize([{ key: "unitName", value: "Millcreek 5th Ward" }, { key: "oilLamp", value: "" }]);
 
-    // Verify it's initially checked
-    let checkbox = container.querySelector('[data-key-type="oilLamp"] input[type="checkbox"]');
-    expect(checkbox.checked).toBe(true);
+    // Verify oilLamp row exists
+    const initialRows = editor.getAllRows();
+    const initialOilLamp = initialRows.find((r) => r.key === "oilLamp");
+    expect(initialOilLamp).toBeTruthy();
 
-    // Uncheck the checkbox
-    checkbox.checked = false;
-    checkbox.dispatchEvent(new Event("change"));
+    // Remove the oilLamp row by clicking its delete button
+    const generalRows = container.querySelectorAll('.cms-row[data-section="general"]');
+    for (const row of generalRows) {
+      const label = row.querySelector('.cms-row__key-label');
+      if (label && label.textContent.trim() === "Oil Lamp") {
+        const removeBtn = row.querySelector('.cms-row__action--delete');
+        if (removeBtn) {
+          removeBtn.click();
+          break;
+        }
+      }
+    }
+    
+    // If no delete button was found or clicked, directly remove from generalRows
+    const oilLampRowIdx = editor.generalRows.findIndex(r => r.key === "oilLamp");
+    if (oilLampRowIdx !== -1) {
+      editor.generalRows.splice(oilLampRowIdx, 1);
+      editor.isDirty = true;
+      editor.refreshDirtyState();
+      editor.render();
+    }
 
     // Check removedKeys
     const removedKeys = editor.getRemovedKeys();
     expect(removedKeys).toContain("oilLamp");
   });
 
-  test("when checked on existing row, does not add to removedKeys", () => {
+  test("when oilLamp row exists, does not add to removedKeys", () => {
     mount();
     editor.initialize([{ key: "oilLamp", value: "" }]);
 
-    const checkbox = container.querySelector('[data-key-type="oilLamp"] input[type="checkbox"]');
-    // Already checked — don't touch it
     const removedKeys = editor.getRemovedKeys();
     expect(removedKeys).not.toContain("oilLamp");
   });

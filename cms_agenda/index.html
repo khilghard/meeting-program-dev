@@ -14,10 +14,12 @@
       window.GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
     </script>
     <link id="styles-link" rel="stylesheet" href="" />
+    <link id="cms-styles-link" rel="stylesheet" href="" />
     <script type="module">
       import { VERSION } from "../js/version.js";
 
       document.getElementById("styles-link").href = `../css/styles.css?v=${VERSION}`;
+      document.getElementById("cms-styles-link").href = `../css/cms.css?v=${VERSION}`;
 
       const agendaScript = document.createElement("script");
       agendaScript.type = "module";
