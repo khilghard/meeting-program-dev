@@ -1,75 +1,109 @@
 import { ALLOWED_KEYS } from "../sanitize.js";
 import { getLanguage, loadTranslations, t } from "../i18n/index.js";
 
+// Keys that belong to Unit Information section (in display order)
+const UNIT_INFO_KEYS = ["unitName", "stakeName", "obsolete", "migrationUrl", "unitAddress", "link", "date"];
+
+// Required keys that must be preserved in the program section
+const REQUIRED_PROGRAM_KEYS = ["presiding", "closingPrayer"];
+
+// Convert ALLOWED_KEYS Set to sorted array for dropdown
+const KEY_OPTIONS = Array.from(ALLOWED_KEYS).sort();
+
 const CATEGORY_ORDER = [
-  {
-    id: "unit-info",
-    title: "Unit Information",
-    keys: ["unitName", "unitAddress", "stakeName", "date"]
-  },
-  {
-    id: "conducting",
-    title: "Conducting",
-    keys: ["presiding", "conducting", "musicDirector", "musicOrganist"]
-  },
-  {
-    id: "hymns",
-    title: "Hymns",
-    keys: ["openingHymn", "sacramentHymn", "intermediateHymn", "closingHymn", "hymn"]
-  },
-  {
-    id: "prayers",
-    title: "Prayers",
-    keys: ["openingPrayer", "closingPrayer"]
-  },
-  {
-    id: "speakers",
-    title: "Speakers",
-    keys: ["speaker"]
-  },
-  {
-    id: "structural",
-    title: "Structural",
-    keys: ["horizontalLine", "sacramentLine", "oilLamp"]
-  },
-  {
-    id: "leaders",
-    title: "Leaders",
-    keys: ["leader"]
-  },
-  {
-    id: "statements-links",
-    title: "Statements & Links",
-    keys: ["generalStatement", "generalStatementWithLink", "link", "linkWithSpace"]
-  },
-  {
-    id: "media",
-    title: "Media",
-    keys: ["photo", "migrationUrl", "obsolete"]
-  },
-  {
-    id: "lessons",
-    title: "Lessons",
-    keys: ["lessonEQRS", "lessonSundaySchool", "lessonYouth", "lessonPrimary"]
-  },
-  {
-    id: "agenda",
-    title: "Agenda",
-    keys: [
-      "agendaGeneral",
-      "agendaAnnouncements",
-      "agendaAckVisitingLeaders",
-      "agendaBusinessStake",
-      "agendaBusinessReleases",
-      "agendaBusinessCallings",
-      "agendaBusinessPriesthood",
-      "agendaBusinessNewMoveIns",
-      "agendaBusinessNewConverts",
-      "agendaBusinessGeneral"
-    ],
-    optional: true
-  }
+  { id: "unit-info", title: "Unit Information", keys: ["unitName", "unitAddress", "stakeName", "date"] },
+  { id: "conducting", title: "Conducting", keys: ["presiding", "conducting", "musicDirector", "musicOrganist"] },
+  { id: "hymns", title: "Hymns", keys: ["openingHymn", "sacramentHymn", "intermediateHymn", "closingHymn", "hymn"] },
+  { id: "prayers", title: "Prayers", keys: ["openingPrayer", "closingPrayer"] },
+  { id: "speakers", title: "Speakers", keys: ["speaker"] },
+  { id: "structural", title: "Structural", keys: ["horizontalLine", "sacramentLine", "oilLamp"] },
+  { id: "leaders", title: "Leaders", keys: ["leader"] },
+  { id: "statements-links", title: "Statements & Links", keys: ["generalStatement", "generalStatementWithLink", "link", "linkWithSpace"] },
+  { id: "media", title: "Media", keys: ["photo", "migrationUrl", "obsolete"] },
+  { id: "lessons", title: "Lessons", keys: ["lessonEQRS", "lessonSundaySchool", "lessonYouth", "lessonPrimary"] },
+  { id: "agenda", title: "Agenda", keys: ["agendaGeneral", "agendaAnnouncements", "agendaAckVisitingLeaders", "agendaBusinessStake", "agendaBusinessReleases", "agendaBusinessCallings", "agendaBusinessPriesthood", "agendaBusinessNewMoveIns", "agendaBusinessNewConverts", "agendaBusinessGeneral"], optional: true }
 ];
+
+function normalizeCmsKeyType(key) {
+  if (!key) return key;
+  return key.replace(/(\d+)$/, "");
+}
+
+function translateStaticText(text) {
+  const translations = { "Required": "Required", "Optional": "Optional", "Unsaved changes": "Unsaved changes", "All changes saved": "All changes saved", "Add": "Add", "Remove": "Remove", "Insert Row": "Insert Row", "Delete Row": "Delete Row", "Move Up": "Move Up", "Move Down": "Move Down", "Unit Information": "Unit Information", "Sacrament Meeting Program": "Sacrament Meeting Program", "General Information": "General Information" };
+  return translations[text] || text;
+}
+
+function translate(key, fallback) {
+  if (typeof t === "function") return t(key) || fallback;
+  return fallback;
+}
+
+function getFieldLabel(keyType) {
+  const labels = { unitName: "Unit Name", stakeName: "Stake Name", unitAddress: "Address", date: "Date", presiding: "Presiding", conducting: "Conducting", musicDirector: "Music Director", musicOrganist: "Organist", openingHymn: "Opening Hymn", openingPrayer: "Opening Prayer", sacramentHymn: "Sacrament Hymn", closingHymn: "Closing Hymn", closingPrayer: "Closing Prayer", speaker: "Speaker", leader: "Leader", hymn: "Hymn", intermediateHymn: "Intermediate Hymn" };
+  return labels[keyType] || keyType;
+}
+
+function getFieldDefinition(keyType) {
+  const definitions = { unitName: { required: true, fields: [{ name: "text", type: "text", placeholder: "Ward/Branch name" }] }, stakeName: { fields: [{ name: "text", type: "text", placeholder: "Stake/District name" }] }, date: { required: true, fields: [{ name: "text", type: "text", placeholder: "Meeting date" }] }, presiding: { required: true, fields: [{ name: "text", type: "text", placeholder: "Full name" }] }, closingPrayer: { required: true, fields: [{ name: "text", type: "text", placeholder: "Full name" }] } };
+  return definitions[keyType] || { fields: [{ name: "text", type: "text", placeholder: "Value" }] };
+}
+
+function parseFieldValue(keyType, value, options = {}) {
+  if (!value) return { text: "", parts: [] };
+  return { text: value, parts: [{ text: value, name: "text" }] };
+}
+
+function createEmptyValue(keyType) {
+  return { text: "", parts: [] };
+}
+
+function sortConcreteRows(rows, keyType) {
+  const order = { presiding: 1, conducting: 2, openingHymn: 3, openingPrayer: 4, sacramentHymn: 5, intermediateHymn: 6, closingHymn: 7, closingPrayer: 8 };
+  return [...rows].sort((a, b) => {
+    const aOrder = order[normalizeCmsKeyType(a.key)] ?? 999;
+    const bOrder = order[normalizeCmsKeyType(b.key)] ?? 999;
+    return aOrder - bOrder;
+  });
+}
+
+// Parse rows into 3 sections: Unit Info, Program, General
+function parseRowsIntoSections(rows) {
+  const rowList = Array.isArray(rows) ? rows.map((row) => ({ key: row.key ?? "", value: row.value ?? "" })) : [];
+  
+  const unitInfoRows = [];
+  const programRows = [];
+  const generalRows = [];
+  
+  let currentSection = "unitInfo";
+  let foundClosingPrayer = false;
+  
+  for (const row of rowList) {
+    const key = row.key;
+    const normalizedKey = normalizeCmsKeyType(key);
+    
+    if (currentSection === "unitInfo") {
+      if (UNIT_INFO_KEYS.includes(key) || UNIT_INFO_KEYS.includes(normalizedKey)) {
+        unitInfoRows.push({ ...row, originalIndex: unitInfoRows.length });
+      } else {
+        currentSection = "program";
+        programRows.push({ ...row, originalIndex: programRows.length });
+      }
+    } else if (currentSection === "program") {
+      if (key === "closingPrayer" || normalizedKey === "closingPrayer") {
+        programRows.push({ ...row, originalIndex: programRows.length });
+        foundClosingPrayer = true;
+        currentSection = "general";
+      } else {
+        programRows.push({ ...row, originalIndex: programRows.length });
+      }
+    } else {
+      generalRows.push({ ...row, originalIndex: generalRows.length });
+    }
+  }
+  
+  return { unitInfoRows, programRows, generalRows };
+}
 
 const FIELD_DEFINITIONS = {
   unitName: {
@@ -360,37 +394,11 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function translateStaticText(text) {
-  if (!text) {
-    return text;
-  }
-
-  const translationKey = STATIC_TEXT_KEYS[text];
-  return translationKey ? translate(translationKey, text) : text;
-}
-
-function translate(key, fallback = key) {
-  if (!translationsReady) {
-    loadTranslations(getLanguage());
-    translationsReady = true;
-  }
-
-  const translated = t(key);
-  return translated === key ? fallback : translated;
-}
-
-export function normalizeCmsKeyType(key) {
-  if (/^speaker\d+$/i.test(key)) return "speaker";
-  if (/^intermediatehymn\d+$/i.test(key)) return "intermediateHymn";
-  if (/^leader\d+$/i.test(key)) return "leader";
-  return key;
-}
-
 export function getFieldsForKeyType(keyType) {
   const normalizedKeyType = normalizeCmsKeyType(keyType);
   const definition = FIELD_DEFINITIONS[normalizedKeyType];
   if (!definition) {
-    throw new Error(`CmsEditor: unsupported key type \"${keyType}\"`);
+    throw new Error(`CmsEditor: unsupported key type "${keyType}"`);
   }
   return clone(definition.fields);
 }
@@ -399,83 +407,6 @@ export function sanitisePart(str) {
   return String(str ?? "")
     .replaceAll("|", "")
     .trim();
-}
-
-function getFieldDefinition(keyType) {
-  return FIELD_DEFINITIONS[normalizeCmsKeyType(keyType)];
-}
-
-function getFieldLabel(keyType) {
-  const normalizedKeyType = normalizeCmsKeyType(keyType);
-  if (LABEL_MAP[normalizedKeyType]) {
-    return translateStaticText(LABEL_MAP[normalizedKeyType]());
-  }
-
-  return translate(
-    normalizedKeyType,
-    normalizedKeyType
-      .replace(/([A-Z])/g, " $1")
-      .replace(/^./, (c) => c.toUpperCase())
-      .trim()
-  );
-}
-
-function createEmptyValue(keyType) {
-  const definition = getFieldDefinition(keyType);
-  return Object.fromEntries(
-    definition.fields.map((field) => [field.name, field.type === "checkbox" ? false : ""])
-  );
-}
-
-function splitParts(raw) {
-  return String(raw ?? "")
-    .split("|")
-    .map((part) => part.trim());
-}
-
-function joinParts(parts) {
-  const normalized = [...parts];
-  while (normalized.length > 0 && !normalized[normalized.length - 1]) {
-    normalized.pop();
-  }
-  return normalized.join(" | ");
-}
-
-export function parseFieldValue(keyType, raw = "", { rowExists = false } = {}) {
-  const normalizedKeyType = normalizeCmsKeyType(keyType);
-  const parts = splitParts(raw);
-
-  switch (normalizedKeyType) {
-    case "openingHymn":
-    case "sacramentHymn":
-    case "intermediateHymn":
-    case "closingHymn":
-    case "hymn":
-      return { hymnNumber: parts[0] ?? "", titleOverride: parts[1] ?? "" };
-    case "speaker":
-      return { name: parts[0] ?? "", caption: parts[1] ?? "" };
-    case "leader":
-      return { name: parts[0] ?? "", phone: parts[1] ?? "", calling: parts[2] ?? "" };
-    case "generalStatementWithLink":
-      return { text: parts[0] ?? "", url: parts[1] ?? "" };
-    case "link":
-      return { text: parts[0] ?? "", url: parts[1] ?? "" };
-    case "linkWithSpace": {
-      const textRaw = parts[0] ?? "";
-      return {
-        includeImageIcon: /<IMG>/i.test(textRaw),
-        text: textRaw.replace(/<IMG>/gi, "").trim(),
-        url: parts[1] ?? "",
-        imageUrl: parts[2] ?? ""
-      };
-    }
-    case "photo":
-      return { url: parts[0] ?? "", caption: parts[1] ?? "" };
-    case "oilLamp":
-      return { enabled: rowExists };
-    default:
-      return { text: String(raw ?? "") };
-  }
 }
 
 export function serializeFieldValue(keyType, value = {}) {
@@ -513,6 +444,16 @@ export function serializeFieldValue(keyType, value = {}) {
   }
 }
 
+function splitParts(raw) {
+  return String(raw ?? "")
+    .split("|")
+    .map((part) => part.trim());
+}
+
+function joinParts(parts) {
+  return parts.filter((part) => part).join("|");
+}
+
 function isValueEmpty(keyType, value) {
   const normalizedKeyType = normalizeCmsKeyType(keyType);
   if (normalizedKeyType === "oilLamp") {
@@ -535,15 +476,6 @@ function getConcreteKeyForNewItem(keyType, existingKeys, nextOrdinal) {
     return `${keyType}${nextOrdinal}`;
   }
   return existingKeys[nextOrdinal - 1] ?? keyType;
-}
-
-function sortConcreteRows(rows, keyType) {
-  if (isNumberedRepeatableKeyType(keyType)) {
-    return [...rows].sort(
-      (left, right) => getTrailingNumber(left.key) - getTrailingNumber(right.key)
-    );
-  }
-  return rows;
 }
 
 function getTrailingNumber(key) {
@@ -595,7 +527,7 @@ function cloneGroups(groups) {
 class CmsEditor {
   constructor(containerId, options = {}) {
     this.container = document.getElementById(containerId);
-    if (!this.container) {
+if (!this.container) {
       throw new Error(`[CmsEditor] Container not found: ${containerId}`);
     }
 
@@ -609,105 +541,88 @@ class CmsEditor {
     this.groups = [];
     this.baselineGroups = [];
     this.isDirty = false;
-    this.activeSectionId = CATEGORY_ORDER[0].id;
   }
 
   initialize(rows = [], { includeAgenda = this.options.includeAgenda } = {}) {
     this.groups = buildFieldGroups(rows, includeAgenda);
     this.baselineGroups = cloneGroups(this.groups);
     this.isDirty = false;
-    this.activeSectionId = this.groups[0]?.id ?? CATEGORY_ORDER[0].id;
     this.render();
   }
 
   render() {
-    const navHtml = this.groups
-      .map((category) => {
-        const activeClass = category.id === this.activeSectionId ? " is-active" : "";
-        return `<button type="button" class="cms-editor__nav-item${activeClass}" data-section-id="${category.id}">${category.title}</button>`;
-      })
-      .join("");
-
-    const sectionsHtml = this.groups.map((category) => this.renderCategory(category)).join("");
-
-    this.container.innerHTML = `
-      <div class="cms-editor">
-        <aside class="cms-editor__nav">${navHtml}</aside>
-        <div class="cms-editor__content">
-          <div class="cms-editor__status" data-dirty="${this.isDirty}">${translateStaticText(this.isDirty ? "Unsaved changes" : "All changes saved")}</div>
-          ${sectionsHtml}
-        </div>
-      </div>
-    `;
-
+    this.container.innerHTML = this.renderHtml();
     this.attachEventListeners();
   }
 
-  renderCategory(category) {
-    const fieldsHtml = category.fields.map((field) => this.renderField(field)).join("");
+  renderHtml() {
     return `
-      <section class="cms-editor__section" data-section-id="${category.id}">
-        <h2 class="cms-editor__section-title">${translateStaticText(category.title)}</h2>
-        ${fieldsHtml}
-      </section>
+      <div class="cms-editor">
+        <div class="cms-editor__nav">
+          ${this.groups.map((group, index) => `
+            <button type="button" class="cms-editor__nav-item ${index === this.activeGroupIndex ? 'cms-editor__nav-item--active' : ''}" data-group-index="${index}">
+              ${translateStaticText(group.title)}
+            </button>
+          `).join("")}
+        </div>
+        <div class="cms-editor__content">
+          ${this.renderActiveGroup()}
+        </div>
+        <div class="cms-editor__status"></div>
+      </div>
+    `;
+  }
+
+  renderActiveGroup() {
+    const group = this.groups[this.activeGroupIndex];
+    if (!group) return "";
+
+    return `
+      <div class="cms-editor__group">
+        <h3 class="cms-editor__group-title">${translateStaticText(group.title)}</h3>
+        ${group.fields.map(field => this.renderField(field)).join("")}
+      </div>
     `;
   }
 
   renderField(field) {
-    const badge = translateStaticText(field.definition.required ? "Required" : "Optional");
-    const helpHtml = field.definition.helpText
-      ? `<p class="cms-editor__field-help">${translateStaticText(field.definition.helpText)}</p>`
-      : "";
-    const itemsHtml = field.items
-      .map((item, index) => this.renderFieldItem(field, item, index))
-      .join("");
-    const addButtonHtml = field.definition.repeatable
-      ? `<button type="button" class="cms-editor__add-item" data-action="add-item" data-key-type="${field.keyType}">${translateStaticText(field.definition.addLabel || `${translate("add", "Add")} ${field.label}`)}</button>`
-      : "";
+    const fieldLabel = getFieldLabel(field.keyType);
+    const canAdd = field.definition.repeatable && field.items.length < MAX_REPEATABLE_ITEMS[field.keyType];
+    const canRemove = field.definition.repeatable && field.items.length > 1;
 
     return `
       <div class="cms-editor__field" data-key-type="${field.keyType}">
         <div class="cms-editor__field-header">
-          <div>
-            <h3 class="cms-editor__field-title">${field.label}</h3>
-            ${helpHtml}
-          </div>
-          <span class="cms-editor__badge" data-badge="${badge}">${badge}</span>
+          <span class="cms-editor__field-label">${fieldLabel}</span>
+          ${canAdd ? `<button type="button" class="cms-editor__add-btn" data-action="add-item" data-key-type="${field.keyType}">+ ${translateStaticText("Add")}</button>` : ""}
         </div>
-        <div class="cms-editor__field-items">${itemsHtml}</div>
-        ${addButtonHtml}
+        <div class="cms-editor__field-items">
+          ${field.items.map((item, itemIndex) => this.renderFieldItem(field, item, itemIndex)).join("")}
+        </div>
       </div>
     `;
   }
 
   renderFieldItem(field, item, itemIndex) {
-    const inputsHtml = field.definition.fields
-      .map((part) => this.renderInput(field.keyType, item.value, part, itemIndex))
-      .join("");
-    const removeButton = field.definition.repeatable
-      ? `<button type="button" class="cms-editor__remove-item" data-action="remove-item" data-key-type="${field.keyType}" data-item-index="${itemIndex}">${translate("remove", "Remove")}</button>`
-      : "";
+    const value = item.value ?? createEmptyValue(field.keyType);
+    const canRemove = field.definition.repeatable && field.items.length > 1 && item.key === null;
 
     return `
-      <div class="cms-editor__field-item" data-item-index="${itemIndex}">
-        ${inputsHtml}
-        ${removeButton}
+      <div class="cms-editor__field-item" data-key-type="${field.keyType}" data-item-index="${itemIndex}">
+        ${field.definition.fields.map(part => this.renderInput(field.keyType, itemIndex, part, value)).join("")}
+        ${canRemove ? `<button type="button" class="cms-editor__remove-btn" data-action="remove-item" data-key-type="${field.keyType}" data-item-index="${itemIndex}">✕</button>` : ""}
       </div>
     `;
   }
 
-  renderInput(keyType, value, part, itemIndex) {
+  renderInput(keyType, itemIndex, part, value) {
     const inputId = `${keyType}-${itemIndex}-${part.name}`;
     const prompt = translateStaticText(part.label || part.placeholder || "");
+
     if (part.type === "textarea") {
-      const insertTokenButton =
-        keyType === "generalStatementWithLink" && part.name === "text"
-          ? `<button type="button" class="cms-editor__insert-token" data-action="insert-token" data-key-type="${keyType}" data-item-index="${itemIndex}" data-part-name="${part.name}" data-token="<LINK>">${translateStaticText("Insert Link Placeholder")}</button>`
-          : "";
       return `
         <label class="cms-editor__input-label" for="${inputId}">${prompt}</label>
         <textarea id="${inputId}" class="cms-editor__input cms-editor__textarea" data-key-type="${keyType}" data-item-index="${itemIndex}" data-part-name="${part.name}">${this.escapeHtml(value[part.name] ?? "")}</textarea>
-        ${insertTokenButton}
       `;
     }
 
@@ -729,17 +644,15 @@ class CmsEditor {
   attachEventListeners() {
     this.container.querySelectorAll(".cms-editor__nav-item").forEach((button) => {
       button.addEventListener("click", () => {
-        this.activeSectionId = button.dataset.sectionId;
+        this.activeGroupIndex = parseInt(button.dataset.groupIndex);
         this.render();
       });
     });
 
-    this.container
-      .querySelectorAll(".cms-editor__input, .cms-editor__textarea, .cms-editor__checkbox")
-      .forEach((element) => {
-        element.addEventListener("input", (event) => this.handleValueChange(event));
-        element.addEventListener("change", (event) => this.handleValueChange(event));
-      });
+    this.container.querySelectorAll(".cms-editor__input, .cms-editor__textarea, .cms-editor__checkbox").forEach((element) => {
+      element.addEventListener("input", (event) => this.handleValueChange(event));
+      element.addEventListener("change", (event) => this.handleValueChange(event));
+    });
 
     this.container.querySelectorAll("[data-action='add-item']").forEach((button) => {
       button.addEventListener("click", () => {
@@ -749,78 +662,32 @@ class CmsEditor {
 
     this.container.querySelectorAll("[data-action='remove-item']").forEach((button) => {
       button.addEventListener("click", () => {
-        this.removeRepeatableItem(button.dataset.keyType, Number(button.dataset.itemIndex));
-      });
-    });
-
-    this.container.querySelectorAll("[data-action='insert-token']").forEach((button) => {
-      button.addEventListener("mousedown", (event) => {
-        event.preventDefault();
-      });
-      button.addEventListener("click", () => {
-        this.insertToken(
-          button.dataset.keyType,
-          Number(button.dataset.itemIndex),
-          button.dataset.partName,
-          button.dataset.token
-        );
+        this.removeRepeatableItem(button.dataset.keyType, parseInt(button.dataset.itemIndex));
       });
     });
   }
 
   handleValueChange(event) {
-    const element = event.currentTarget;
-    const keyType = element.dataset.keyType;
-    const itemIndex = Number(element.dataset.itemIndex);
-    const partName = element.dataset.partName;
-    const value = element.type === "checkbox" ? element.checked : element.value;
-    this.setPartValue(keyType, itemIndex, partName, value);
+    const keyType = event.target.dataset.keyType;
+    const itemIndex = parseInt(event.target.dataset.itemIndex);
+    const partName = event.target.dataset.partName;
+    const newValue = event.target.type === "checkbox" ? event.target.checked : event.target.value;
+    this.setPartValue(keyType, itemIndex, partName, newValue);
   }
 
-  setPartValue(keyType, itemIndex, partName, value) {
+  setPartValue(keyType, itemIndex, partName, newValue) {
     const field = this.findField(keyType);
     if (!field) return;
-    const item = field.items[itemIndex];
-    const oldValue = { ...item.value };
-    item.value[partName] = value;
-    const serialized = serializeFieldValue(field.keyType, item.value);
-    if (item.key && !serialized && isValueEmpty(field.keyType, item.value)) {
-      field.removedKeys = Array.from(new Set([...(field.removedKeys ?? []), item.key]));
-      item.key = null;
+    if (!field.items[itemIndex].value) {
+      field.items[itemIndex].value = createEmptyValue(keyType);
     }
+    field.items[itemIndex].value[partName] = newValue;
     this.refreshDirtyState();
-  }
-
-  setItemValue(keyType, itemIndex, value) {
-    const field = this.findField(keyType);
-    if (!field) {
-      throw new Error(`CmsEditor: unknown field \"${keyType}\"`);
-    }
-    field.items[itemIndex].value = clone(value);
-    this.refreshDirtyState();
-  }
-
-  insertToken(keyType, itemIndex, partName, token) {
-    const textarea = this.container.querySelector(
-      `.cms-editor__textarea[data-key-type="${keyType}"][data-item-index="${itemIndex}"][data-part-name="${partName}"]`
-    );
-    if (!textarea) return;
-
-    const currentValue = textarea.value ?? "";
-    const tokenValue = token ?? "";
-    const start = textarea.selectionStart ?? currentValue.length;
-    const end = textarea.selectionEnd ?? start;
-    const nextValue = `${currentValue.slice(0, start)}${tokenValue}${currentValue.slice(end)}`;
-
-    textarea.value = nextValue;
-    textarea.focus();
-    textarea.setSelectionRange(start + tokenValue.length, start + tokenValue.length);
-    this.setPartValue(keyType, itemIndex, partName, nextValue);
   }
 
   addRepeatableItem(keyType) {
     const field = this.findField(keyType);
-    if (!field?.definition.repeatable) return;
+    if (!field || !field.definition.repeatable) return;
     field.items.push({ key: null, value: createEmptyValue(keyType) });
     this.refreshDirtyState();
     this.render();
@@ -828,16 +695,12 @@ class CmsEditor {
 
   removeRepeatableItem(keyType, itemIndex) {
     const field = this.findField(keyType);
-    if (!field?.definition.repeatable) return;
-    const item = field.items[itemIndex];
-    if (!item) return;
-
-    if (item.key) {
-      field.removedKeys = Array.from(new Set([...(field.removedKeys ?? []), item.key]));
-      field.items.splice(itemIndex, 1);
-    } else if (field.items.length === 1) {
-      field.items[0].value = createEmptyValue(keyType);
-    } else {
+    if (!field) return;
+    if (field.items[itemIndex].key) {
+      field.removedKeys = field.removedKeys || [];
+      field.removedKeys.push(field.items[itemIndex].key);
+    }
+    if (field.items.length > 1) {
       field.items.splice(itemIndex, 1);
     }
     this.refreshDirtyState();
@@ -852,9 +715,20 @@ class CmsEditor {
     this.isDirty = JSON.stringify(this.getRows()) !== JSON.stringify(this.getBaselineRows());
     const status = this.container.querySelector(".cms-editor__status");
     if (status) {
-      status.textContent = translateStaticText(
-        this.isDirty ? "Unsaved changes" : "All changes saved"
-      );
+      if (this.isDirty) {
+        status.textContent = translateStaticText("Unsaved changes");
+        status.classList.remove("cms-editor__status--saved");
+      } else {
+        status.textContent = translateStaticText("All changes saved");
+        status.classList.add("cms-editor__status--saved");
+        if (this.statusTimeout) {
+          clearTimeout(this.statusTimeout);
+        }
+        this.statusTimeout = setTimeout(() => {
+          status.textContent = "";
+          status.classList.remove("cms-editor__status--saved");
+        }, 10000);
+      }
     }
     if (typeof this.options.onChangeCallback === "function") {
       this.options.onChangeCallback(this.getState());
@@ -863,7 +737,6 @@ class CmsEditor {
 
   getRows() {
     const rows = [];
-
     for (const field of flattenGroups(this.groups)) {
       const trackedKeys = [
         ...field.items.filter((item) => item.key).map((item) => item.key),
@@ -888,46 +761,73 @@ class CmsEditor {
           const newKey = getConcreteKeyForNewItem(field.keyType, trackedKeys, nextOrdinal);
           trackedKeys.push(newKey);
           rows.push({ key: newKey, value: serialized });
-          nextOrdinal += 1;
-          return;
+          nextOrdinal++;
         }
-
-        rows.push({ key: field.keyType, value: serialized });
       });
-
-      for (const removedKey of field.removedKeys ?? []) {
-        rows.push({ key: removedKey, value: "" });
-      }
     }
-
     return rows;
   }
 
   getBaselineRows() {
-    const currentGroups = this.groups;
-    this.groups = cloneGroups(this.baselineGroups);
-    const baselineRows = this.getRows();
-    this.groups = currentGroups;
-    return baselineRows;
+    const rows = [];
+    for (const field of flattenGroups(this.baselineGroups)) {
+      const trackedKeys = [
+        ...field.items.filter((item) => item.key).map((item) => item.key),
+        ...(field.removedKeys ?? [])
+      ];
+      let nextOrdinal = Math.max(0, ...trackedKeys.map(getTrailingNumber)) + 1;
+
+      field.items.forEach((item) => {
+        const serialized = serializeFieldValue(field.keyType, item.value);
+        const originalKey = item.key;
+
+        if (originalKey) {
+          rows.push({ key: originalKey, value: serialized });
+          return;
+        }
+
+        if (isValueEmpty(field.keyType, item.value)) {
+          return;
+        }
+
+        if (isRepeatableKeyType(field.keyType)) {
+          const newKey = getConcreteKeyForNewItem(field.keyType, trackedKeys, nextOrdinal);
+          trackedKeys.push(newKey);
+          rows.push({ key: newKey, value: serialized });
+          nextOrdinal++;
+        }
+      });
+    }
+    return rows;
+  }
+
+  getRemovedKeys() {
+    const removedKeys = [];
+    for (const field of flattenGroups(this.groups)) {
+      const baselineField = flattenGroups(this.baselineGroups).find((f) => f.keyType === field.keyType);
+      if (!baselineField) continue;
+      const baselineKeys = baselineField.items.filter((item) => item.key).map((item) => item.key);
+      const currentKeys = field.items.filter((item) => item.key).map((item) => item.key);
+
+      for (const key of baselineKeys) {
+        if (!currentKeys.includes(key)) {
+          removedKeys.push(key);
+        }
+      }
+
+      if (field.removedKeys) {
+        removedKeys.push(...field.removedKeys);
+      }
+    }
+    return removedKeys;
   }
 
   getState() {
     return {
       rows: this.getRows(),
-      isDirty: this.isDirty,
-      activeSectionId: this.activeSectionId
+      removedKeys: this.getRemovedKeys(),
+      isDirty: this.isDirty
     };
-  }
-
-  getRemovedKeys() {
-    const removedKeys = [];
-    for (const group of this.groups) {
-      for (const field of group.fields) {
-        const fieldRemovedKeys = field.removedKeys ?? [];
-        removedKeys.push(...fieldRemovedKeys);
-      }
-    }
-    return removedKeys;
   }
 
   discardChanges() {
@@ -948,5 +848,6 @@ class CmsEditor {
       .replaceAll(">", "&gt;");
   }
 }
+
 
 export default CmsEditor;

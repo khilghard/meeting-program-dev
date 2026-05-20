@@ -6,11 +6,11 @@
 export function getV211StorageData() {
   return {
     lastProgramData: JSON.stringify({
-      unitName: "Riverview Branch",
-      unitAddress: "2530 Brooklyn Ave, Kansas City MO 64127",
-      stakeName: "Independence",
+      unitName: "1st Ward",
+      unitAddress: "123 Main St, Anytown USA",
+      stakeName: "Anytown Stake",
       date: "February 1, 2026",
-      link: "https://local.churchofjesuschrist.org/en/units/us/mo/independence/riverview-branch?id=acsrch",
+      link: "https://local.churchofjesuschrist.org/en/units/us/",
       state: "February 1, 2026",
       presiding: "Branch President",
       conducting: "Bishopric",
@@ -34,18 +34,18 @@ export function getV211StorageData() {
     meeting_program_history: JSON.stringify([
       {
         date: "January 25, 2026",
-        unitName: "Riverview Branch",
-        link: "https://local.churchofjesuschrist.org/en/units/us/mo/independence/riverview-branch?id=acsrch",
+        unitName: "1st Ward",
+        link: "https://local.churchofjesuschrist.org/en/units/us/",
       },
       {
         date: "January 18, 2026",
-        unitName: "Riverview Branch",
-        link: "https://local.churchofjesuschrist.org/en/units/us/mo/independence/riverview-branch?id=acsrch",
+        unitName: "1st Ward",
+        link: "https://local.churchofjesuschrist.org/en/units/us/",
       },
       {
         date: "January 11, 2026",
         unitName: "Nortwest Ward",
-        link: "https://local.churchofjesuschrist.org/en/units/us/mo/independence/northwest-ward?id=acsrch",
+        link: "https://local.churchofjesuschrist.org/en/units/us/",
       },
     ]),
 
@@ -57,11 +57,11 @@ export function getV211StorageData() {
 
     programCache: JSON.stringify({
       timestamp: Date.now() - 86400000, // Yesterday
-      unitName: "Riverview Branch",
+      unitName: "1st Ward",
       data: {
-        unitName: "Riverview Branch",
-        unitAddress: "2530 Brooklyn Ave, Kansas City MO 64127",
-        stakeName: "Independence",
+        unitName: "1st Ward",
+        unitAddress: "123 Main St, Anytown USA",
+        stakeName: "Anytown Stake",
         date: "February 1, 2026",
         presiding: "Branch President",
         sacramentSpeakers: [
