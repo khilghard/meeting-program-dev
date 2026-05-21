@@ -41,7 +41,8 @@ const GoogleAuth = (() => {
     userInfo: null,
     accessToken: null,
     expiresAt: null,
-    refreshTimeout: null
+    refreshTimeout: null,
+    refreshWarningTimeout: null
   };
 
   // SessionStorage keys
@@ -55,6 +56,14 @@ const GoogleAuth = (() => {
 
   function isGoogleGsiAvailable() {
     return typeof google !== "undefined" && !!google.accounts?.oauth2?.initTokenClient;
+  }
+
+  function emitAuthEvent(type, detail = {}) {
+    if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent(type, { detail }));
   }
 
   function hasGoogleGsiScriptTag() {
@@ -371,11 +380,23 @@ const GoogleAuth = (() => {
       }
     } catch (err) {
       console.warn("[AUTH] Silent refresh failed:", err.message);
+      emitAuthEvent("gm-auth-refresh-failed", {
+        reason: /popup|block/i.test(err?.message || "") ? "popup-blocked" : "silent-refresh-failed",
+        message:
+          /popup|block/i.test(err?.message || "")
+            ? "Google could not open a sign-in window. Allow popups for this site, then sign in again."
+            : "Google session refresh failed. Please sign in again.",
+        error: err?.message || String(err)
+      });
     }
 
     // Method 2: Require user to sign in again
     console.log("[AUTH] Silent refresh failed. User must sign in again.");
     clearSession();
+    emitAuthEvent("gm-auth-refresh-failed", {
+      reason: "refresh-failed",
+      message: "Google session expired. Sign in again to continue editing."
+    });
     return false;
   }
 
@@ -437,6 +458,11 @@ const GoogleAuth = (() => {
       state.refreshTimeout = null;
     }
 
+    if (state.refreshWarningTimeout) {
+      clearTimeout(state.refreshWarningTimeout);
+      state.refreshWarningTimeout = null;
+    }
+
     // Clear sessionStorage
     sessionStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
     sessionStorage.removeItem(STORAGE_KEYS.USER_EMAIL);
@@ -459,12 +485,26 @@ const GoogleAuth = (() => {
       clearTimeout(state.refreshTimeout);
     }
 
+    if (state.refreshWarningTimeout) {
+      clearTimeout(state.refreshWarningTimeout);
+    }
+
     // Refresh 5 minutes before expiry
     const refreshBuffer = 5 * 60 * 1000; // 5 minutes
     const timeUntilExpiry = state.expiresAt - Date.now();
     const timeUntilRefresh = Math.max(0, timeUntilExpiry - refreshBuffer);
+    const warningLead = 60 * 1000; // 1 minute before refresh
+    const timeUntilWarning = Math.max(0, timeUntilRefresh - warningLead);
 
     console.log(`[AUTH] Token refresh scheduled in ${Math.round(timeUntilRefresh / 1000)}s`);
+
+    state.refreshWarningTimeout = setTimeout(() => {
+      emitAuthEvent("gm-auth-refresh-warning", {
+        message:
+          "Your Google session will refresh soon. If popups are blocked or you want to avoid interruption, sign in again now.",
+        secondsUntilRefresh: Math.round(timeUntilRefresh / 1000)
+      });
+    }, timeUntilWarning);
 
     state.refreshTimeout = setTimeout(async () => {
       const success = await refreshToken();

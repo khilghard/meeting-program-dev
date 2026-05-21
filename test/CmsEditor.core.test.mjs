@@ -75,15 +75,16 @@ describe('autoCorrectRows', () => {
     expect(programRows[1].key).toBe('presiding');
   });
 
-  it('reorders closingPrayer to last, after all keys', () => {
-    // Include required presiding to avoid insertion shifting indices
+  it('preserves closingPrayer position (no auto-reorder)', () => {
     const programRows = [
       { key: 'presiding', value: '' },
       { key: 'closingPrayer', value: '' },
       { key: 'openingHymn', value: '' }
     ];
     autoCorrectRows([], programRows, []);
-    expect(programRows[programRows.length - 1].key).toBe('closingPrayer');
+    // closingPrayer stays at index 1, not moved to end
+    expect(programRows[1].key).toBe('closingPrayer');
+    expect(programRows[2].key).toBe('openingHymn');
   });
 
   it('removes extra unitInfo rows not in UNIT_INFO_KEYS and moves them to appropriate section', () => {

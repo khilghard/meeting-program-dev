@@ -52,24 +52,31 @@ describe('parseFieldValue and serializeFieldValue round-trip', () => {
     });
   });
 
-  it('handles hymn fields (hymnNumber + titleOverride)', () => {
-    testRoundTrip('openingHymn', { hymnNumber: '62', titleOverride: 'Amazing Grace' });
-    testRoundTrip('sacramentHymn', { hymnNumber: 'CS 2', titleOverride: '' });
+  it('handles hymn fields (hymnNumber only)', () => {
+    testRoundTrip('openingHymn', { hymnNumber: '62' });
+    testRoundTrip('sacramentHymn', { hymnNumber: 'CS 2' });
   });
 
-  it('handles generalStatementWithLink (text + url)', () => {
-    testRoundTrip('generalStatementWithLink', {
-      text: 'Read more <LINK>',
-      url: 'https://example.org'
-    });
+  it('handles generalStatementWithLink (text + url, <LINK> auto-added on save)', () => {
+    // User enters text without <LINK> token
+    const value = { text: 'Read more', url: 'https://example.org' };
+    // Serialization adds <LINK> token
+    const serialized = serializeFieldValue('generalStatementWithLink', value);
+    expect(serialized).toBe('Read more<LINK>|https://example.org');
+    // Parsing strips <LINK> token back out
+    const parsed = parseFieldValue('generalStatementWithLink', serialized);
+    expect(parsed).toEqual({ text: 'Read more', url: 'https://example.org' });
   });
 
-  it('handles linkWithSpace (text + url + imageUrl)', () => {
-    testRoundTrip('linkWithSpace', {
-      text: '<IMG> Gospel Library',
-      url: 'https://example.org',
-      imageUrl: 'https://img.url'
-    });
+  it('handles linkWithSpace (text + url + imageUrl, <IMG> auto-added on save)', () => {
+    // User enters text without <IMG> token
+    const value = { text: 'Gospel Library', url: 'https://example.org', imageUrl: 'https://img.url' };
+    // Serialization adds <IMG> token
+    const serialized = serializeFieldValue('linkWithSpace', value);
+    expect(serialized).toBe('<IMG> Gospel Library|https://example.org|https://img.url');
+    // Parsing strips <IMG> token back out
+    const parsed = parseFieldValue('linkWithSpace', serialized);
+    expect(parsed).toEqual({ text: 'Gospel Library', url: 'https://example.org', imageUrl: 'https://img.url' });
   });
 
   it('handles photo (url + caption)', () => {

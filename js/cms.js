@@ -52,13 +52,24 @@ function normalizeSelectedTab(tabs, preferredTitle = "") {
   );
 }
 
+const CMS_DRAFT_VERSION = 2; // Increment when serialization format changes
+
 function buildDraftPayload(state) {
   return {
+    version: CMS_DRAFT_VERSION,
     locale: state.locale,
     selectedTabTitle: state.selectedTab?.title ?? DEFAULT_SHEET_TAB_NAME,
-    rows: state.editor?.getRows?.() ?? [],
+    rows: state.editor?.getAllRows?.() ?? [],
     savedAt: Date.now()
   };
+}
+
+function isCmsDraftPayload(draft) {
+  return Boolean(draft && typeof draft === "object" && Array.isArray(draft.rows));
+}
+
+function isDraftVersionValid(draft) {
+  return !draft || draft.version === CMS_DRAFT_VERSION;
 }
 
 function isAuthError(error) {
@@ -69,10 +80,6 @@ function isAuthError(error) {
     error.status === 403 ||
     /access token|not authorized/i.test(message)
   );
-}
-
-function isCmsDraftPayload(draft) {
-  return Boolean(draft && typeof draft === "object" && Array.isArray(draft.rows));
 }
 
 function getTranslatedText(translator, key, fallback) {
@@ -280,6 +287,15 @@ export function createCmsApp(dependencies = {}) {
     setStatus(message, tone);
   }
 
+  function showAuthWarning(message, tone = "warning") {
+    const { authPanel } = getElements();
+    if (authPanel) {
+      authPanel.hidden = false;
+    }
+    setAuthPanelState();
+    setStatus(message, tone);
+  }
+
   function showEditorChrome() {
     const { authPanel } = getElements();
     if (authPanel) {
@@ -424,7 +440,11 @@ export function createCmsApp(dependencies = {}) {
     if (!state.profile) return null;
 
     const draft = await deps.getDraft(buildCmsDraftKey(state.profile.id));
-    if (!isCmsDraftPayload(draft)) {
+    if (!isCmsDraftPayload(draft) || !isDraftVersionValid(draft)) {
+      // Discard corrupted or outdated drafts
+      if (draft && !isDraftVersionValid(draft)) {
+        await deps.clearDraft(buildCmsDraftKey(state.profile.id));
+      }
       return null;
     }
 
@@ -444,6 +464,7 @@ export function createCmsApp(dependencies = {}) {
   function mountEditor(rows) {
     if (!state.editor) {
       state.editor = new deps.CmsEditorClass("cms-editor-container", {
+        includeAgenda: true,
         onChangeCallback: async () => {
           try {
             await persistDraft();
@@ -472,9 +493,14 @@ export function createCmsApp(dependencies = {}) {
       const draft =
         state.pendingDraft ??
         (state.profile ? await deps.getDraft(buildCmsDraftKey(state.profile.id)) : null);
-      state.lastDraftRestored = draftMatchesCurrentView(draft);
-      mountEditor(state.lastDraftRestored ? draft.rows : rows);
-      state.pendingDraft = state.lastDraftRestored ? draft : null;
+      // Discard corrupted or outdated drafts
+      const validDraft = draft && isCmsDraftPayload(draft) && isDraftVersionValid(draft) ? draft : null;
+      if (draft && !isDraftVersionValid(draft)) {
+        await deps.clearDraft(buildCmsDraftKey(state.profile.id));
+      }
+      state.lastDraftRestored = draftMatchesCurrentView(validDraft);
+      mountEditor(state.lastDraftRestored ? validDraft.rows : rows);
+      state.pendingDraft = state.lastDraftRestored ? validDraft : null;
       updateHeader();
       setStatus("");
       return true;
@@ -648,6 +674,26 @@ export function createCmsApp(dependencies = {}) {
     state.locale = await deps.initI18n();
     translateShell();
     populateLocaleOptions();
+
+    const handleAuthRefreshFailure = (event) => {
+      const detail = event?.detail || {};
+      showAuthGate(
+        detail.message || "Google session expired. Sign in again to continue editing.",
+        "warning"
+      );
+    };
+
+    const handleAuthRefreshWarning = (event) => {
+      const detail = event?.detail || {};
+      showAuthWarning(
+        detail.message ||
+          "Your Google session will refresh soon. Sign in again now if you want to avoid interruption.",
+        "warning"
+      );
+    };
+
+    deps.windowRef?.addEventListener?.("gm-auth-refresh-failed", handleAuthRefreshFailure);
+    deps.windowRef?.addEventListener?.("gm-auth-refresh-warning", handleAuthRefreshWarning);
 
     await deps.profileManager.initProfileManager();
     state.profile = await deps.profileManager.getCurrentProfile();

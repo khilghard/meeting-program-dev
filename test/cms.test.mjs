@@ -129,6 +129,10 @@ describe("cms.js", () => {
           return this.rows;
         }
 
+        getAllRows() {
+          return this.rows;
+        }
+
         getRemovedKeys() {
           return [];
         }
@@ -211,6 +215,10 @@ describe("cms.js", () => {
           return this.rows;
         }
 
+        getAllRows() {
+          return this.rows;
+        }
+
         getRemovedKeys() {
           return [];
         }
@@ -224,6 +232,7 @@ describe("cms.js", () => {
     await editorInstance.options.onChangeCallback();
 
     expect(saveDraft).toHaveBeenCalledWith(buildCmsDraftKey("profile_underscore"), {
+      version: 2,
       locale: "en",
       selectedTabTitle: "Sheet1",
       rows: [{ key: "unitName", value: "Updated Ward" }],
@@ -291,6 +300,10 @@ describe("cms.js", () => {
         }
 
         getRows() {
+          return this.rows;
+        }
+
+        getAllRows() {
           return this.rows;
         }
 
@@ -373,6 +386,10 @@ describe("cms.js", () => {
         }
 
         getRows() {
+          return this.rows;
+        }
+
+        getAllRows() {
           return this.rows;
         }
 
@@ -474,6 +491,10 @@ describe("cms.js", () => {
           return this.rows;
         }
 
+        getAllRows() {
+          return this.rows;
+        }
+
         getRemovedKeys() {
           return [];
         }
@@ -560,6 +581,10 @@ describe("cms.js", () => {
           return this.rows;
         }
 
+        getAllRows() {
+          return this.rows;
+        }
+
         getRemovedKeys() {
           return [];
         }
@@ -635,6 +660,10 @@ describe("cms.js", () => {
         }
 
         getRows() {
+          return this.rows;
+        }
+
+        getAllRows() {
           return this.rows;
         }
 
@@ -720,6 +749,10 @@ describe("cms.js", () => {
         }
 
         getRows() {
+          return this.rows;
+        }
+
+        getAllRows() {
           return this.rows;
         }
 
@@ -813,6 +846,10 @@ describe("cms.js", () => {
           return this.rows;
         }
 
+        getAllRows() {
+          return this.rows;
+        }
+
         getRemovedKeys() {
           return [];
         }
@@ -900,6 +937,7 @@ describe("cms.js", () => {
       t: (key) => key,
       getMetadata: vi.fn().mockResolvedValue("test-client-id"),
       getDraft: vi.fn().mockResolvedValue({
+        version: 2,
         locale: "en",
         selectedTabTitle: "Sheet1",
         rows: [{ key: "unitName", value: "Restored Ward" }]
@@ -947,6 +985,10 @@ describe("cms.js", () => {
           return this.rows;
         }
 
+        getAllRows() {
+          return this.rows;
+        }
+
         getRemovedKeys() {
           return [];
         }
@@ -985,6 +1027,7 @@ describe("cms.js", () => {
       t: (key) => key,
       getMetadata: vi.fn().mockResolvedValue("test-client-id"),
       getDraft: vi.fn().mockResolvedValue({
+        version: 2,
         locale: "es",
         selectedTabTitle: "May 18",
         rows: [{ key: "unitName", value: "Borrador Restaurado" }]
@@ -1029,6 +1072,10 @@ describe("cms.js", () => {
         }
 
         getRows() {
+          return this.rows;
+        }
+
+        getAllRows() {
           return this.rows;
         }
 

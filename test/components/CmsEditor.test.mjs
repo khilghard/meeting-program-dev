@@ -32,26 +32,47 @@ describe("CmsEditor helpers", () => {
     expect(sanitisePart("Alice | Bob")).toBe("Alice  Bob");
   });
 
-  test("serializeFieldValue serializes linkWithSpace", () => {
+  test("serializeFieldValue serializes linkWithSpace with auto-added <IMG> token", () => {
     const value = serializeFieldValue("linkWithSpace", {
       text: "Library",
       url: "https://example.com",
       imageUrl: "https://img.com/icon.png"
     });
 
-    expect(value).toBe("Library|https://example.com|https://img.com/icon.png");
+    expect(value).toBe("<IMG> Library|https://example.com|https://img.com/icon.png");
   });
 
-  test("parseFieldValue decodes linkWithSpace", () => {
+  test("parseFieldValue decodes linkWithSpace stripping <IMG> token", () => {
     expect(
       parseFieldValue(
         "linkWithSpace",
-        "Library | https://example.com | https://img.com/icon.png"
+        "<IMG> Library | https://example.com | https://img.com/icon.png"
       )
     ).toEqual({
       text: "Library",
       url: "https://example.com",
       imageUrl: "https://img.com/icon.png"
+    });
+  });
+
+  test("serializeFieldValue serializes generalStatementWithLink with auto-added <LINK> token", () => {
+    const value = serializeFieldValue("generalStatementWithLink", {
+      text: "Read more",
+      url: "https://example.com"
+    });
+
+    expect(value).toBe("Read more<LINK>|https://example.com");
+  });
+
+  test("parseFieldValue decodes generalStatementWithLink stripping <LINK> token", () => {
+    expect(
+      parseFieldValue(
+        "generalStatementWithLink",
+        "Read more<LINK> | https://example.com"
+      )
+    ).toEqual({
+      text: "Read more",
+      url: "https://example.com"
     });
   });
 });
@@ -74,7 +95,7 @@ describe("CmsEditor component", () => {
     ]);
 
     expect(container.querySelector(".cms-editor")).toBeTruthy();
-    expect(container.querySelectorAll(".cms-section").length).toBeGreaterThan(0);
+    expect(container.querySelectorAll(".cms-section-tint").length).toBeGreaterThan(0);
     expect(container.textContent).toContain("Unit Information");
     expect(container.textContent).toContain("Sacrament Meeting Program");
   });
@@ -143,19 +164,17 @@ describe("CmsEditor component", () => {
   test("exports intermediate hymns with numbered keys", () => {
     editor.initialize([]);
     editor.setItemValue("intermediateHymn", 0, {
-      hymnNumber: "120",
-      titleOverride: "Be Thou Humble"
+      hymnNumber: "120"
     });
     editor.addRepeatableItem("intermediateHymn");
     editor.setItemValue("intermediateHymn", 1, {
-      hymnNumber: "130",
-      titleOverride: "Be Thou My Vision"
+      hymnNumber: "130"
     });
 
     const rows = editor.getAllRows().filter((row) => /^intermediateHymn\d+$/.test(row.key));
     expect(rows).toEqual([
-      { key: "intermediateHymn1", value: "120|Be Thou Humble" },
-      { key: "intermediateHymn2", value: "130|Be Thou My Vision" }
+      { key: "intermediateHymn1", value: "120" },
+      { key: "intermediateHymn2", value: "130" }
     ]);
   });
 
@@ -180,21 +199,22 @@ describe("CmsEditor component", () => {
     ]);
   });
 
-  test("inserts the <LINK> placeholder into general statements with link", () => {
+  test("auto-adds <LINK> token to generalStatementWithLink on serialization", () => {
     editor.initialize([
       { key: "generalStatementWithLink", value: "Welcome | https://example.com" }
     ]);
 
+    // Textarea should show text WITHOUT token
     const textarea = container.querySelector(
       '.cms-field__input[data-key="generalStatementWithLink"][data-part="text"]'
     );
-    textarea.focus();
-    textarea.setSelectionRange(7, 7);
+    expect(textarea.value).toBe("Welcome");
 
+    // No insert button should exist
     const insertButton = container.querySelector("[data-action='insert-token']");
-    insertButton.click();
+    expect(insertButton).toBeFalsy();
 
-    expect(textarea.value).toBe("Welcome<LINK>");
+    // Serialized value should have token auto-added
     expect(editor.getAllRows()).toEqual(
       expect.arrayContaining([
         { key: "generalStatementWithLink", value: "Welcome<LINK>|https://example.com" }
