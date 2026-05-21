@@ -242,6 +242,199 @@ describe("CmsEditor component", () => {
     warnSpy.mockRestore();
     await setLanguage("en");
   });
+  // --- Integration tests: rendering, constraints, undo, save flow ---
+  
+  test("presiding row move up button is disabled", () => {
+    editor.initialize([
+      { key: "unitName", value: "Ward" },
+      { key: "presiding", value: "Bishop" },
+      { key: "openingHymn", value: "62" }
+    ]);
+
+    // Find the select element with value "presiding"
+    const selects = container.querySelectorAll('.cms-row__key-select');
+    let presidingSelect = null;
+    for (const sel of selects) {
+      if (sel.value === 'presiding') {
+        presidingSelect = sel;
+        break;
+      }
+    }
+    expect(presidingSelect).toBeTruthy();
+    const presidingRow = presidingSelect.closest('.cms-row');
+    const moveUpBtn = presidingRow.querySelector('.cms-row__action--move-up');
+    expect(moveUpBtn).toBeTruthy();
+    expect(moveUpBtn.disabled).toBe(true);
+  });
+
+  test("closingPrayer row move down button is disabled", () => {
+    editor.initialize([
+      { key: "unitName", value: "Ward" },
+      { key: "presiding", value: "Bishop" },
+      { key: "closingPrayer", value: "Brother Smith" }
+    ]);
+
+    const selects = container.querySelectorAll('.cms-row__key-select');
+    let closingSelect = null;
+    for (const sel of selects) {
+      if (sel.value === 'closingPrayer') {
+        closingSelect = sel;
+        break;
+      }
+    }
+    expect(closingSelect).toBeTruthy();
+    const closingRow = closingSelect.closest('.cms-row');
+    const moveDownBtn = closingRow.querySelector('.cms-row__action--move-down');
+    expect(moveDownBtn).toBeTruthy();
+    expect(moveDownBtn.disabled).toBe(true);
+  });
+
+  test("onSaveCallback receives rows and removedKeys", () => {
+    const onSave = vi.fn();
+    editor.options.onSaveCallback = onSave;
+    
+    editor.initialize([
+      { key: "unitName", value: "Ward" },
+      { key: "oilLamp", value: "" }
+    ]);
+    
+    // Edit unitName
+    editor.setItemValue("unitName", 0, { text: "New Ward" });
+    
+    // Delete oilLamp row directly from editor state (simulate removal)
+    let oilLampIdx = editor.programRows.findIndex(r => r.key === "oilLamp");
+    let section = 'program';
+    if (oilLampIdx === -1) {
+      oilLampIdx = editor.generalRows.findIndex(r => r.key === "oilLamp");
+      section = 'general';
+    }
+    expect(oilLampIdx).toBeGreaterThan(-1);
+    if (section === 'program') {
+      editor.programRows.splice(oilLampIdx, 1);
+    } else {
+      editor.generalRows.splice(oilLampIdx, 1);
+    }
+    editor.isDirty = true;
+    editor.refreshDirtyState();
+    
+    // Click save
+    const saveBtn = container.querySelector('.cms-editor__save-btn');
+    expect(saveBtn).toBeTruthy();
+    saveBtn.click();
+    
+    expect(onSave).toHaveBeenCalledTimes(1);
+    const [rows, removedKeys] = onSave.mock.calls[0];
+    expect(rows).toBeInstanceOf(Array);
+    expect(removedKeys).toContain("oilLamp");
+    
+    // Verify rows content
+    const unitRow = rows.find(r => r.key === "unitName");
+    expect(unitRow).toBeTruthy();
+    expect(unitRow.value).toBe("New Ward");
+    expect(rows.find(r => r.key === "oilLamp")).toBeFalsy();
+    
+    // Verify dirty state cleared
+    expect(editor.getState().isDirty).toBe(false);
+    expect(container.querySelector('.cms-editor__status').textContent).toContain("All changes saved");
+  });
+
+  test("undoLastCorrections reverts auto-corrections", () => {
+    editor.initialize([
+      { key: "unitName", value: "Ward" },
+      { key: "openingHymn", value: "62" }
+    ]);
+    
+    let rows = editor.getAllRows();
+    expect(rows.some(r => r.key === "presiding")).toBe(true);
+    expect(rows.some(r => r.key === "closingPrayer")).toBe(true);
+    
+    const undoBtn = document.querySelector('.cms-editor__toast-undo');
+    expect(undoBtn).toBeTruthy();
+    undoBtn.click();
+    
+    rows = editor.getAllRows();
+    expect(rows.some(r => r.key === "presiding")).toBe(false);
+    expect(rows.some(r => r.key === "closingPrayer")).toBe(false);
+  });
+
+  test("add row modal excludes non-repeatable keys that already exist", () => {
+    // Initialize with some keys that are already present (conducting and openingHymn).
+    // Auto-correction will also add presiding and closingPrayer.
+    editor.initialize([
+      { key: "unitName", value: "Ward" },
+      { key: "conducting", value: "Brother Smith" },
+      { key: "openingHymn", value: "62" }
+    ]);
+    
+    const addBtn = container.querySelector('.cms-editor__add-btn[data-section="program"]');
+    expect(addBtn).toBeTruthy();
+    addBtn.click();
+    
+    const modal = document.querySelector('.cms-modal');
+    expect(modal).toBeTruthy();
+    const select = modal.querySelector('#add-row-key-select');
+    const options = Array.from(select.options).map(opt => opt.value);
+    
+    // Keys that are already present (conducting, openingHymn, and auto-added presiding) should be excluded
+    expect(options).not.toContain("conducting");
+    expect(options).not.toContain("openingHymn");
+    // A key that is allowed and not present (e.g., musicDirector) should be available
+    expect(options).toContain("musicDirector");
+    
+    modal.querySelector('.cms-modal__cancel-btn').click();
+    expect(document.querySelector('.cms-modal')).toBeFalsy();
+  });
+
+  test("add row modal enforces max repeatable items", () => {
+    editor.initialize([]);
+    for (let i = 0; i < 10; i++) {
+      editor.addRepeatableItem("speaker");
+    }
+    
+    const addBtn = container.querySelector('.cms-editor__add-btn[data-section="program"]');
+    addBtn.click();
+    
+    const modal = document.querySelector('.cms-modal');
+    const select = modal.querySelector('#add-row-key-select');
+    const options = Array.from(select.options).map(opt => opt.value);
+    
+    expect(options).not.toContain("speaker");
+    
+    modal.querySelector('.cms-modal__cancel-btn').click();
+  });
+
+  test("date field uses date picker and round-trips correctly", () => {
+    editor.initialize([
+      { key: "date", value: "May 20, 2026" }
+    ]);
+    
+    const dateInput = container.querySelector('.cms-field__input[data-key="date"]');
+    expect(dateInput).toBeTruthy();
+    expect(dateInput.type).toBe("date");
+    expect(dateInput.value).toBe("2026-05-20");
+    
+    dateInput.value = "2027-01-15";
+    dateInput.dispatchEvent(new Event('input', { bubbles: true }));
+    
+    const rows = editor.getAllRows();
+    const dateRow = rows.find(r => r.key === "date");
+    expect(dateRow.value).toBe("January 15, 2027");
+  });
+
+  test("hymn field renders dropdown with hymn options", () => {
+    editor.initialize([
+      { key: "openingHymn", value: "62" }
+    ]);
+    
+    const hymnSelect = container.querySelector('.cms-field__input.cms-field__hymn-select');
+    expect(hymnSelect).toBeTruthy();
+    expect(hymnSelect.tagName.toLowerCase()).toBe("select");
+    
+    const options = hymnSelect.querySelectorAll('option');
+    expect(options.length).toBeGreaterThan(300);
+    
+    expect(hymnSelect.value).toBe("62");
+  });
 });
 
 describe("CmsEditor — oilLamp", () => {
@@ -312,14 +505,23 @@ describe("CmsEditor — oilLamp", () => {
       }
     }
     
-    // If no delete button was found or clicked, directly remove from generalRows
-    const oilLampRowIdx = editor.generalRows.findIndex(r => r.key === "oilLamp");
-    if (oilLampRowIdx !== -1) {
-      editor.generalRows.splice(oilLampRowIdx, 1);
-      editor.isDirty = true;
-      editor.refreshDirtyState();
-      editor.render();
-    }
+     // If no delete button was found or clicked, remove from whichever section contains oilLamp
+     let oilLampRowIdx = editor.generalRows.findIndex(r => r.key === "oilLamp");
+     let section = 'general';
+     if (oilLampRowIdx === -1) {
+       oilLampRowIdx = editor.programRows.findIndex(r => r.key === "oilLamp");
+       section = 'program';
+     }
+     if (oilLampRowIdx !== -1) {
+       if (section === 'general') {
+         editor.generalRows.splice(oilLampRowIdx, 1);
+       } else {
+         editor.programRows.splice(oilLampRowIdx, 1);
+       }
+       editor.isDirty = true;
+       editor.refreshDirtyState();
+       editor.render();
+     }
 
     // Check removedKeys
     const removedKeys = editor.getRemovedKeys();

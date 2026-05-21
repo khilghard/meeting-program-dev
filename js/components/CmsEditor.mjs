@@ -4,7 +4,7 @@
 // Implements the plan in docs/plans/cms.md
 // ============================================================
 
-import { ALLOWED_KEYS } from "../sanitize.js";
+import { ALLOWED_KEYS, isSafeUrl } from "../sanitize.js";
 import { getLanguage, loadTranslations, t } from "../i18n/index.js";
 import { childrenSongLookup, hymnsLookup } from "../data/hymnsLookup.js";
 
@@ -222,6 +222,14 @@ export function parseFieldValue(keyType, raw) {
     case "oilLamp":
       return { enabled: true };
     default:
+      // For user-translated keys, parse up to 4 locale parts: en|es|fr|swa
+      if (USER_TRANSLATED_KEYS.has(normalizedKey)) {
+        const value = { text: parts[0] || "" };
+        if (parts[1] !== undefined) value.text_es = parts[1];
+        if (parts[2] !== undefined) value.text_fr = parts[2];
+        if (parts[3] !== undefined) value.text_swa = parts[3];
+        return value;
+      }
       return { text: parts[0] || "" };
   }
 }
@@ -255,7 +263,25 @@ export function serializeFieldValue(keyType, value) {
     case "oilLamp":
       return value.enabled ? "" : "";
     default:
-      return sanitisePart(value.text);
+      // For user-translated keys, collect locale-specific fields
+      const normalizedKey = normalizeCmsKeyType(keyType);
+      if (USER_TRANSLATED_KEYS.has(normalizedKey)) {
+        // Determine which locales to include: always en, and optionally es, fr, swa if present
+        const locales = ["en", "es", "fr", "swa"];
+        const parts = [];
+        for (const locale of locales) {
+          const prop = locale === "en" ? "text" : `text_${locale}`;
+          if (value[prop] !== undefined && value[prop] !== "") {
+            parts.push(sanitisePart(value[prop]));
+          } else if (locale === "en") {
+            // en is required; if empty, include empty string to maintain position?
+            parts.push("");
+          }
+        }
+        return joinParts(parts);
+      } else {
+        return sanitisePart(value.text);
+      }
   }
 }
 
@@ -373,27 +399,34 @@ function parseRowsIntoSections(rows) {
     key: row.key ?? "",
     value: row.value ?? ""
   })) : [];
-  
+
   const unitInfoRows = [];
   const programRows = [];
   const generalRows = [];
-  
-  // Partition rows based on key type
+  let inGeneralSection = false;
+
   for (const row of rowList) {
     const normalizedKey = normalizeCmsKeyType(row.key);
-    
     if (UNIT_INFO_KEYS.includes(row.key)) {
-      // Unit info keys go to unit section
       unitInfoRows.push({ ...row, _id: `unit-${unitInfoRows.length}` });
     } else if (PROGRAM_ALLOWED_KEYS.has(normalizedKey)) {
-      // Program keys go to program section
-      programRows.push({ ...row, _id: `program-${programRows.length}` });
+      if (inGeneralSection) {
+        generalRows.push({ ...row, _id: `general-${generalRows.length}` });
+      } else {
+        programRows.push({ ...row, _id: `program-${programRows.length}` });
+      }
+    } else if (UNIVERSAL_KEYS.has(normalizedKey)) {
+      if (inGeneralSection) {
+        generalRows.push({ ...row, _id: `general-${generalRows.length}` });
+      } else {
+        programRows.push({ ...row, _id: `program-${programRows.length}` });
+      }
     } else {
-      // Everything else goes to general section (including universal keys)
+      inGeneralSection = true;
       generalRows.push({ ...row, _id: `general-${generalRows.length}` });
     }
   }
-  
+
   return { unitInfoRows, programRows, generalRows };
 }
 
@@ -442,21 +475,33 @@ function autoCorrectRows(unitInfoRows, programRows, generalRows) {
     corrections.push({ type: "reorder_closingPrayer", message: "Moved closingPrayer to end" });
   }
   
-  // Validate unit info section
-  const unitInfoKeySet = new Set(UNIT_INFO_KEYS);
-  const extraUnitInfoRows = unitInfoRows.filter(row => !unitInfoKeySet.has(row.key));
-  if (extraUnitInfoRows.length > 0) {
-    corrections.push({ type: "remove_extra_unit_info", message: `Removed ${extraUnitInfoRows.length} unauthorized keys from Unit Info` });
-    for (const row of extraUnitInfoRows) {
-      // Move to appropriate section based on key type
-      if (PROGRAM_ALLOWED_KEYS.has(normalizeCmsKeyType(row.key))) {
-        programRows.push({ ...row, _id: `program-${programRows.length}` });
-      } else {
-        generalRows.push({ ...row, _id: `general-${generalRows.length}` });
-      }
-    }
-  }
-  
+   // Validate unit info section
+   const unitInfoKeySet = new Set(UNIT_INFO_KEYS);
+   const extraUnitInfoRows = unitInfoRows.filter(row => !unitInfoKeySet.has(row.key));
+   if (extraUnitInfoRows.length > 0) {
+     corrections.push({ type: "remove_extra_unit_info", message: `Removed ${extraUnitInfoRows.length} unauthorized keys from Unit Info` });
+     for (const row of extraUnitInfoRows) {
+       // Move to appropriate section based on key type
+       if (PROGRAM_ALLOWED_KEYS.has(normalizeCmsKeyType(row.key))) {
+         programRows.push({ ...row, _id: `program-${programRows.length}` });
+       } else {
+         generalRows.push({ ...row, _id: `general-${generalRows.length}` });
+       }
+     }
+   }
+   
+   // Remove extra rows from unitInfoRows (keep only allowed keys)
+   const validUnitRows = unitInfoRows.filter(row => unitInfoKeySet.has(row.key));
+   unitInfoRows.length = 0;
+   unitInfoRows.push(...validUnitRows);
+   
+   // Ensure unit info rows are in canonical order
+   unitInfoRows.sort((a, b) => {
+     const indexA = UNIT_INFO_KEYS.indexOf(a.key);
+     const indexB = UNIT_INFO_KEYS.indexOf(b.key);
+     return indexA - indexB;
+   });
+
   return { corrections, unitInfoRows, programRows, generalRows };
 }
 
@@ -550,8 +595,17 @@ class CmsEditor {
     this.undoStack = [];
     this.rowIdCounter = 0;
     
+    // Incremental rendering: map of row._id -> DOM element
+    this.rowElements = new Map();
+    
+    // Store original rows before auto-correction for undo
+    this.originalRowsBeforeCorrection = null;
+    
     // Generate unique row IDs
     this.generateRowIds();
+    
+    // Setup event delegation once
+    this._setupEventDelegation();
   }
 
   /**
@@ -559,12 +613,27 @@ class CmsEditor {
    */
   initialize(rows = [], { includeAgenda = this.options.includeAgenda } = {}) {
     // Parse rows into sections
-    const { unitInfoRows, programRows, generalRows } = parseRowsIntoSections(rows);
+    let { unitInfoRows, programRows, generalRows } = parseRowsIntoSections(rows);
+    
+    // Filter agenda keys if includeAgenda is false
+    if (!includeAgenda) {
+      const filteredProgramRows = programRows.filter(row => !row.key.startsWith('agenda'));
+      const filteredGeneralRows = generalRows.filter(row => !row.key.startsWith('agenda'));
+      programRows = filteredProgramRows;
+      generalRows = filteredGeneralRows;
+    }
     
     // Store baseline for change detection
     this.baselineUnitRows = JSON.parse(JSON.stringify(unitInfoRows));
     this.baselineProgramRows = JSON.parse(JSON.stringify(programRows));
     this.baselineGeneralRows = JSON.parse(JSON.stringify(generalRows));
+    
+    // Store original rows for undo of auto-corrections (before correction)
+    this.originalRowsBeforeCorrection = {
+      unitRows: this.baselineUnitRows,
+      programRows: this.baselineProgramRows,
+      generalRows: this.baselineGeneralRows
+    };
     
     // Apply auto-correction
     const { corrections, unitInfoRows: correctedUnitRows, programRows: correctedProgramRows, generalRows: correctedGeneralRows } = autoCorrectRows(unitInfoRows, programRows, generalRows);
@@ -579,6 +648,9 @@ class CmsEditor {
     this.baselineProgramRows = JSON.parse(JSON.stringify(correctedProgramRows));
     this.baselineGeneralRows = JSON.parse(JSON.stringify(correctedGeneralRows));
     
+    // Set rowIdCounter to total number of rows to ensure new IDs are unique
+    this.rowIdCounter = this.unitRows.length + this.programRows.length + this.generalRows.length;
+    
     // Show corrections if any
     if (corrections.length > 0) {
       this.showCorrectionsToast(corrections);
@@ -589,7 +661,7 @@ class CmsEditor {
   }
 
   /**
-   * Generate unique IDs for all rows
+   * Generate unique IDs for all rows and clear element map
    */
   generateRowIds() {
     this.rowIdCounter = 0;
@@ -602,11 +674,190 @@ class CmsEditor {
     this.generalRows.forEach(row => {
       row._id = `general-${this.rowIdCounter++}`;
     });
+    this.rowElements.clear();
   }
 
   /**
    * Show toast for auto-corrections
    */
+  // Incremental rendering helpers
+
+  _getSectionBody(section) {
+    return this.container.querySelector(`.cms-section[data-section='${section}'] .cms-section__body`);
+  }
+
+  _getSectionRows(section) {
+    switch (section) {
+      case 'unitInfo': return this.unitRows;
+      case 'program': return this.programRows;
+      case 'general': return this.generalRows;
+      default: return [];
+    }
+  }
+
+  _getSectionOptions(section) {
+    switch (section) {
+      case 'unitInfo': return { locked: true, allowedKeys: UNIT_INFO_KEYS };
+      case 'program': {
+        const allowed = this.options.includeAgenda ? PROGRAM_ALLOWED_KEYS : new Set([...PROGRAM_ALLOWED_KEYS].filter(k => !k.startsWith('agenda')));
+        return { locked: false, allowedKeys: allowed };
+      }
+      case 'general': return { locked: false, allowedKeys: GENERAL_ALLOWED_KEYS };
+      default: return { locked: false, allowedKeys: new Set() };
+    }
+  }
+
+  _createRowElement(row, section) {
+    const rows = this._getSectionRows(section);
+    const index = rows.findIndex(r => r._id === row._id);
+    const options = this._getSectionOptions(section);
+    const html = this.renderRow(row, index, section, options, rows);
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = html;
+    return wrapper.firstElementChild;
+  }
+
+  _updateRowElement(rowEl, row) {
+    const section = rowEl.dataset.section;
+    const rows = this._getSectionRows(section);
+    const index = rows.findIndex(r => r._id === row._id);
+    const options = this._getSectionOptions(section);
+    rowEl.innerHTML = this.renderRow(row, index, section, options, rows);
+  }
+
+  _refreshKeySelectsInSection(section) {
+    const body = this._getSectionBody(section);
+    if (!body) return;
+    const selects = body.querySelectorAll('.cms-row__key-select');
+    const rows = this._getSectionRows(section);
+    const allowedKeysSet = this._getSectionOptions(section).allowedKeys;
+    selects.forEach(select => {
+      const rowId = select.dataset.rowId;
+      const row = rows.find(r => r._id === rowId);
+      if (!row) return;
+      const allowedKeys = this.getAvailableKeysForSection(section, allowedKeysSet, row, rows);
+      const current = select.value;
+      select.innerHTML = allowedKeys.map(k => `<option value='${k}'>${this.getFieldLabel(k)}</option>`).join('');
+      if (allowedKeys.includes(current)) {
+        select.value = current;
+      }
+    });
+  }
+
+  _insertRow(row, section, index) {
+    const body = this._getSectionBody(section);
+    if (!body) return;
+    let rowEl = this.rowElements.get(row._id);
+    if (!rowEl) {
+      rowEl = this._createRowElement(row, section);
+      this.rowElements.set(row._id, rowEl);
+    }
+    if (index < body.children.length) {
+      body.insertBefore(rowEl, body.children[index]);
+    } else {
+      body.appendChild(rowEl);
+    }
+  }
+
+  _deleteRow(rowId) {
+    const rowEl = this.rowElements.get(rowId);
+    if (rowEl && rowEl.parentNode) {
+      rowEl.parentNode.removeChild(rowEl);
+      this.rowElements.delete(rowId);
+    }
+  }
+
+  _moveRow(rowId, newIndex, newSection = null) {
+    const rowEl = this.rowElements.get(rowId);
+    if (!rowEl) return;
+    if (newSection) {
+      const oldSection = rowEl.dataset.section;
+      this._deleteRow(rowId);
+      const newRows = this._getSectionRows(newSection);
+      const newRow = newRows.find(r => r._id === rowId);
+      if (newRow) {
+        this._insertRow(newRow, newSection, newIndex);
+      }
+    } else {
+      const body = this._getSectionBody(rowEl.dataset.section);
+      if (!body) return;
+      if (newIndex >= body.children.length) {
+        body.appendChild(rowEl);
+      } else {
+        body.insertBefore(rowEl, body.children[newIndex]);
+      }
+    }
+  }
+
+  _refreshAllSectionKeySelects() {
+    ['unitInfo', 'program', 'general'].forEach(section => this._refreshKeySelectsInSection(section));
+  }
+
+  _refreshSectionRows(section) {
+    const rows = this._getSectionRows(section);
+    rows.forEach(row => {
+      const rowEl = this.rowElements.get(row._id);
+      if (rowEl) {
+        this._updateRowElement(rowEl, row);
+      }
+    });
+  }
+
+  _rebuildRowElements() {
+    ['unitInfo', 'program', 'general'].forEach(section => {
+      const body = this._getSectionBody(section);
+      if (!body) return;
+      const rows = body.querySelectorAll('.cms-row');
+      rows.forEach(rowEl => {
+        const rowId = rowEl.dataset.rowId;
+        if (rowId) {
+          this.rowElements.set(rowId, rowEl);
+        }
+      });
+    });
+  }
+
+  _setupEventDelegation() {
+    this.container.addEventListener('click', (e) => {
+      const target = e.target;
+      if (target.matches('.cms-editor__add-btn')) {
+        const section = target.dataset.section;
+        this.handleAddRow({ target, currentTarget: target, ...e });
+        return;
+      }
+      if (target.matches('.cms-row__action-btn')) {
+        this.handleActionClick({ target, currentTarget: target, ...e });
+        return;
+      }
+      if (target.matches('.cms-field__token-btn')) {
+        this.handleTokenInsert({ target, currentTarget: target, ...e });
+        return;
+      }
+      if (target.matches('.cms-editor__save-btn')) {
+        this.handleSave();
+        return;
+      }
+      if (target.matches('.cms-editor__toast-undo')) {
+        this.undoLastCorrections();
+        return;
+      }
+    });
+
+    this.container.addEventListener('change', (e) => {
+      const target = e.target;
+      if (target.matches('.cms-row__key-select')) {
+        this.handleKeyChange({ target, currentTarget: target, ...e });
+      }
+    });
+
+    this.container.addEventListener('input', (e) => {
+      const target = e.target;
+      if (target.matches('.cms-field__input')) {
+        this.handleFieldChange({ target, currentTarget: target, ...e });
+      }
+    });
+  }
+
   showCorrectionsToast(corrections) {
     // Create toast notification
     const toast = document.createElement("div");
@@ -681,17 +932,22 @@ class CmsEditor {
    * Undo last auto-corrections
    */
   undoLastCorrections() {
-    // Store current state for undo
-    this.undoStack.push({
-      unitRows: JSON.parse(JSON.stringify(this.unitRows)),
-      programRows: JSON.parse(JSON.stringify(this.programRows)),
-      generalRows: JSON.parse(JSON.stringify(this.generalRows))
-    });
+    // If there are no stored original rows, nothing to undo
+    if (!this.originalRowsBeforeCorrection) return;
     
-    // Restore baseline
-    this.unitRows = JSON.parse(JSON.stringify(this.baselineUnitRows));
-    this.programRows = JSON.parse(JSON.stringify(this.baselineProgramRows));
-    this.generalRows = JSON.parse(JSON.stringify(this.baselineGeneralRows));
+    // Restore original rows (pre-correction state)
+    const original = this.originalRowsBeforeCorrection;
+    this.unitRows = JSON.parse(JSON.stringify(original.unitRows));
+    this.programRows = JSON.parse(JSON.stringify(original.programRows));
+    this.generalRows = JSON.parse(JSON.stringify(original.generalRows));
+    
+    // Clear stored original (undo is single-use)
+    this.originalRowsBeforeCorrection = null;
+    
+    // Update baseline to match restored state (now baseline = current)
+    this.baselineUnitRows = JSON.parse(JSON.stringify(this.unitRows));
+    this.baselineProgramRows = JSON.parse(JSON.stringify(this.programRows));
+    this.baselineGeneralRows = JSON.parse(JSON.stringify(this.generalRows));
     
     this.isDirty = true;
     this.refreshDirtyState();
@@ -702,8 +958,10 @@ class CmsEditor {
    * Render the full editor HTML
    */
   render() {
+    // Full rebuild (used on initialize, undo, discard)
+    this.rowElements.clear();
     this.container.innerHTML = this.renderHtml();
-    this.attachEventListeners();
+    this._rebuildRowElements();
     this.updateStatus();
   }
 
@@ -791,9 +1049,15 @@ class CmsEditor {
       const sectionMap = { unitInfo: "unitRows", program: "programRows", general: "generalRows" };
       const propertyName = sectionMap[section];
       const sectionRows = propertyName ? this[propertyName] : [];
-      const canMoveUp = index > 0;
-      const canMoveDown = index < sectionRows.length - 1;
+      let canMoveUp = index > 0;
+      let canMoveDown = index < sectionRows.length - 1;
       const canDelete = !REQUIRED_PROGRAM_KEYS.includes(normalizedKey);
+      if (normalizedKey === 'presiding') {
+        canMoveUp = false;
+      }
+      if (normalizedKey === 'closingPrayer') {
+        canMoveDown = false;
+      }
       
       actions = `
         <div class="cms-row__actions">
@@ -1016,37 +1280,53 @@ class CmsEditor {
   }
 
   /**
-   * Attach event listeners
+   * Setup event delegation once
    */
-  attachEventListeners() {
-    // Key change handlers
-    this.container.querySelectorAll(".cms-row__key-select").forEach(select => {
-      select.addEventListener("change", (e) => this.handleKeyChange(e));
+  _setupEventDelegation() {
+    this.container.addEventListener("click", (e) => {
+      const target = e.target;
+      // Add row button
+      if (target.matches(".cms-editor__add-btn")) {
+        const section = target.dataset.section;
+        this.handleAddRow({ target, currentTarget: target, ...e });
+        return;
+      }
+      // Action buttons (move/delete)
+      if (target.matches(".cms-row__action-btn")) {
+        this.handleActionClick({ target, currentTarget: target, ...e });
+        return;
+      }
+      // Token insertion
+      if (target.matches(".cms-field__token-btn")) {
+        this.handleTokenInsert({ target, currentTarget: target, ...e });
+        return;
+      }
+      // Save button
+      if (target.matches(".cms-editor__save-btn")) {
+        this.handleSave();
+        return;
+      }
+      // Toast undo
+      if (target.matches(".cms-editor__toast-undo")) {
+        this.undoLastCorrections();
+        return;
+      }
+      // Modal buttons are attached when modal is created (outside container)
     });
-    
-    // Field value change handlers
-    this.container.querySelectorAll(".cms-field__input").forEach(input => {
-      input.addEventListener("input", (e) => this.handleFieldChange(e));
-      input.addEventListener("change", (e) => this.handleFieldChange(e));
+
+    this.container.addEventListener("change", (e) => {
+      const target = e.target;
+      if (target.matches(".cms-row__key-select")) {
+        this.handleKeyChange({ target, currentTarget: target, ...e });
+      }
     });
-    
-    // Add row buttons
-    this.container.querySelectorAll(".cms-editor__add-btn").forEach(btn => {
-      btn.addEventListener("click", (e) => this.handleAddRow(e));
+
+    this.container.addEventListener("input", (e) => {
+      const target = e.target;
+      if (target.matches(".cms-field__input")) {
+        this.handleFieldChange({ target, currentTarget: target, ...e });
+      }
     });
-    
-    // Move/delete buttons
-    this.container.querySelectorAll(".cms-row__action-btn").forEach(btn => {
-      btn.addEventListener("click", (e) => this.handleActionClick(e));
-    });
-    
-    // Token insertion buttons
-    this.container.querySelectorAll(".cms-field__token-btn").forEach(btn => {
-      btn.addEventListener("click", (e) => this.handleTokenInsert(e));
-    });
-    
-    // Save button
-    this.container.querySelector(".cms-editor__save-btn")?.addEventListener("click", () => this.handleSave());
   }
 
   /**
@@ -1094,6 +1374,13 @@ class CmsEditor {
     row.value = ""; // Reset value for new key type
     this.isDirty = true;
     this.refreshDirtyState();
+
+    // Incremental update: re-render this row and refresh key selects
+    const rowEl = this.rowElements.get(row._id);
+    if (rowEl) {
+      this._updateRowElement(rowEl, row);
+    }
+    this._refreshKeySelectsInSection(section);
   }
 
   /**
@@ -1137,6 +1424,14 @@ class CmsEditor {
     
     // Serialize back to value string
     row.value = serializeFieldValue(key, value);
+
+    // URL validation for url/imageUrl on change event (blur)
+    if (event.type === 'change' && (part === 'url' || part === 'imageUrl')) {
+      if (inputValue && !isSafeUrl(inputValue)) {
+        this.showToast(`Invalid URL: ${inputValue}`, "warning");
+      }
+    }
+
     this.isDirty = true;
     this.refreshDirtyState();
   }
@@ -1181,16 +1476,29 @@ class CmsEditor {
     const sectionMap = { unitInfo: "unitRows", program: "programRows", general: "generalRows" };
     const propertyName = sectionMap[section];
     const sectionRows = propertyName ? this[propertyName] : [];
-    const allowedKeys = section === "program" ? PROGRAM_ALLOWED_KEYS : GENERAL_ALLOWED_KEYS;
+    let allowedKeys;
+    if (section === "program") {
+      allowedKeys = this.options.includeAgenda ? PROGRAM_ALLOWED_KEYS : new Set([...PROGRAM_ALLOWED_KEYS].filter(k => !k.startsWith('agenda')));
+    } else {
+      allowedKeys = GENERAL_ALLOWED_KEYS;
+    }
     const existingKeys = sectionRows.map(row => normalizeCmsKeyType(row.key));
     
     for (const key of allowedKeys) {
-      if (!existingKeys.includes(key) || isRepeatableKeyType(key)) {
-        const option = document.createElement("option");
-        option.value = key;
-        option.textContent = this.getFieldLabel(key);
-        select.appendChild(option);
+      // Skip non‑repeatable keys that already exist
+      if (existingKeys.includes(key) && !isRepeatableKeyType(key)) continue;
+
+      // Enforce max repeatable limits
+      if (isRepeatableKeyType(key)) {
+        const count = existingKeys.filter(k => k === key).length;
+        const max = MAX_REPEATABLE_ITEMS[key];
+        if (max !== undefined && count >= max) continue;
       }
+
+      const option = document.createElement("option");
+      option.value = key;
+      option.textContent = this.getFieldLabel(key);
+      select.appendChild(option);
     }
     
     // Enable confirm when key is selected
@@ -1213,24 +1521,27 @@ class CmsEditor {
       const newKey = select.value;
       if (!newKey) return;
       
-      // Create new row
       const newRow = {
         key: newKey,
         value: "",
         _id: `${section}-${Date.now()}`
       };
       
-      // Insert at appropriate position
+      let insertIdx;
       if (section === "program") {
-        const insertIdx = this.getProgramInsertIndex(newKey);
+        insertIdx = this.getProgramInsertIndex(newKey);
         this.programRows.splice(insertIdx, 0, newRow);
       } else if (propertyName) {
         this[propertyName].push(newRow);
+        insertIdx = this[propertyName].length - 1;
+      } else {
+        insertIdx = 0;
       }
       
       this.isDirty = true;
       this.refreshDirtyState();
-      this.render();
+      this._insertRow(newRow, section, insertIdx);
+      this._refreshSectionRows(section);
       document.body.removeChild(modal);
     });
   }
@@ -1274,28 +1585,49 @@ class CmsEditor {
     if (rowIdx === -1) return;
     
     if (direction === "up" && rowIdx > 0) {
-      // Move up
-      const temp = rows[rowIdx];
+      // Disallow moving presiding up
+      if (normalizeCmsKeyType(rows[rowIdx].key) === 'presiding') return;
+      // Swap in array
+      const tempRow = rows[rowIdx];
       rows[rowIdx] = rows[rowIdx - 1];
-      rows[rowIdx - 1] = temp;
+      rows[rowIdx - 1] = tempRow;
       this.isDirty = true;
       this.refreshDirtyState();
-      this.render();
+      // Move the clicked row (A) up to rowIdx-1
+      this._moveRow(tempRow._id, rowIdx - 1, section);
+      // After moving, both A and B need UI refresh for move button states
+      // A is now at rowIdx-1
+      const aRow = tempRow;
+      const aRowEl = this.rowElements.get(aRow._id);
+      if (aRowEl) this._updateRowElement(aRowEl, aRow);
+      // B is now at rowIdx
+      const bRow = rows[rowIdx];
+      const bRowEl = this.rowElements.get(bRow._id);
+      if (bRowEl) this._updateRowElement(bRowEl, bRow);
     } else if (direction === "down" && rowIdx < rows.length - 1) {
-      // Move down
-      const temp = rows[rowIdx];
+      // Disallow moving closingPrayer down
+      if (normalizeCmsKeyType(rows[rowIdx].key) === 'closingPrayer') return;
+      const tempRow = rows[rowIdx];
       rows[rowIdx] = rows[rowIdx + 1];
-      rows[rowIdx + 1] = temp;
+      rows[rowIdx + 1] = tempRow;
       this.isDirty = true;
       this.refreshDirtyState();
-      this.render();
+      // Move the clicked row (A) down to rowIdx+1
+      this._moveRow(tempRow._id, rowIdx + 1, section);
+      // Update both A and B
+      const aRow = tempRow;
+      const aRowEl = this.rowElements.get(aRow._id);
+      if (aRowEl) this._updateRowElement(aRowEl, aRow);
+      const bRow = rows[rowIdx];
+      const bRowEl = this.rowElements.get(bRow._id);
+      if (bRowEl) this._updateRowElement(bRowEl, bRow);
     } else if (direction === "delete") {
-      // Delete row
       if (!REQUIRED_PROGRAM_KEYS.includes(normalizeCmsKeyType(rows[rowIdx].key))) {
         rows.splice(rowIdx, 1);
         this.isDirty = true;
         this.refreshDirtyState();
-        this.render();
+        this._deleteRow(rowId);
+        this._refreshSectionRows(section);
       }
     }
   }
@@ -1309,22 +1641,24 @@ class CmsEditor {
     const key = btn.dataset.key;
     const part = btn.dataset.part;
     
-    // Find the textarea associated with this button
-    const textarea = btn.previousElementSibling;
-    if (!textarea || textarea.tagName !== "TEXTAREA") return;
+    // Find the input/textarea within the same .cms-field that matches data-key and data-part
+    const field = btn.closest('.cms-field');
+    if (!field) return;
+    const targetInput = field.querySelector(`.cms-field__input[data-key="${key}"][data-part="${part}"]`);
+    if (!targetInput) return;
     
     // Insert token at cursor position
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = textarea.value;
+    const start = targetInput.selectionStart || 0;
+    const end = targetInput.selectionEnd || 0;
+    const text = targetInput.value;
     
-    textarea.value = text.substring(0, start) + token + text.substring(end);
-    textarea.focus();
-    textarea.setSelectionRange(start + token.length, start + token.length);
+    targetInput.value = text.substring(0, start) + token + text.substring(end);
+    targetInput.focus();
+    targetInput.setSelectionRange(start + token.length, start + token.length);
     
     // Trigger change event
-    textarea.dispatchEvent(new Event("input", { bubbles: true }));
-    textarea.dispatchEvent(new Event("change", { bubbles: true }));
+    targetInput.dispatchEvent(new Event("input", { bubbles: true }));
+    targetInput.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
   /**
@@ -1337,6 +1671,9 @@ class CmsEditor {
       this.showToast("Validation errors: " + errors.map(e => e.message).join(", "), "error");
       return;
     }
+    
+    // Truncate field lengths before save
+    this.truncateFieldLengths();
     
     // Get all rows
     const allRows = this.getAllRows();
@@ -1410,6 +1747,50 @@ class CmsEditor {
     
     return errors;
   }
+  
+  /**
+   * Truncate field lengths to maximum allowed (text ≤1000, textarea ≤5000)
+   */
+  truncateFieldLengths() {
+    const allSections = [
+      { rows: this.unitRows },
+      { rows: this.programRows },
+      { rows: this.generalRows }
+    ];
+    
+    for (const section of allSections) {
+      for (const row of section.rows) {
+        const key = row.key;
+        const definition = getFieldDefinition(key);
+        const value = parseFieldValue(key, row.value);
+        let modified = false;
+        
+        for (const field of definition.fields) {
+          // Determine max length based on field type
+          let maxLength = field.type === "textarea" ? 5000 : 1000;
+          // Skip non-text fields
+          if (field.type !== "text" && field.type !== "textarea") continue;
+          
+          // Determine which locale keys to check
+          const normalizedKey = normalizeCmsKeyType(key);
+          const isTranslated = USER_TRANSLATED_KEYS.has(normalizedKey);
+          const locales = isTranslated ? ["en", "es", "fr", "swa"] : ["en"];
+          
+          for (const locale of locales) {
+            const prop = locale === "en" ? field.name : `${field.name}_${locale}`;
+            if (value[prop] !== undefined && value[prop].length > maxLength) {
+              value[prop] = value[prop].substring(0, maxLength);
+              modified = true;
+            }
+          }
+        }
+        
+        if (modified) {
+          row.value = serializeFieldValue(key, value);
+        }
+      }
+    }
+  }
 
   /**
    * Check if a key is allowed in a section
@@ -1420,6 +1801,9 @@ class CmsEditor {
     if (section === "unitInfo") {
       return UNIT_INFO_KEYS.includes(key) || UNIT_INFO_KEYS.includes(normalizedKey);
     } else if (section === "program") {
+      if (!this.options.includeAgenda && normalizedKey.startsWith('agenda')) {
+        return false;
+      }
       return PROGRAM_ALLOWED_KEYS.has(normalizedKey) || UNIVERSAL_KEYS.has(normalizedKey);
     } else if (section === "general") {
       return GENERAL_ALLOWED_KEYS.has(normalizedKey) || UNIVERSAL_KEYS.has(normalizedKey);
@@ -1593,26 +1977,34 @@ class CmsEditor {
       const rows = this[mapping.section];
       const matchingRows = rows.filter(r => normalizeCmsKeyType(r.key) === mapping.key);
       
-      if (index < matchingRows.length) {
-        const targetRow = matchingRows[index];
-        targetRow.value = serializeFieldValue(normalizedKey, value);
-        this.isDirty = true;
-        this.refreshDirtyState();
-        this.render();
-      } else if (index === matchingRows.length) {
-        // Create new row at the end
-        const maxIndex = matchingRows.reduce((max, r) => {
-          const numMatch = r.key.match(/(\d+)$/);
-          return numMatch ? Math.max(max, parseInt(numMatch[1], 10)) : max;
-        }, 0);
-        
-        const newRowKey = `${normalizedKey}${maxIndex + 1}`;
-        const newRow = { key: newRowKey, value: serializeFieldValue(normalizedKey, value) };
-        rows.push(newRow);
-        this.isDirty = true;
-        this.refreshDirtyState();
-        this.render();
-      }
+        if (index < matchingRows.length) {
+          const targetRow = matchingRows[index];
+          targetRow.value = serializeFieldValue(normalizedKey, value);
+          this.isDirty = true;
+          this.refreshDirtyState();
+          const rowEl = this.rowElements.get(targetRow._id);
+          if (rowEl) this._updateRowElement(rowEl, targetRow);
+        } else if (index === matchingRows.length) {
+          // Enforce max repeatable limit
+          const maxAllowed = MAX_REPEATABLE_ITEMS[normalizedKey];
+          if (maxAllowed !== undefined && matchingRows.length >= maxAllowed) {
+            return; // Do not create new row, at limit
+          }
+          // Create new row at correct insertion position
+          const maxIndex = matchingRows.reduce((max, r) => {
+            const numMatch = r.key.match(/(\\d+)$/);
+            return numMatch ? Math.max(max, parseInt(numMatch[1], 10)) : max;
+          }, 0);
+          const newRowKey = `${normalizedKey}${maxIndex + 1}`;
+          const newRow = { key: newRowKey, value: serializeFieldValue(normalizedKey, value) };
+          // Insert at correct position in program
+          const insertIdx = this.getProgramInsertIndex(normalizedKey);
+          rows.splice(insertIdx, 0, newRow);
+          this.isDirty = true;
+          this.refreshDirtyState();
+          this._insertRow(newRow, "program", insertIdx);
+          this._refreshSectionRows("program");
+        }
       return;
     }
     
@@ -1624,7 +2016,8 @@ class CmsEditor {
           row.value = serializeFieldValue(normalizedKey, value);
           this.isDirty = true;
           this.refreshDirtyState();
-          this.render();
+          const rowEl = this.rowElements.get(row._id);
+          if (rowEl) this._updateRowElement(rowEl, row);
           return;
         }
       }
@@ -1656,10 +2049,14 @@ class CmsEditor {
     }, 0);
     
     const newRowKey = `${normalizedKey}${maxIndex + 1}`;
-    this[mapping.section].push({ key: newRowKey, value: "" });
+    const newRow = { key: newRowKey, value: "" };
+    // Insert at correct position in program order
+    const insertIdx = this.getProgramInsertIndex(normalizedKey);
+    rows.splice(insertIdx, 0, newRow);
     this.isDirty = true;
     this.refreshDirtyState();
-    this.render();
+    this._insertRow(newRow, "program", insertIdx);
+    this._refreshSectionRows("program");
   }
   
   /**
@@ -1685,7 +2082,8 @@ class CmsEditor {
       targetRow.value = "";
       this.isDirty = true;
       this.refreshDirtyState();
-      this.render();
+      const rowEl = this.rowElements.get(targetRow._id);
+      if (rowEl) this._updateRowElement(rowEl, targetRow);
     }
   }
 
@@ -1709,3 +2107,4 @@ class CmsEditor {
 }
 
 export default CmsEditor;
+export { parseRowsIntoSections, autoCorrectRows, parseDisplayDate, formatDisplayDate };
