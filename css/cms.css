@@ -853,12 +853,33 @@
 
 /* Field label */
 .cms-field__label {
+  display: block;
   font-size: 0.75rem;
   font-weight: 600;
+  line-height: 1.35;
   color: var(--text-color);
   opacity: 0.7;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  margin-bottom: 0.2rem;
+}
+
+.cms-field__helper {
+  margin: 0.1rem 0 0;
+  font-size: 0.72rem;
+  color: var(--text-color);
+  opacity: 0.7;
+}
+
+.cms-locale-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.75rem 0.75rem;
+  margin-bottom: 0.45rem;
+  background: color-mix(in srgb, var(--card-bg) 92%, transparent);
 }
 
 .cms-field--checkbox .cms-field__label {

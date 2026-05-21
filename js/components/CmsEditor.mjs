@@ -73,6 +73,18 @@ const USER_TRANSLATED_KEYS = new Set([
   "photo" // caption only
 ]);
 
+const REQUIRED_ENGLISH_TEXT_KEYS = new Set(["generalStatement", "linkWithSpace"]);
+
+const LINK_WITH_SPACE_LOCALES = ["en", "es", "fr", "swa"];
+
+function joinPartsPreserveGaps(parts) {
+  const normalized = parts.map((part) => String(part ?? ""));
+  while (normalized.length > 0 && normalized[normalized.length - 1] === "") {
+    normalized.pop();
+  }
+  return normalized.join("|");
+}
+
 /** Keys that are language-independent (same value in all locales) */
 const LANGUAGE_INDEPENDENT_KEYS = new Set([
   "unitName", "stakeName", "unitAddress", "date", "link", "leader",
@@ -294,17 +306,51 @@ export function parseFieldValue(keyType, raw) {
     case "leader":
       return { name: parts[0] || "", calling: parts[1] || "", phone: parts[2] || "" };
     case "generalStatementWithLink":
-      // Strip <LINK> token from text — it's auto-added on save
+      // New format supports per-locale pairs: text|url per locale.
+      // Legacy format supports only en pair.
+      if (parts.length >= 8) {
+        return {
+          text: (parts[0] || "").replace(/<LINK>/g, "").trim(),
+          url: parts[1] || "",
+          text_es: (parts[2] || "").replace(/<LINK>/g, "").trim(),
+          url_es: parts[3] || "",
+          text_fr: (parts[4] || "").replace(/<LINK>/g, "").trim(),
+          url_fr: parts[5] || "",
+          text_swa: (parts[6] || "").replace(/<LINK>/g, "").trim(),
+          url_swa: parts[7] || ""
+        };
+      }
       return { text: (parts[0] || "").replace(/<LINK>/g, "").trim(), url: parts[1] || "" };
     case "link":
       return { text: parts[0] || "", url: parts[1] || "" };
     case "linkWithSpace":
-      // Strip <IMG> token from text — it's auto-added on save
-      return { text: (parts[0] || "").replace(/<IMG>\s*/g, "").trim(), url: parts[1] || "", imageUrl: parts[2] || "" };
+      // New format supports per-locale triplets: text|url|imageUrl per locale.
+      // Legacy format supports only en triplet.
+      if (parts.length >= 12) {
+        return {
+          text: (parts[0] || "").replace(/<IMG>\s*/g, "").trim(),
+          url: parts[1] || "",
+          imageUrl: parts[2] || "",
+          text_es: (parts[3] || "").replace(/<IMG>\s*/g, "").trim(),
+          url_es: parts[4] || "",
+          imageUrl_es: parts[5] || "",
+          text_fr: (parts[6] || "").replace(/<IMG>\s*/g, "").trim(),
+          url_fr: parts[7] || "",
+          imageUrl_fr: parts[8] || "",
+          text_swa: (parts[9] || "").replace(/<IMG>\s*/g, "").trim(),
+          url_swa: parts[10] || "",
+          imageUrl_swa: parts[11] || ""
+        };
+      }
+      return {
+        text: (parts[0] || "").replace(/<IMG>\s*/g, "").trim(),
+        url: parts[1] || "",
+        imageUrl: parts[2] || ""
+      };
     case "photo":
       return { url: parts[0] || "", caption: parts[1] || "" };
     case "oilLamp":
-      return { enabled: true };
+      return { text: parts[0] || "" };
     default:
       // For user-translated keys, parse up to 4 locale parts: en|es|fr|swa
       if (USER_TRANSLATED_KEYS.has(normalizedKey)) {
@@ -336,32 +382,61 @@ export function serializeFieldValue(keyType, value) {
     case "leader":
       return joinParts([sanitisePart(value.name), sanitisePart(value.calling), sanitisePart(value.phone)]);
     case "generalStatementWithLink":
-      // Auto-add <LINK> token to text on save
-      const gsText = sanitisePart(value.text);
-      const gsTextWithToken = gsText ? `${gsText}<LINK>` : "<LINK>";
-      return joinParts([gsTextWithToken, sanitisePart(value.url)]);
+      return joinPartsPreserveGaps(
+        LINK_WITH_SPACE_LOCALES.flatMap((locale) => {
+          const suffix = locale === "en" ? "" : `_${locale}`;
+          const textValue = sanitisePart(value[`text${suffix}`] ?? "");
+          const textWithToken = textValue ? `${textValue}<LINK>` : "";
+          return [
+            textWithToken,
+            sanitisePart(value[`url${suffix}`] ?? "")
+          ];
+        })
+      );
     case "link":
       return joinParts([sanitisePart(value.text), sanitisePart(value.url)]);
     case "linkWithSpace":
-      // Auto-add <IMG> token to text on save
-      const lsText = sanitisePart(value.text);
-      const lsTextWithToken = lsText ? `<IMG> ${lsText}` : "<IMG>";
-      return joinParts([lsTextWithToken, sanitisePart(value.url), sanitisePart(value.imageUrl)]);
+      return joinPartsPreserveGaps(
+        LINK_WITH_SPACE_LOCALES.flatMap((locale) => {
+          const suffix = locale === "en" ? "" : `_${locale}`;
+          const textValue = sanitisePart(value[`text${suffix}`] ?? "");
+          const textWithToken = textValue ? `<IMG> ${textValue}` : "";
+          return [
+            textWithToken,
+            sanitisePart(value[`url${suffix}`] ?? ""),
+            sanitisePart(value[`imageUrl${suffix}`] ?? "")
+          ];
+        })
+      );
     case "photo":
       return joinParts([sanitisePart(value.url), sanitisePart(value.caption)]);
     case "oilLamp":
-      return value.enabled ? "" : "";
+      return sanitisePart(value.text);
     default:
       // For user-translated keys, collect locale-specific fields
       const normalizedKey = normalizeCmsKeyType(keyType);
       if (USER_TRANSLATED_KEYS.has(normalizedKey)) {
         // Determine which locales to include: always en, and optionally es, fr, swa if present
         const locales = ["en", "es", "fr", "swa"];
+        const englishText = sanitisePart(value.text);
         const parts = [];
         for (const locale of locales) {
           const prop = locale === "en" ? "text" : `text_${locale}`;
-          if (value[prop] !== undefined && value[prop] !== "") {
-            parts.push(sanitisePart(value[prop]));
+          if (locale === "en") {
+            parts.push(englishText);
+            continue;
+          }
+
+          let localeValue = value[prop] !== undefined && value[prop] !== ""
+            ? sanitisePart(value[prop])
+            : "";
+
+          if (REQUIRED_ENGLISH_TEXT_KEYS.has(normalizedKey) && localeValue === englishText) {
+            localeValue = "";
+          }
+
+          if (localeValue !== "") {
+            parts.push(localeValue);
           } else if (locale === "en") {
             // en is required; if empty, include empty string to maintain position?
             parts.push("");
@@ -379,9 +454,6 @@ export function serializeFieldValue(keyType, value) {
  */
 function isValueEmpty(keyType, value) {
   const normalizedKey = normalizeCmsKeyType(keyType);
-  if (normalizedKey === "oilLamp") {
-    return !value.enabled;
-  }
   return !serializeFieldValue(normalizedKey, value);
 }
 
@@ -628,8 +700,28 @@ function getFieldDefinition(keyType) {
     speaker: { fields: [{ name: "name", type: "text", label: "cms.input.speakerName", placeholder: "cms.input.name" }, { name: "caption", type: "text", label: "cms.input.caption", placeholder: "cms.input.optionalCaptionTopic" }] },
     horizontalLine: { fields: [{ name: "text", type: "text", placeholder: "cms.input.optionalSectionLabel" }] },
     sacramentLine: { fields: [{ name: "text", type: "text", placeholder: "cms.input.optionalSacramentHeading" }] },
-    oilLamp: { fields: [{ name: "enabled", type: "checkbox", label: "cms.input.displayOilLamp" }] },
-    leader: { fields: [{ name: "name", type: "text", placeholder: "cms.input.name" }, { name: "calling", type: "text", placeholder: "cms.input.optionalCallingPosition" }, { name: "phone", type: "text", placeholder: "cms.input.optionalPhone" }] },
+    oilLamp: {
+      fields: [
+        {
+          name: "text",
+          type: "text",
+          label: "cms.input.optionalCaption",
+          placeholder: "cms.input.optionalCaption"
+        }
+      ]
+    },
+    leader: {
+      fields: [
+        { name: "name", type: "text", label: "cms.input.leaderName", placeholder: "cms.input.name" },
+        {
+          name: "calling",
+          type: "text",
+          label: "cms.input.calling",
+          placeholder: "cms.input.calling"
+        },
+        { name: "phone", type: "text", label: "cms.input.phone", placeholder: "cms.input.phone" }
+      ]
+    },
     generalStatement: { fields: [{ name: "text", type: "textarea", placeholder: "cms.input.generalNotes" }] },
     generalStatementWithLink: { fields: [{ name: "text", type: "textarea", placeholder: "cms.input.textWithLinkPlaceholder" }, { name: "url", type: "text", placeholder: "cms.input.url" }] },
     link: { fields: [{ name: "text", type: "text", placeholder: "cms.input.displayText" }, { name: "url", type: "text", placeholder: "cms.input.url" }] },
@@ -1262,8 +1354,149 @@ class CmsEditor {
     }
     
     let html = "";
+
+    if (normalizedKey === "generalStatementWithLink") {
+      const textLabel = this.getFieldLabel(normalizedKey);
+      const urlLabel = t("cms.input.url");
+
+      for (const locale of LINK_WITH_SPACE_LOCALES) {
+        const suffix = locale === "en" ? "" : `_${locale}`;
+        const isEnglish = locale === "en";
+        const textValue = value[`text${suffix}`] || "";
+        const urlValue = value[`url${suffix}`] || "";
+
+        html += `
+          <div class="cms-locale-group">
+            <div class="cms-field cms-field--textarea">
+              <label class="cms-field__label">${locale.toUpperCase()}: ${textLabel}</label>
+              <textarea class="cms-field__input" maxlength="5000"
+                        data-key="${key}" data-part="text" data-locale="${locale}" ${isEnglish ? "required" : ""}>${escapeHtml(textValue)}</textarea>
+            </div>
+            <div class="cms-field cms-field--text">
+              <label class="cms-field__label">${locale.toUpperCase()}: ${urlLabel}</label>
+              <input type="text" class="cms-field__input" maxlength="1000"
+                     data-key="${key}" data-part="url" data-locale="${locale}"
+                     value="${escapeHtml(urlValue)}" ${isEnglish ? "required" : ""}>
+            </div>
+          </div>
+        `;
+      }
+
+      const helperKey = "cms.helper.enRequiredLocaleFallback";
+      const helperText = t(helperKey);
+      const resolvedHelperText =
+        helperText === helperKey
+          ? "EN required; ES/FR/SWA fall back to EN when blank."
+          : helperText;
+
+      html += `<p class="cms-field__helper">${escapeHtml(resolvedHelperText)}</p>`;
+      return html;
+    }
+
+    if (normalizedKey === "linkWithSpace") {
+      const localeLabel = t("cms.input.displayText");
+      const urlLabel = t("cms.input.url");
+      const imageUrlLabel = t("cms.input.imageUrl");
+
+      for (const locale of LINK_WITH_SPACE_LOCALES) {
+        const suffix = locale === "en" ? "" : `_${locale}`;
+        const isEnglish = locale === "en";
+        const textValue = value[`text${suffix}`] || "";
+        const urlValue = value[`url${suffix}`] || "";
+        const imageUrlValue = value[`imageUrl${suffix}`] || "";
+
+        html += `
+          <div class="cms-locale-group">
+            <div class="cms-field cms-field--text">
+              <label class="cms-field__label">${locale.toUpperCase()}: ${localeLabel}</label>
+              <input type="text" class="cms-field__input" maxlength="1000"
+                     data-key="${key}" data-part="text" data-locale="${locale}"
+                     value="${escapeHtml(textValue)}" ${isEnglish ? "required" : ""}>
+            </div>
+            <div class="cms-field cms-field--text">
+              <label class="cms-field__label">${locale.toUpperCase()}: ${urlLabel}</label>
+              <input type="text" class="cms-field__input" maxlength="1000"
+                     data-key="${key}" data-part="url" data-locale="${locale}"
+                     value="${escapeHtml(urlValue)}" ${isEnglish ? "required" : ""}>
+            </div>
+            <div class="cms-field cms-field--text">
+              <label class="cms-field__label">${locale.toUpperCase()}: ${imageUrlLabel}</label>
+              <input type="text" class="cms-field__input" maxlength="1000"
+                     data-key="${key}" data-part="imageUrl" data-locale="${locale}"
+                     value="${escapeHtml(imageUrlValue)}" ${isEnglish ? "required" : ""}>
+            </div>
+          </div>
+        `;
+      }
+
+      html += `<p class="cms-field__helper">EN is required. ES/FR/SWA fall back to EN when blank.</p>`;
+      return html;
+    }
+
+    if (REQUIRED_ENGLISH_TEXT_KEYS.has(normalizedKey)) {
+      const textField = definition.fields.find((field) => field.name === "text");
+      const sharedFields = definition.fields.filter((field) => field.name !== "text");
+      const textFieldLabel = textField?.label
+        ? translateStaticText(textField.label)
+        : this.getFieldLabel(normalizedKey);
+
+      for (const locale of localeColumns) {
+        const localeValue = locale === "en"
+          ? (value.text || "")
+          : (value[`text_${locale}`] || "");
+        const isRequiredEnglish = locale === "en";
+
+        html += `<div class="cms-locale-group">`;
+
+        if (textField?.type === "textarea") {
+          html += `
+            <div class="cms-field cms-field--textarea">
+              <label class="cms-field__label">${locale.toUpperCase()}: ${textFieldLabel}</label>
+              <textarea class="cms-field__input" maxlength="5000"
+                        data-key="${key}" data-part="text" data-locale="${locale}" ${isRequiredEnglish ? "required" : ""}>${escapeHtml(localeValue)}</textarea>
+            </div>
+          `;
+        } else {
+          html += `
+            <div class="cms-field cms-field--text">
+              <label class="cms-field__label">${locale.toUpperCase()}: ${textFieldLabel}</label>
+              <input type="text" class="cms-field__input" maxlength="1000"
+                     data-key="${key}" data-part="text" data-locale="${locale}"
+                     value="${escapeHtml(localeValue)}" ${isRequiredEnglish ? "required" : ""}>
+            </div>
+          `;
+        }
+
+        html += `</div>`;
+      }
+
+      for (const field of sharedFields) {
+        const fieldLabel = field.label ? translateStaticText(field.label) : this.getFieldLabel(normalizedKey);
+        html += `
+          <div class="cms-field cms-field--text">
+            <label class="cms-field__label">${fieldLabel}</label>
+            <input type="text" class="cms-field__input" maxlength="1000"
+                   data-key="${key}" data-part="${field.name}" data-locale="en"
+                   value="${escapeHtml(value[field.name] || "")}">
+          </div>
+        `;
+      }
+
+      const helperKey = "cms.helper.enRequiredLocaleFallback";
+      const helperText = t(helperKey);
+      const resolvedHelperText =
+        helperText === helperKey
+          ? "EN required; ES/FR/SWA optional. Blank optional locales will use EN."
+          : helperText;
+
+      html += `<p class="cms-field__helper">${escapeHtml(resolvedHelperText)}</p>`;
+      return html;
+    }
     
     for (const field of definition.fields) {
+      const isRequiredLeaderField =
+        normalizedKey === "leader" && ["name", "calling", "phone"].includes(field.name);
+
       if (field.type === "date") {
         // Date field
         const isoValue = parseDisplayDate(value.text);
@@ -1291,12 +1524,18 @@ class CmsEditor {
         if (isUserTranslated) {
           // Show all locale columns
           for (const locale of localeColumns) {
-            const localeValue = value[`${field.name}_${locale}`] || value[field.name] || "";
+            const localeValue = locale === "en"
+              ? (value[field.name] || "")
+              : (value[`${field.name}_${locale}`] || "");
+            const isRequiredEnglish =
+              field.name === "text" &&
+              locale === "en" &&
+              REQUIRED_ENGLISH_TEXT_KEYS.has(normalizedKey);
             html += `
               <div class="cms-field cms-field--textarea">
                 <label class="cms-field__label">${locale.toUpperCase()}: ${this.getFieldLabel(normalizedKey)}</label>
                 <textarea class="cms-field__input" maxlength="5000" 
-                          data-key="${key}" data-part="${field.name}" data-locale="${locale}">${escapeHtml(localeValue)}</textarea>
+                          data-key="${key}" data-part="${field.name}" data-locale="${locale}" ${isRequiredEnglish ? "required" : ""}>${escapeHtml(localeValue)}</textarea>
               </div>
             `;
           }
@@ -1327,13 +1566,19 @@ class CmsEditor {
         // Show all locale columns
         const fieldLabel = field.label ? translateStaticText(field.label) : this.getFieldLabel(normalizedKey);
         for (const locale of localeColumns) {
-          const localeValue = value[`${field.name}_${locale}`] || value[field.name] || "";
+          const localeValue = locale === "en"
+            ? (value[field.name] || "")
+            : (value[`${field.name}_${locale}`] || "");
+          const isRequiredEnglish =
+            field.name === "text" &&
+            locale === "en" &&
+            REQUIRED_ENGLISH_TEXT_KEYS.has(normalizedKey);
           html += `
             <div class="cms-field cms-field--text">
               <label class="cms-field__label">${locale.toUpperCase()}: ${fieldLabel}</label>
               <input type="text" class="cms-field__input" maxlength="1000" 
                      data-key="${key}" data-part="${field.name}" data-locale="${locale}" 
-                     value="${escapeHtml(localeValue)}">
+                     value="${escapeHtml(localeValue)}" ${(isRequiredEnglish || isRequiredLeaderField) ? "required" : ""}>
             </div>
           `;
         }
@@ -1345,10 +1590,21 @@ class CmsEditor {
             <label class="cms-field__label">${fieldLabel}</label>
             <input type="text" class="cms-field__input" maxlength="1000" 
                    data-key="${key}" data-part="${field.name}" data-locale="en" 
-                   value="${escapeHtml(value[field.name] || "")}">
+                   value="${escapeHtml(value[field.name] || "")}" ${isRequiredLeaderField ? "required" : ""}>
           </div>
         `;
       }
+    }
+
+    if (isUserTranslated && REQUIRED_ENGLISH_TEXT_KEYS.has(normalizedKey)) {
+      const helperKey = "cms.helper.enRequiredLocaleFallback";
+      const helperText = t(helperKey);
+      const resolvedHelperText =
+        helperText === helperKey
+          ? "EN required; ES/FR/SWA optional. Blank optional locales will use EN."
+          : helperText;
+
+      html += `<p class="cms-field__helper">${escapeHtml(resolvedHelperText)}</p>`;
     }
     
     return html;
@@ -2142,6 +2398,83 @@ class CmsEditor {
       for (const [key, count] of Object.entries(keyCounts)) {
         if (count > 1 && !isRepeatableKeyType(key)) {
           errors.push({ message: `Duplicate non-repeatable key: ${key}` });
+        }
+      }
+    }
+
+    // Validate required English text for specific translatable keys.
+    for (const section of ["unitRows", "programRows", "generalRows"]) {
+      const rows = this[section];
+      for (const row of rows) {
+        const key = normalizeCmsKeyType(row.key);
+        if (!REQUIRED_ENGLISH_TEXT_KEYS.has(key)) {
+          continue;
+        }
+
+        const value = parseFieldValue(row.key, row.value);
+        const english = sanitisePart(value.text);
+        if (!english) {
+          errors.push({ message: `${key} requires an English value.` });
+        }
+      }
+    }
+
+    // Validate required EN locale triplet for linkWithSpace.
+    for (const section of ["unitRows", "programRows", "generalRows"]) {
+      const rows = this[section];
+      for (const row of rows) {
+        const key = normalizeCmsKeyType(row.key);
+        if (key !== "linkWithSpace") {
+          continue;
+        }
+
+        const value = parseFieldValue(row.key, row.value);
+        const hasName = Boolean(sanitisePart(value.text));
+        const hasUrl = Boolean(sanitisePart(value.url));
+        const hasImageUrl = Boolean(sanitisePart(value.imageUrl));
+        if (!hasName || !hasUrl || !hasImageUrl) {
+          errors.push({
+            message: "linkWithSpace requires EN name, link, and image link URL."
+          });
+        }
+      }
+    }
+
+    // Validate required EN locale pair for generalStatementWithLink.
+    for (const section of ["unitRows", "programRows", "generalRows"]) {
+      const rows = this[section];
+      for (const row of rows) {
+        const key = normalizeCmsKeyType(row.key);
+        if (key !== "generalStatementWithLink") {
+          continue;
+        }
+
+        const value = parseFieldValue(row.key, row.value);
+        const hasText = Boolean(sanitisePart(value.text));
+        const hasUrl = Boolean(sanitisePart(value.url));
+        if (!hasText || !hasUrl) {
+          errors.push({
+            message: "generalStatementWithLink requires EN text and link."
+          });
+        }
+      }
+    }
+
+    // Validate required Leader fields.
+    for (const section of ["unitRows", "programRows", "generalRows"]) {
+      const rows = this[section];
+      for (const row of rows) {
+        const key = normalizeCmsKeyType(row.key);
+        if (key !== "leader") {
+          continue;
+        }
+
+        const value = parseFieldValue(row.key, row.value);
+        const hasName = Boolean(sanitisePart(value.name));
+        const hasCalling = Boolean(sanitisePart(value.calling));
+        const hasPhone = Boolean(sanitisePart(value.phone));
+        if (!hasName || !hasCalling || !hasPhone) {
+          errors.push({ message: "leader requires name, calling/position, and phone." });
         }
       }
     }
