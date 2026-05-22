@@ -465,11 +465,11 @@
   }
 
   .cms-agenda__controls-main {
-    gap: 0.75rem;
+    gap: 0.5rem;
   }
 
   .cms-agenda__controls-main label {
-    flex: 1 1 180px;
+    flex: 1 1 auto;
   }
 
   .cms-agenda__row-nav {
@@ -507,8 +507,73 @@
     padding: 0.5rem;
   }
 
+  #cms-agenda-content {
+    gap: 0.75rem;
+  }
+
+  .cms-agenda__controls {
+    gap: 0.5rem;
+  }
+
   .cms-agenda__controls-main {
     flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .cms-agenda__controls label {
+    gap: 0.25rem;
+  }
+
+  .cms-agenda__row-selector {
+    gap: 0.35rem;
+  }
+
+  .cms-agenda__row-hint {
+    margin-top: 0.2rem;
+    margin-bottom: 0.05rem;
+  }
+
+  .agenda-key-editor {
+    padding: 0.75rem 0.8rem;
+    gap: 0.65rem;
+  }
+
+  .agenda-key-editor__rows {
+    gap: 0.5rem;
+  }
+
+  .agenda-key-editor__row {
+    gap: 0.5rem;
+    padding: 0.55rem;
+  }
+
+  .agenda-key-editor__row .agenda-key-editor__field {
+    flex: 1 1 100%;
+    gap: 0.25rem;
+  }
+
+  .agenda-key-editor__field span {
+    font-size: 0.8rem;
+  }
+
+  .agenda-key-editor__input,
+  .agenda-key-editor__textarea {
+    padding: 0.55rem 0.65rem;
+    font-size: 0.92rem;
+  }
+
+  .agenda-key-editor__textarea {
+    min-height: 5rem;
+  }
+
+  .agenda-key-editor__field--textarea {
+    gap: 0.25rem;
+  }
+
+  .agenda-key-editor__row-actions {
+    width: 100%;
+    justify-content: flex-start;
+    margin-left: 0;
   }
 
   .cms-agenda__actions {
