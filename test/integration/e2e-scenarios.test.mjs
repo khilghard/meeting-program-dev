@@ -37,7 +37,7 @@ describe("CMS Editor — E2E Scenarios", () => {
       expect(rows.some(r => r.key === "presiding")).toBe(true);
 
       // Add button modal should not offer agenda keys
-      const addBtn = container.querySelector('.cms-editor__add-btn[data-section="program"]');
+      const addBtn = container.querySelector('.cms-insert-btn[data-insert-section="program"]');
       addBtn.click();
       const modal = document.querySelector('.cms-modal');
       const options = Array.from(modal.querySelectorAll('#add-row-key-select option')).map(opt => opt.value);
@@ -57,7 +57,7 @@ describe("CMS Editor — E2E Scenarios", () => {
       expect(rows.some(r => r.key === "agendaGeneral")).toBe(false); // not auto-added
 
       // Add button modal should offer agenda keys
-      const addBtn = container.querySelector('.cms-editor__add-btn[data-section="program"]');
+      const addBtn = container.querySelector('.cms-insert-btn[data-insert-section="program"]');
       addBtn.click();
       const modal = document.querySelector('.cms-modal');
       const options = Array.from(modal.querySelectorAll('#add-row-key-select option')).map(opt => opt.value);
@@ -78,7 +78,7 @@ describe("CMS Editor — E2E Scenarios", () => {
       }
 
       // Open add modal for program section
-      const addBtn = container.querySelector('.cms-editor__add-btn[data-section="program"]');
+      const addBtn = container.querySelector('.cms-insert-btn[data-insert-section="program"]');
       addBtn.click();
       const modal = document.querySelector('.cms-modal');
       const select = modal.querySelector('#add-row-key-select');
@@ -131,7 +131,7 @@ describe("CMS Editor — E2E Scenarios", () => {
 
       // Simulate change to a duplicate (there's no built-in duplicate check on change; it's prevented in the dropdown options)
       // Instead, verify the dropdown doesn't include current key and the add modal excludes existing non-repeatable
-      const addBtn = container.querySelector('.cms-editor__add-btn[data-section="program"]');
+      const addBtn = container.querySelector('.cms-insert-btn[data-insert-section="program"]');
       addBtn.click();
       const modal = document.querySelector('.cms-modal');
       const options = Array.from(modal.querySelectorAll('#add-row-key-select option')).map(opt => opt.value);
@@ -152,7 +152,7 @@ describe("CMS Editor — E2E Scenarios", () => {
       expect(rows.some(r => r.key === "oilLamp")).toBe(true);
       
       // speaker is a repeatable key available in program section
-      const addBtn = container.querySelector('.cms-editor__add-btn');
+      const addBtn = container.querySelector('.cms-insert-btn[data-insert-section="program"]');
       addBtn.click();
       const modal = document.querySelector('.cms-modal');
       const select = modal.querySelector('#add-row-key-select');

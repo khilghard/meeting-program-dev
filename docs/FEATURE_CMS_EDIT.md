@@ -806,7 +806,7 @@ Google Sheets users routinely rename and reorder tabs to manage weekly programs:
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  Ward Program CMS   [Profile: 5th Ward ▼]                        │
+│  Sacrament Meeting Program CMS   [Profile: 5th Ward]             │
 │  Sheet tab: [ May 18, 2026 (active) ▼ ]  [+ Duplicate] [⬅ Make Active] │
 │  [🔐 user@gmail.com]                     [💾 Save to Sheets]     │
 └──────────────────────────────────────────────────────────────────┘

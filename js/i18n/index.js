@@ -174,7 +174,7 @@ const translationsData = {
     "cmsAgenda.makeActiveFailed": "Failed to make the selected tab active.",
     "cmsAgenda.noAgendaProfile": "No agenda sheet is configured for the current profile.",
     "cmsAgenda.loadFailed": "Failed to load agenda data.",
-    "cms.pageTitle": "Ward Program CMS",
+    "cms.pageTitle": "Sacrament Meeting Program CMS",
     "cms.loadingProfile": "Loading profile...",
     "cms.localeLabel": "Locale",
     "cms.sheetTabLabel": "Sheet Tab",

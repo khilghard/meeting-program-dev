@@ -262,7 +262,7 @@ describe("cms-agenda.js", () => {
 
     const tabSelect = document.getElementById("cms-agenda-tab-select");
     expect(tabSelect.options).toHaveLength(1);
-    expect(tabSelect.options[0].textContent).toBe(maliciousTitle);
+    expect(tabSelect.options[0].textContent).toBe(`★ ${maliciousTitle}`);
     expect(tabSelect.querySelector("img")).toBeNull();
   });
 

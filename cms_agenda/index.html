@@ -6,8 +6,8 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Ward Agenda CMS" />
-    <title>Ward Agenda CMS</title>
+    <meta name="apple-mobile-web-app-title" content="Program Agenda CMS" />
+    <title>Program Agenda CMS</title>
     <script>
       // Detect deployment path from URL to build absolute paths
       (function detectBasePath() {
@@ -78,12 +78,14 @@
     </script>
     <link id="styles-link" rel="stylesheet" href="" />
     <link id="cms-styles-link" rel="stylesheet" href="" />
+    <link id="cms-agenda-styles-link" rel="stylesheet" href="" />
     <script type="module">
       const bp = window.CMS_BASE_PATH || "/";
       const { VERSION } = await import(`${bp}js/version.js`);
 
       document.getElementById("styles-link").href = `${bp}css/styles.css?v=${VERSION}`;
       document.getElementById("cms-styles-link").href = `${bp}css/cms.css?v=${VERSION}`;
+      document.getElementById("cms-agenda-styles-link").href = `${bp}css/cms-agenda.css?v=${VERSION}`;
 
       const agendaScript = document.createElement("script");
       agendaScript.type = "module";
@@ -101,7 +103,7 @@
     <main class="cms-agenda">
       <header class="cms-agenda__header">
         <div>
-          <p id="cms-agenda-shell-title">Ward Agenda CMS</p>
+          <p id="cms-agenda-shell-title">Program Agenda CMS</p>
           <h1 id="cms-agenda-profile-name">Loading profile...</h1>
         </div>
       </header>
@@ -135,8 +137,6 @@
         </form>
       </dialog>
 
-      <div id="cms-agenda-loading">Loading agenda editor...</div>
-
       <section id="cms-agenda-content" hidden>
         <div class="cms-agenda__controls">
           <label>
@@ -162,7 +162,9 @@
 
         <div class="cms-agenda__actions">
           <button id="cms-agenda-make-active-btn" type="button" class="cms-agenda-btn--secondary">Make Active</button>
+          <button id="cms-agenda-sign-in-again-btn" type="button" class="cms-agenda-btn--secondary">Sign in with Google</button>
           <button id="cms-agenda-save-draft-btn" type="button" class="cms-agenda-btn--secondary">Save Draft</button>
+          <button id="cms-agenda-discard-draft-btn" type="button" class="cms-agenda-btn--secondary">Discard Draft</button>
           <button id="cms-agenda-publish-btn" type="button" class="cms-agenda-btn--primary">Publish</button>
           <button id="cms-agenda-publish-all-btn" type="button" class="cms-agenda-btn--primary">Publish All Pending</button>
         </div>

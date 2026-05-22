@@ -386,7 +386,7 @@ describe("CmsEditor component", () => {
       { key: "openingHymn", value: "62" }
     ]);
     
-    const addBtn = container.querySelector('.cms-editor__add-btn[data-section="program"]');
+    const addBtn = container.querySelector('.cms-insert-btn[data-insert-section="program"]');
     expect(addBtn).toBeTruthy();
     addBtn.click();
     
@@ -411,7 +411,7 @@ describe("CmsEditor component", () => {
       editor.addRepeatableItem("speaker");
     }
     
-    const addBtn = container.querySelector('.cms-editor__add-btn[data-section="program"]');
+    const addBtn = container.querySelector('.cms-insert-btn[data-insert-section="program"]');
     addBtn.click();
     
     const modal = document.querySelector('.cms-modal');

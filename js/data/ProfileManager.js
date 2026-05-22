@@ -18,6 +18,7 @@ import {
 } from "./IndexedDBManager.js";
 import { DB_NAME } from "./db.js";
 import { clearHistory } from "../history.js";
+import { VERSION as APP_VERSION_FALLBACK } from "../version.js";
 
 const BASE_DB_NAME = "MeetingProgramDB";
 const PROD_DB_NAME = `${BASE_DB_NAME}__meeting-program`;
@@ -239,7 +240,7 @@ export async function initProfileManager(currentVersion) {
     return migrationResult;
   }
   await createDatabase();
-  migrationResult = await migrateFromOldDatabase(currentVersion || "unknown");
+  migrationResult = await migrateFromOldDatabase(currentVersion || APP_VERSION_FALLBACK || "unknown");
   initialized = true;
   return migrationResult;
 }

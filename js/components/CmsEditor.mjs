@@ -308,17 +308,20 @@ export function parseFieldValue(keyType, raw) {
     case "generalStatementWithLink":
       // New format supports per-locale pairs: text|url per locale.
       // Legacy format supports only en pair.
-      if (parts.length >= 8) {
-        return {
-          text: (parts[0] || "").replace(/<LINK>/g, "").trim(),
-          url: parts[1] || "",
-          text_es: (parts[2] || "").replace(/<LINK>/g, "").trim(),
-          url_es: parts[3] || "",
-          text_fr: (parts[4] || "").replace(/<LINK>/g, "").trim(),
-          url_fr: parts[5] || "",
-          text_swa: (parts[6] || "").replace(/<LINK>/g, "").trim(),
-          url_swa: parts[7] || ""
-        };
+      if (parts.length >= 3) {
+        const locales = ["en", "es", "fr", "swa"];
+        const parsed = { text: "", url: "" };
+        locales.forEach((locale, idx) => {
+          const textIdx = idx * 2;
+          const urlIdx = textIdx + 1;
+          if (textIdx >= parts.length) return;
+          const suffix = locale === "en" ? "" : `_${locale}`;
+          parsed[`text${suffix}`] = (parts[textIdx] || "").replace(/<LINK>/g, "").trim();
+          if (urlIdx < parts.length) {
+            parsed[`url${suffix}`] = parts[urlIdx] || "";
+          }
+        });
+        return parsed;
       }
       return { text: (parts[0] || "").replace(/<LINK>/g, "").trim(), url: parts[1] || "" };
     case "link":
@@ -326,21 +329,18 @@ export function parseFieldValue(keyType, raw) {
     case "linkWithSpace":
       // New format supports per-locale triplets: text|url|imageUrl per locale.
       // Legacy format supports only en triplet.
-      if (parts.length >= 12) {
-        return {
-          text: (parts[0] || "").replace(/<IMG>\s*/g, "").trim(),
-          url: parts[1] || "",
-          imageUrl: parts[2] || "",
-          text_es: (parts[3] || "").replace(/<IMG>\s*/g, "").trim(),
-          url_es: parts[4] || "",
-          imageUrl_es: parts[5] || "",
-          text_fr: (parts[6] || "").replace(/<IMG>\s*/g, "").trim(),
-          url_fr: parts[7] || "",
-          imageUrl_fr: parts[8] || "",
-          text_swa: (parts[9] || "").replace(/<IMG>\s*/g, "").trim(),
-          url_swa: parts[10] || "",
-          imageUrl_swa: parts[11] || ""
-        };
+      if (parts.length >= 4) {
+        const locales = ["en", "es", "fr", "swa"];
+        const parsed = { text: "", url: "", imageUrl: "" };
+        locales.forEach((locale, idx) => {
+          const base = idx * 3;
+          if (base >= parts.length) return;
+          const suffix = locale === "en" ? "" : `_${locale}`;
+          parsed[`text${suffix}`] = (parts[base] || "").replace(/<IMG>\s*/g, "").trim();
+          if (base + 1 < parts.length) parsed[`url${suffix}`] = parts[base + 1] || "";
+          if (base + 2 < parts.length) parsed[`imageUrl${suffix}`] = parts[base + 2] || "";
+        });
+        return parsed;
       }
       return {
         text: (parts[0] || "").replace(/<IMG>\s*/g, "").trim(),
@@ -350,7 +350,7 @@ export function parseFieldValue(keyType, raw) {
     case "photo":
       return { url: parts[0] || "", caption: parts[1] || "" };
     case "oilLamp":
-      return { text: parts[0] || "" };
+      return { enabled: true };
     default:
       // For user-translated keys, parse up to 4 locale parts: en|es|fr|swa
       if (USER_TRANSLATED_KEYS.has(normalizedKey)) {
@@ -411,7 +411,7 @@ export function serializeFieldValue(keyType, value) {
     case "photo":
       return joinParts([sanitisePart(value.url), sanitisePart(value.caption)]);
     case "oilLamp":
-      return sanitisePart(value.text);
+      return "";
     default:
       // For user-translated keys, collect locale-specific fields
       const normalizedKey = normalizeCmsKeyType(keyType);
@@ -626,21 +626,33 @@ function autoCorrectRows(unitInfoRows, programRows, generalRows) {
     programRows.push({ key: "closingPrayer", value: "", _id: `program-${programRows.length}` });
   }
   
-  // Ensure presiding is first (after any agenda keys)
+  // Ensure presiding is first (after any consecutive leading agenda keys)
   const presidingIdx = programRows.findIndex(row => normalizeCmsKeyType(row.key) === "presiding");
   if (presidingIdx > 0) {
-    const presidingRow = programRows.splice(presidingIdx, 1)[0];
-    // Insert after first agenda key or at beginning
-    let insertIdx = 0;
+    // Determine the expected position: right after consecutive leading agenda keys
+    let expectedIdx = 0;
     for (let i = 0; i < programRows.length; i++) {
+      if (i === presidingIdx) break;
       if (programRows[i].key.startsWith("agenda")) {
-        insertIdx = i + 1;
+        expectedIdx = i + 1;
       } else {
         break;
       }
     }
-    programRows.splice(insertIdx, 0, presidingRow);
-    corrections.push({ type: "reorder_presiding", message: "Moved presiding to correct position" });
+    if (presidingIdx !== expectedIdx) {
+      const presidingRow = programRows.splice(presidingIdx, 1)[0];
+      // Recompute insert position after splice
+      let insertIdx = 0;
+      for (let i = 0; i < programRows.length; i++) {
+        if (programRows[i].key.startsWith("agenda")) {
+          insertIdx = i + 1;
+        } else {
+          break;
+        }
+      }
+      programRows.splice(insertIdx, 0, presidingRow);
+      corrections.push({ type: "reorder_presiding", message: "Moved presiding to correct position" });
+    }
   }
   
    // Validate unit info section
@@ -702,12 +714,7 @@ function getFieldDefinition(keyType) {
     sacramentLine: { fields: [{ name: "text", type: "text", placeholder: "cms.input.optionalSacramentHeading" }] },
     oilLamp: {
       fields: [
-        {
-          name: "text",
-          type: "text",
-          label: "cms.input.optionalCaption",
-          placeholder: "cms.input.optionalCaption"
-        }
+        { name: "enabled", type: "checkbox", label: "cms.label.oilLamp" }
       ]
     },
     leader: {
@@ -853,6 +860,7 @@ class CmsEditor {
     
     // Show corrections if any
     if (corrections.length > 0) {
+      this.logAutoCorrectionDetails(corrections);
       this.showCorrectionsToast(corrections);
     }
     
@@ -964,7 +972,13 @@ class CmsEditor {
     const rows = this._getSectionRows(section);
     const index = rows.findIndex(r => r._id === row._id);
     const options = this._getSectionOptions(section);
-    rowEl.innerHTML = this.renderRow(row, index, section, options, rows);
+    const html = this.renderRow(row, index, section, options, rows);
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = html;
+    const newEl = wrapper.firstElementChild;
+    // Copy inner content and attributes to avoid creating nested .cms-row elements
+    rowEl.innerHTML = newEl.innerHTML;
+    Array.from(newEl.attributes).forEach(attr => rowEl.setAttribute(attr.name, attr.value));
   }
 
   _refreshKeySelectsInSection(section) {
@@ -1070,6 +1084,28 @@ class CmsEditor {
     });
   }
 
+  /**
+   * Print detailed correction context to the console when auto-corrections run.
+   */
+  logAutoCorrectionDetails(corrections) {
+    const beforeProgram = (this.originalRowsBeforeCorrection?.programRows || [])
+      .map((row) => normalizeCmsKeyType(row.key));
+    const afterProgram = this.programRows.map((row) => normalizeCmsKeyType(row.key));
+
+    const beforePresidingIdx = beforeProgram.indexOf("presiding");
+    const afterPresidingIdx = afterProgram.indexOf("presiding");
+    const beforeClosingPrayerIdx = beforeProgram.indexOf("closingPrayer");
+    const afterClosingPrayerIdx = afterProgram.indexOf("closingPrayer");
+
+    console.groupCollapsed("[CmsEditor] Auto-corrections applied on initialize");
+    console.log("Corrections:", corrections.map((c) => ({ type: c.type, message: c.message })));
+    console.log("Program order before:", beforeProgram);
+    console.log("Program order after:", afterProgram);
+    console.log("Presiding index before -> after:", beforePresidingIdx, "->", afterPresidingIdx);
+    console.log("ClosingPrayer index before -> after:", beforeClosingPrayerIdx, "->", afterClosingPrayerIdx);
+    console.groupEnd();
+  }
+
   showCorrectionsToast(corrections) {
     // Create toast notification
     const toast = document.createElement("div");
@@ -1135,7 +1171,9 @@ class CmsEditor {
     if (undoBtn) {
       undoBtn.addEventListener("click", () => {
         this.undoLastCorrections();
-        toast.parentNode.removeChild(toast);
+        if (toast.parentNode) {
+          toast.parentNode.removeChild(toast);
+        }
       });
     }
   }
@@ -1187,6 +1225,7 @@ class CmsEditor {
     `;
     
     // Render Unit Info section
+    html += `<div class="cms-split-marker cms-split-marker--unit"><span class="cms-split-marker__label">${translateStaticText("Unit Information")}</span></div>`;
     html += `<div class="cms-section-tint cms-section-tint--unit">`;
     for (const row of this.unitRows) {
       html += this.renderRow(row, this.unitRows.indexOf(row), "unitInfo", { locked: true, allowedKeys: UNIT_INFO_KEYS }, this.unitRows);
@@ -1198,9 +1237,7 @@ class CmsEditor {
     
     // Render Program section
     html += `<div class="cms-section-tint cms-section-tint--program">`;
-    for (const row of this.programRows) {
-      html += this.renderRow(row, this.programRows.indexOf(row), "program", { locked: false, allowedKeys: PROGRAM_ALLOWED_KEYS }, this.programRows);
-    }
+    html += this.renderRowsWithInsertButtons(this.programRows, "program", { locked: false, allowedKeys: PROGRAM_ALLOWED_KEYS });
     html += `</div>`;
     
     // Render split:general marker (direct child of list)
@@ -1208,15 +1245,12 @@ class CmsEditor {
     
     // Render General section
     html += `<div class="cms-section-tint cms-section-tint--general">`;
-    for (const row of this.generalRows) {
-      html += this.renderRow(row, this.generalRows.indexOf(row), "general", { locked: false, allowedKeys: GENERAL_ALLOWED_KEYS }, this.generalRows);
-    }
+    html += this.renderRowsWithInsertButtons(this.generalRows, "general", { locked: false, allowedKeys: GENERAL_ALLOWED_KEYS });
     html += `</div>`;
     
     html += `
         </div>
         <div class="cms-editor__footer">
-          <button type="button" class="cms-editor__add-btn" data-section="program">+ ${translateStaticText("Add Row")}</button>
           <div class="cms-editor__status"></div>
           <button class="cms-editor__save-btn">Save</button>
         </div>
@@ -1230,7 +1264,24 @@ class CmsEditor {
    * Render an insert button between rows
    */
   renderInsertButton(index, section) {
-    return `<button type="button" class="cms-insert-btn" data-insert-index="${index}" data-insert-section="${section}" title="Insert row here">+</button>`;
+    return `<button type="button" class="cms-insert-btn" data-insert-index="${index}" data-insert-section="${section}" title="Insert row here" aria-label="Insert row here"></button>`;
+  }
+
+  /**
+   * Render editable rows with inline insert buttons after each row.
+   */
+  renderRowsWithInsertButtons(rows, section, options) {
+    if (!rows || rows.length === 0) return "";
+
+    const sectionMap = { unitInfo: "unitRows", program: "programRows", general: "generalRows" };
+    const propertyName = sectionMap[section];
+    const sectionRows = propertyName ? this[propertyName] : [];
+
+    return rows.map((row, index) => {
+      const rowHtml = this.renderRow(row, index, section, options, sectionRows);
+      const insertHtml = this.renderInsertButton(index + 1, section);
+      return `${rowHtml}${insertHtml}`;
+    }).join("");
   }
 
   /**
@@ -2257,7 +2308,7 @@ class CmsEditor {
     const btn = event.target;
     const rowId = btn.dataset.rowId;
     const section = btn.dataset.section;
-    const direction = btn.dataset.direction;
+    const direction = btn.dataset.direction || (btn.matches(".cms-row__action--delete") ? "delete" : "");
     
     if (!section || !rowId) return;
     
