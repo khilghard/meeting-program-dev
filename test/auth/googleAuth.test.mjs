@@ -74,15 +74,12 @@ describe("GoogleAuth Module", () => {
       }).not.toThrow();
     });
 
-    it("should request sheets and drive metadata scopes", () => {
+    it("should request spreadsheet scope only", () => {
       GoogleAuth.initialize("test-client-id", "http://localhost/callback");
 
       expect(global.google.accounts.oauth2.initTokenClient).toHaveBeenCalledWith(
         expect.objectContaining({
-          scope: [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive.metadata.readonly"
-          ].join(" ")
+          scope: ["https://www.googleapis.com/auth/spreadsheets"].join(" ")
         })
       );
     });

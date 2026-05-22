@@ -42,7 +42,9 @@ function normalizeSelectedTab(tabs, preferredTitle = "") {
     if (matched) return matched;
   }
 
+  // Default to the active tab (index 0 = leftmost/current program tab)
   return (
+    normalizedTabs.find((tab) => tab.isActive) ??
     normalizedTabs[0] ?? {
       sheetId: null,
       title: preferredTitle || DEFAULT_SHEET_TAB_NAME,
@@ -52,13 +54,32 @@ function normalizeSelectedTab(tabs, preferredTitle = "") {
   );
 }
 
+function summarizeTabsForDebug(tabs = []) {
+  return (Array.isArray(tabs) ? tabs : []).map((tab) => ({
+    title: tab.title,
+    index: tab.index,
+    isActive: Boolean(tab.isActive)
+  }));
+}
+
+const CMS_DRAFT_VERSION = 2; // Increment when serialization format changes
+
 function buildDraftPayload(state) {
   return {
+    version: CMS_DRAFT_VERSION,
     locale: state.locale,
     selectedTabTitle: state.selectedTab?.title ?? DEFAULT_SHEET_TAB_NAME,
-    rows: state.editor?.getRows?.() ?? [],
+    rows: state.editor?.getAllRows?.() ?? [],
     savedAt: Date.now()
   };
+}
+
+function isCmsDraftPayload(draft) {
+  return Boolean(draft && typeof draft === "object" && Array.isArray(draft.rows));
+}
+
+function isDraftVersionValid(draft) {
+  return !draft || draft.version === CMS_DRAFT_VERSION;
 }
 
 function isAuthError(error) {
@@ -69,10 +90,6 @@ function isAuthError(error) {
     error.status === 403 ||
     /access token|not authorized/i.test(message)
   );
-}
-
-function isCmsDraftPayload(draft) {
-  return Boolean(draft && typeof draft === "object" && Array.isArray(draft.rows));
 }
 
 function getTranslatedText(translator, key, fallback) {
@@ -127,6 +144,7 @@ export function createCmsApp(dependencies = {}) {
     modifiedTime: "",
     hasConfiguredClientId: false,
     lastDraftRestored: false,
+    draftSelectedTabTitle: "",
     pendingDraft: null,
     editor: null,
     programService: null,
@@ -219,13 +237,13 @@ export function createCmsApp(dependencies = {}) {
   }
 
   function translateShell() {
-    deps.documentRef.title = text("cms.pageTitle", "Ward Program CMS");
+    deps.documentRef.title = text("cms.pageTitle", "Sacrament Meeting Program CMS");
     const appleTitle = deps.documentRef.querySelector('meta[name="apple-mobile-web-app-title"]');
     if (appleTitle) {
-      appleTitle.setAttribute("content", text("cms.pageTitle", "Ward Program CMS"));
+      appleTitle.setAttribute("content", text("cms.pageTitle", "Sacrament Meeting Program CMS"));
     }
 
-    setElementText("cms-shell-title", text("cms.pageTitle", "Ward Program CMS"));
+    setElementText("cms-shell-title", text("cms.pageTitle", "Sacrament Meeting Program CMS"));
     if (!state.profile) {
       setElementText("cms-profile-name", text("cms.loadingProfile", "Loading profile..."));
     }
@@ -277,6 +295,15 @@ export function createCmsApp(dependencies = {}) {
     }
     setAuthPanelState();
     setToolbarState(false);
+    setStatus(message, tone);
+  }
+
+  function showAuthWarning(message, tone = "warning") {
+    const { authPanel } = getElements();
+    if (authPanel) {
+      authPanel.hidden = false;
+    }
+    setAuthPanelState();
     setStatus(message, tone);
   }
 
@@ -397,11 +424,21 @@ export function createCmsApp(dependencies = {}) {
       tabSelect,
       state.tabs.map((tab) => ({
         value: tab.title,
-        label: tab.title
+        label: tab.isActive ? `★ ${tab.title}` : tab.title
       })),
       state.selectedTab?.title ?? "",
       deps.documentRef
     );
+
+    console.log("[CMS][TabDebug] populateTabOptions", {
+      selectedTabTitle: state.selectedTab?.title ?? "",
+      renderedOptions: state.tabs.map((tab) => ({
+        value: tab.title,
+        label: tab.isActive ? `★ ${tab.title}` : tab.title,
+        isActive: Boolean(tab.isActive)
+      })),
+      domValue: tabSelect.value
+    });
   }
 
   function draftMatchesCurrentView(draft) {
@@ -424,7 +461,18 @@ export function createCmsApp(dependencies = {}) {
     if (!state.profile) return null;
 
     const draft = await deps.getDraft(buildCmsDraftKey(state.profile.id));
-    if (!isCmsDraftPayload(draft)) {
+    console.log("[CMS][TabDebug] restoreDraftViewPreference: draft lookup", {
+      hasDraft: Boolean(draft),
+      selectedTabTitle: draft?.selectedTabTitle,
+      locale: draft?.locale,
+      version: draft?.version
+    });
+
+    if (!isCmsDraftPayload(draft) || !isDraftVersionValid(draft)) {
+      // Discard corrupted or outdated drafts
+      if (draft && !isDraftVersionValid(draft)) {
+        await deps.clearDraft(buildCmsDraftKey(state.profile.id));
+      }
       return null;
     }
 
@@ -432,10 +480,12 @@ export function createCmsApp(dependencies = {}) {
       state.locale = draft.locale;
     }
 
-    state.selectedTab = normalizeSelectedTab(
-      state.tabs,
-      draft.selectedTabTitle ?? state.selectedTab?.title ?? DEFAULT_SHEET_TAB_NAME
-    );
+    // Defer tab selection until tabs are fetched in connectServices().
+    state.draftSelectedTabTitle = draft.selectedTabTitle ?? "";
+    console.log("[CMS][TabDebug] restoreDraftViewPreference: deferred tab preference", {
+      draftSelectedTabTitle: state.draftSelectedTabTitle,
+      tabsKnown: state.tabs.length > 0
+    });
     state.pendingDraft = draft;
 
     return draft;
@@ -444,6 +494,7 @@ export function createCmsApp(dependencies = {}) {
   function mountEditor(rows) {
     if (!state.editor) {
       state.editor = new deps.CmsEditorClass("cms-editor-container", {
+        includeAgenda: true,
         onChangeCallback: async () => {
           try {
             await persistDraft();
@@ -472,9 +523,14 @@ export function createCmsApp(dependencies = {}) {
       const draft =
         state.pendingDraft ??
         (state.profile ? await deps.getDraft(buildCmsDraftKey(state.profile.id)) : null);
-      state.lastDraftRestored = draftMatchesCurrentView(draft);
-      mountEditor(state.lastDraftRestored ? draft.rows : rows);
-      state.pendingDraft = state.lastDraftRestored ? draft : null;
+      // Discard corrupted or outdated drafts
+      const validDraft = draft && isCmsDraftPayload(draft) && isDraftVersionValid(draft) ? draft : null;
+      if (draft && !isDraftVersionValid(draft)) {
+        await deps.clearDraft(buildCmsDraftKey(state.profile.id));
+      }
+      state.lastDraftRestored = draftMatchesCurrentView(validDraft);
+      mountEditor(state.lastDraftRestored ? validDraft.rows : rows);
+      state.pendingDraft = state.lastDraftRestored ? validDraft : null;
       updateHeader();
       setStatus("");
       return true;
@@ -520,7 +576,15 @@ export function createCmsApp(dependencies = {}) {
   }
 
   async function handleTabChange(event) {
+    console.log("[CMS][TabDebug] handleTabChange: before", {
+      requestedTitle: event.currentTarget.value,
+      previousSelectedTab: state.selectedTab,
+      tabs: summarizeTabsForDebug(state.tabs)
+    });
     state.selectedTab = normalizeSelectedTab(state.tabs, event.currentTarget.value);
+    console.log("[CMS][TabDebug] handleTabChange: after", {
+      selectedTab: state.selectedTab
+    });
     await loadSheetRows();
   }
 
@@ -584,7 +648,7 @@ export function createCmsApp(dependencies = {}) {
     state.editor.discardChanges();
     await deps.clearDraft(buildCmsDraftKey(state.profile.id));
     state.pendingDraft = null;
-    setStatus("Draft discarded.", "info");
+    deps.windowRef?.location?.reload?.();
   }
 
   async function initializeAuth() {
@@ -612,10 +676,24 @@ export function createCmsApp(dependencies = {}) {
     state.programService = new deps.ProgramSheetServiceClass(client, state.profile.url);
     state.tabService = new deps.SheetTabServiceClass(client, state.profile.url);
     state.tabs = await state.tabService.listTabs();
-    state.selectedTab = normalizeSelectedTab(
-      state.tabs,
-      state.selectedTab?.title ?? DEFAULT_SHEET_TAB_NAME
-    );
+    console.log("[CMS][TabDebug] connectServices: tabs fetched", {
+      tabs: summarizeTabsForDebug(state.tabs),
+      preExistingSelectedTab: state.selectedTab,
+      draftSelectedTabTitle: state.draftSelectedTabTitle
+    });
+
+    const hasPendingAuthReturn =
+      deps.windowRef.sessionStorage.getItem(CMS_AUTH_PENDING_KEY) === "1";
+    // Hard reload default: active tab. Use draft tab preference only after auth redirect.
+    const preferredTitle = hasPendingAuthReturn
+      ? state.draftSelectedTabTitle || state.selectedTab?.title || ""
+      : state.selectedTab?.title || "";
+    state.selectedTab = normalizeSelectedTab(state.tabs, preferredTitle);
+    console.log("[CMS][TabDebug] connectServices: selected tab resolved", {
+      hasPendingAuthReturn,
+      preferredTitle,
+      selectedTab: state.selectedTab
+    });
   }
 
   async function signIn() {
@@ -645,9 +723,33 @@ export function createCmsApp(dependencies = {}) {
 
   async function initialize() {
     const elements = getElements();
+    console.log("[CMS][TabDebug] initialize start", {
+      location: deps.windowRef?.location?.href,
+      hasSessionAuthPending: deps.windowRef?.sessionStorage?.getItem?.(CMS_AUTH_PENDING_KEY) === "1"
+    });
     state.locale = await deps.initI18n();
     translateShell();
     populateLocaleOptions();
+
+    const handleAuthRefreshFailure = (event) => {
+      const detail = event?.detail || {};
+      showAuthGate(
+        detail.message || "Google session expired. Sign in again to continue editing.",
+        "warning"
+      );
+    };
+
+    const handleAuthRefreshWarning = (event) => {
+      const detail = event?.detail || {};
+      showAuthWarning(
+        detail.message ||
+          "Your Google session will refresh soon. Sign in again now if you want to avoid interruption.",
+        "warning"
+      );
+    };
+
+    deps.windowRef?.addEventListener?.("gm-auth-refresh-failed", handleAuthRefreshFailure);
+    deps.windowRef?.addEventListener?.("gm-auth-refresh-warning", handleAuthRefreshWarning);
 
     await deps.profileManager.initProfileManager();
     state.profile = await deps.profileManager.getCurrentProfile();

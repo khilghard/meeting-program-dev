@@ -129,6 +129,10 @@ describe("cms.js", () => {
           return this.rows;
         }
 
+        getAllRows() {
+          return this.rows;
+        }
+
         getRemovedKeys() {
           return [];
         }
@@ -211,6 +215,10 @@ describe("cms.js", () => {
           return this.rows;
         }
 
+        getAllRows() {
+          return this.rows;
+        }
+
         getRemovedKeys() {
           return [];
         }
@@ -224,11 +232,114 @@ describe("cms.js", () => {
     await editorInstance.options.onChangeCallback();
 
     expect(saveDraft).toHaveBeenCalledWith(buildCmsDraftKey("profile_underscore"), {
+      version: 2,
       locale: "en",
       selectedTabTitle: "Sheet1",
       rows: [{ key: "unitName", value: "Updated Ward" }],
       savedAt: expect.any(Number)
     });
+  });
+
+  test("reloads the page when Discard Draft is clicked", async () => {
+    const clearDraft = vi.fn().mockResolvedValue(true);
+    const reloadSpy = vi.fn();
+    const discardChanges = vi.fn();
+    const windowRef = {
+      ...window,
+      location: {
+        href: window.location.href,
+        reload: reloadSpy
+      },
+      sessionStorage: window.sessionStorage,
+      addEventListener: window.addEventListener.bind(window),
+      removeEventListener: window.removeEventListener.bind(window),
+      dispatchEvent: window.dispatchEvent.bind(window)
+    };
+
+    const app = createCmsApp({
+      documentRef: document,
+      windowRef,
+      profileManager: {
+        initProfileManager: vi.fn().mockResolvedValue(),
+        getCurrentProfile: vi.fn().mockResolvedValue({
+          id: "profile-discard",
+          url: "https://docs.google.com/spreadsheets/d/abc123/edit",
+          unitName: "Test Ward"
+        })
+      },
+      initI18n: vi.fn().mockResolvedValue("en"),
+      getSupportedLanguages: () => ["en", "es"],
+      setLanguage: vi.fn().mockResolvedValue(),
+      t: (key) => key,
+      getMetadata: vi.fn().mockResolvedValue("test-client-id"),
+      getDraft: vi.fn().mockResolvedValue(null),
+      saveDraft: vi.fn().mockResolvedValue(true),
+      clearDraft,
+      auth: {
+        initialize: vi.fn(),
+        isAuthenticated: () => true,
+        getAccessToken: () => "token"
+      },
+      createClient: vi.fn().mockReturnValue({}),
+      ProgramSheetServiceClass: class {
+        async readSheet() {
+          return {
+            rows: [{ key: "unitName", value: "Test Ward" }],
+            modifiedTime: "2026-05-16T12:00:00.000Z"
+          };
+        }
+
+        async writeSheet() {
+          return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
+        }
+
+        async writeSheetWithDeletes() {
+          return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
+        }
+      },
+      SheetTabServiceClass: class {
+        async listTabs() {
+          return [{ sheetId: 9, title: "Sheet1", index: 0, isActive: true }];
+        }
+      },
+      CmsEditorClass: class {
+        constructor(containerId, options) {
+          this.container = document.getElementById(containerId);
+          this.options = options;
+          this.rows = [];
+        }
+
+        initialize(rows) {
+          this.rows = rows;
+          this.container.textContent = "ready";
+        }
+
+        getRows() {
+          return this.rows;
+        }
+
+        getAllRows() {
+          return this.rows;
+        }
+
+        getRemovedKeys() {
+          return [];
+        }
+
+        discardChanges() {
+          discardChanges();
+        }
+      }
+    });
+
+    await app.initialize();
+
+    document.getElementById("cms-discard-btn").click();
+
+    await Promise.resolve();
+    expect(discardChanges).toHaveBeenCalledOnce();
+    expect(clearDraft).toHaveBeenCalledWith("cms_draft_profile-discard");
+    expect(reloadSpy).toHaveBeenCalledOnce();
   });
 
   test("renders tab titles as text instead of HTML", async () => {
@@ -294,6 +405,10 @@ describe("cms.js", () => {
           return this.rows;
         }
 
+        getAllRows() {
+          return this.rows;
+        }
+
         getRemovedKeys() {
           return [];
         }
@@ -306,7 +421,7 @@ describe("cms.js", () => {
 
     const tabSelect = document.getElementById("cms-tab-select");
     expect(tabSelect.options).toHaveLength(1);
-    expect(tabSelect.options[0].textContent).toBe(maliciousTitle);
+    expect(tabSelect.options[0].textContent).toBe(`★ ${maliciousTitle}`);
     expect(tabSelect.querySelector("img")).toBeNull();
   });
 
@@ -373,6 +488,10 @@ describe("cms.js", () => {
         }
 
         getRows() {
+          return this.rows;
+        }
+
+        getAllRows() {
           return this.rows;
         }
 
@@ -474,6 +593,10 @@ describe("cms.js", () => {
           return this.rows;
         }
 
+        getAllRows() {
+          return this.rows;
+        }
+
         getRemovedKeys() {
           return [];
         }
@@ -560,6 +683,10 @@ describe("cms.js", () => {
           return this.rows;
         }
 
+        getAllRows() {
+          return this.rows;
+        }
+
         getRemovedKeys() {
           return [];
         }
@@ -635,6 +762,10 @@ describe("cms.js", () => {
         }
 
         getRows() {
+          return this.rows;
+        }
+
+        getAllRows() {
           return this.rows;
         }
 
@@ -720,6 +851,10 @@ describe("cms.js", () => {
         }
 
         getRows() {
+          return this.rows;
+        }
+
+        getAllRows() {
           return this.rows;
         }
 
@@ -813,6 +948,10 @@ describe("cms.js", () => {
           return this.rows;
         }
 
+        getAllRows() {
+          return this.rows;
+        }
+
         getRemovedKeys() {
           return [];
         }
@@ -900,6 +1039,7 @@ describe("cms.js", () => {
       t: (key) => key,
       getMetadata: vi.fn().mockResolvedValue("test-client-id"),
       getDraft: vi.fn().mockResolvedValue({
+        version: 2,
         locale: "en",
         selectedTabTitle: "Sheet1",
         rows: [{ key: "unitName", value: "Restored Ward" }]
@@ -947,6 +1087,10 @@ describe("cms.js", () => {
           return this.rows;
         }
 
+        getAllRows() {
+          return this.rows;
+        }
+
         getRemovedKeys() {
           return [];
         }
@@ -962,7 +1106,7 @@ describe("cms.js", () => {
     expect(window.sessionStorage.getItem("cms_auth_pending")).toBeNull();
   });
 
-  test("restores the saved locale and tab before the first sheet load", async () => {
+  test("restores saved locale but defaults to active tab on hard reload", async () => {
     const readSheet = vi.fn().mockResolvedValue({
       rows: [{ key: "unitName", value: "Sheet Ward" }],
       modifiedTime: "2026-05-16T12:00:00.000Z"
@@ -985,6 +1129,7 @@ describe("cms.js", () => {
       t: (key) => key,
       getMetadata: vi.fn().mockResolvedValue("test-client-id"),
       getDraft: vi.fn().mockResolvedValue({
+        version: 2,
         locale: "es",
         selectedTabTitle: "May 18",
         rows: [{ key: "unitName", value: "Borrador Restaurado" }]
@@ -1032,6 +1177,10 @@ describe("cms.js", () => {
           return this.rows;
         }
 
+        getAllRows() {
+          return this.rows;
+        }
+
         getRemovedKeys() {
           return [];
         }
@@ -1042,12 +1191,10 @@ describe("cms.js", () => {
 
     await app.initialize();
 
-    expect(readSheet).toHaveBeenCalledWith("es", expect.objectContaining({ title: "May 18" }));
+    expect(readSheet).toHaveBeenCalledWith("es", expect.objectContaining({ title: "Sheet1" }));
     expect(document.getElementById("cms-locale-select").value).toBe("es");
-    expect(document.getElementById("cms-tab-select").value).toBe("May 18");
-    expect(document.getElementById("cms-editor-container").textContent).toContain(
-      "Borrador Restaurado"
-    );
+    expect(document.getElementById("cms-tab-select").value).toBe("Sheet1");
+    expect(document.getElementById("cms-editor-container").textContent).toContain("Sheet Ward");
   });
 
   test("translates the desktop CMS shell", async () => {

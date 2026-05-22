@@ -29,6 +29,7 @@ function normalizeSelectedTab(tabs, preferredTitle = "") {
   }
 
   return (
+    normalizedTabs.find((tab) => tab.isActive) ??
     normalizedTabs[0] ?? {
       sheetId: null,
       title: preferredTitle || DEFAULT_SHEET_TAB_NAME,
@@ -168,6 +169,7 @@ export function createCmsAgendaApp(dependencies = {}) {
     dirtyMap: {},
     loadedMap: {},
     publishStatusMap: {},
+    draftSelectedTabTitle: "",
     editor: null,
     agendaService: null,
     tabService: null,
@@ -196,6 +198,8 @@ export function createCmsAgendaApp(dependencies = {}) {
       keyChangeHint: documentRef.getElementById("cms-agenda-key-change-hint"),
       publishButton: documentRef.getElementById("cms-agenda-publish-btn"),
       saveDraftButton: documentRef.getElementById("cms-agenda-save-draft-btn"),
+      discardDraftButton: documentRef.getElementById("cms-agenda-discard-draft-btn"),
+      signInAgainButton: documentRef.getElementById("cms-agenda-sign-in-again-btn"),
       publishAllButton: documentRef.getElementById("cms-agenda-publish-all-btn"),
       makeActiveButton: documentRef.getElementById("cms-agenda-make-active-btn"),
       pendingList: documentRef.getElementById("cms-agenda-pending-list"),
@@ -277,7 +281,9 @@ export function createCmsAgendaApp(dependencies = {}) {
     setElementText("cms-agenda-key-label", text("cmsAgenda.keyLabel", "Agenda Key"));
     setElementText("cms-agenda-row-label", text("cmsAgenda.rowLabel", "Agenda Row"));
     setElementText("cms-agenda-make-active-btn", text("cmsAgenda.makeActiveButton", "Make Active"));
+    setElementText("cms-agenda-sign-in-again-btn", text("cms.signInButton", "Sign in with Google"));
     setElementText("cms-agenda-save-draft-btn", text("cmsAgenda.saveDraftButton", "Save Draft"));
+    setElementText("cms-agenda-discard-draft-btn", text("cms.discardDraftButton", "Discard Draft"));
     setElementText("cms-agenda-publish-btn", text("cmsAgenda.publishButton", "Publish"));
     setElementText(
       "cms-agenda-publish-all-btn",
@@ -287,7 +293,6 @@ export function createCmsAgendaApp(dependencies = {}) {
       "cms-agenda-pending-title",
       text("cmsAgenda.pendingChangesTitle", "Pending Changes")
     );
-    setElementText("cms-agenda-loading", text("cmsAgenda.loading", "Loading agenda editor..."));
   }
 
   function showContent() {
@@ -342,10 +347,23 @@ export function createCmsAgendaApp(dependencies = {}) {
   }
 
   function setActionState() {
-    const { publishButton, publishAllButton, makeActiveButton, tabSelect } = getElements();
+    const {
+      publishButton,
+      publishAllButton,
+      makeActiveButton,
+      tabSelect,
+      signInAgainButton,
+      discardDraftButton
+    } = getElements();
     [publishButton, publishAllButton, makeActiveButton].filter(Boolean).forEach((control) => {
       control.disabled = !state.isAuthenticated;
     });
+    if (signInAgainButton) {
+      signInAgainButton.disabled = !state.hasConfiguredClientId;
+    }
+    if (discardDraftButton) {
+      discardDraftButton.disabled = !state.profile;
+    }
     if (tabSelect) {
       tabSelect.disabled = !state.isAuthenticated || state.tabs.length === 0;
     }
@@ -381,7 +399,7 @@ export function createCmsAgendaApp(dependencies = {}) {
       tabSelect,
       state.tabs.map((tab) => ({
         value: tab.title,
-        label: tab.title
+        label: tab.isActive ? `★ ${tab.title}` : tab.title
       })),
       state.selectedTab?.title ?? "",
       deps.documentRef
@@ -639,6 +657,7 @@ export function createCmsAgendaApp(dependencies = {}) {
     }
 
     const draftTabTitle = draft.selectedTabTitle ?? DEFAULT_SHEET_TAB_NAME;
+    state.draftSelectedTabTitle = draftTabTitle;
     if (!preferredTabTitle) {
       state.selectedTab = normalizeSelectedTab(state.tabs, draftTabTitle);
     }
@@ -739,10 +758,9 @@ export function createCmsAgendaApp(dependencies = {}) {
     state.agendaService = new deps.AgendaSheetServiceClass(client, state.profile.agendaUrl);
     state.tabService = new deps.SheetTabServiceClass(client, state.profile.agendaUrl);
     state.tabs = await state.tabService.listTabs();
-    state.selectedTab = normalizeSelectedTab(
-      state.tabs,
-      state.selectedTab?.title ?? DEFAULT_SHEET_TAB_NAME
-    );
+    const preferredTitle =
+      state.selectedTab?.title || state.draftSelectedTabTitle || DEFAULT_SHEET_TAB_NAME;
+    state.selectedTab = normalizeSelectedTab(state.tabs, preferredTitle);
   }
 
   function openSetupModal() {
@@ -922,6 +940,24 @@ export function createCmsAgendaApp(dependencies = {}) {
     await persistDraft();
     renderPendingList();
     setStatus(text("cmsAgenda.draftSaved", "Draft saved on this device."), "success");
+  }
+
+  async function handleDiscardDraft() {
+    if (!state.profile) return;
+    await deps.clearDraft(buildAgendaDraftKey(state.profile.id));
+    state.dirtyMap = {};
+    state.publishStatusMap = {};
+    renderPendingList();
+    await loadSelectedKey();
+    setStatus("Draft discarded.", "success");
+  }
+
+  async function handleSignInAgain() {
+    deps.auth.signOut();
+    state.isAuthenticated = false;
+    setAuthPanelState();
+    setActionState();
+    await handleSignIn();
   }
 
   async function publishRow(row) {
@@ -1132,9 +1168,11 @@ export function createCmsAgendaApp(dependencies = {}) {
     });
     elements.publishButton?.addEventListener("click", handlePublishCurrent);
     elements.saveDraftButton?.addEventListener("click", handleSaveDraft);
+    elements.discardDraftButton?.addEventListener("click", handleDiscardDraft);
     elements.publishAllButton?.addEventListener("click", handlePublishAll);
     elements.makeActiveButton?.addEventListener("click", handleMakeActive);
     elements.signInButton?.addEventListener("click", handleSignIn);
+    elements.signInAgainButton?.addEventListener("click", handleSignInAgain);
     elements.setupButton?.addEventListener("click", openSetupModal);
     elements.setupSaveButton?.addEventListener("click", saveSetupSettings);
     elements.setupCancelButton?.addEventListener("click", closeSetupModal);

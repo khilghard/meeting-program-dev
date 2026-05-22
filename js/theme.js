@@ -75,12 +75,21 @@ export async function initTheme() {
     };
   }
 
-  mediaQuery?.addEventListener("change", async (e) => {
+  const onSystemThemeChange = async (e) => {
     const currentStored = await getThemeFromStorage();
     if (!currentStored) {
       applyTheme(e.matches ? "dark" : "light");
     }
-  });
+  };
+
+  // Support both modern and legacy MediaQueryList APIs (jsdom mocks often only provide one)
+  if (mediaQuery) {
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", onSystemThemeChange);
+    } else if (typeof mediaQuery.addListener === "function") {
+      mediaQuery.addListener(onSystemThemeChange);
+    }
+  }
 }
 
 export async function toggleTheme() {

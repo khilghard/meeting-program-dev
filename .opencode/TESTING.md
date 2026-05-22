@@ -46,7 +46,7 @@ Then ask:
 Load the google-sheets-formatting skill and validate this CSV:
 
 key,en,es,fr,swa
-unitName,Riverview Branch,Unidad de Riverview,Unité de Riverview,Kizio cha Riverview
+unitName,1st Ward,Unidad de 1st,Unité de 1st,Kizio cha 1st
 openingHymn,62,62,62,62
 ```
 

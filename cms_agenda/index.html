@@ -6,26 +6,94 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Ward Agenda CMS" />
-    <title>Ward Agenda CMS</title>
-    <script src="../js/theme-early.js"></script>
+    <meta name="apple-mobile-web-app-title" content="Program Agenda CMS" />
+    <title>Program Agenda CMS</title>
+    <script>
+      // Detect deployment path from URL to build absolute paths
+      (function detectBasePath() {
+        const pathname = window.location.pathname;
+        let basePath = "/";
+        if (pathname.includes("/meeting-program-dev/")) {
+          basePath = "/meeting-program-dev/";
+        } else if (pathname.includes("/meeting-program/")) {
+          basePath = "/meeting-program/";
+        }
+        window.CMS_BASE_PATH = basePath;
+      })();
+
+      // Apply theme IMMEDIATELY before page render (inlined from theme-early.js)
+      (function applyThemeImmediately() {
+        try {
+          const storedTheme = localStorage.getItem("userPreference_theme");
+          const systemIsDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+          const theme = storedTheme || (systemIsDark ? "dark" : "light");
+          document.documentElement.dataset.theme = theme;
+          const criticalCSS = `
+            :root {
+              --bg-color: #ffffff;
+              --text-color: #333333;
+              --card-bg: #fafafa;
+              --header-bg: #0d659e;
+              --header-text: #ffffff;
+              --accent-color: #0d659e;
+              --accent-hover: #004a9c;
+              --dots-color: #444444;
+              --offline-bg: #f8d7da;
+              --offline-text: #7a1f24;
+              --hr-line: #555555;
+              --link-color: #004a9c;
+              --accent-text: #ffffff;
+              --transition-speed: 0.3s;
+              --max-width: 600px;
+            }
+            [data-theme="dark"] {
+              --bg-color: #121212;
+              --text-color: #e0e0e0;
+              --card-bg: #1e1e1e;
+              --header-bg: #0d47a1;
+              --header-text: #ffffff;
+              --accent-color: #90caf9;
+              --accent-hover: #64b5f6;
+              --dots-color: #bbbbbb;
+              --offline-bg: #442222;
+              --offline-text: #ffb7b7;
+              --hr-line: #666666;
+              --link-color: #90caf9;
+            }
+            body {
+              background-color: var(--bg-color);
+              color: var(--text-color);
+              transition: background-color 0.2s, color 0.2s;
+            }
+          `;
+          const style = document.createElement("style");
+          style.textContent = criticalCSS;
+          document.head.appendChild(style);
+        } catch (e) {}
+      })();
+    </script>
     <script src="https://accounts.google.com/gsi/client" defer></script>
     <script>
       window.GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
     </script>
     <link id="styles-link" rel="stylesheet" href="" />
+    <link id="cms-styles-link" rel="stylesheet" href="" />
+    <link id="cms-agenda-styles-link" rel="stylesheet" href="" />
     <script type="module">
-      import { VERSION } from "../js/version.js";
+      const bp = window.CMS_BASE_PATH || "/";
+      const { VERSION } = await import(`${bp}js/version.js`);
 
-      document.getElementById("styles-link").href = `../css/styles.css?v=${VERSION}`;
+      document.getElementById("styles-link").href = `${bp}css/styles.css?v=${VERSION}`;
+      document.getElementById("cms-styles-link").href = `${bp}css/cms.css?v=${VERSION}`;
+      document.getElementById("cms-agenda-styles-link").href = `${bp}css/cms-agenda.css?v=${VERSION}`;
 
       const agendaScript = document.createElement("script");
       agendaScript.type = "module";
-      agendaScript.src = `../js/cms-agenda.js?v=${VERSION}`;
+      agendaScript.src = `${bp}js/cms-agenda.js?v=${VERSION}`;
       document.head.appendChild(agendaScript);
 
       if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
-        navigator.serviceWorker.register(`../service-worker.js?v=${VERSION}`).catch(error => {
+        navigator.serviceWorker.register(`${bp}service-worker.js?v=${VERSION}`).catch(error => {
           console.error("[CMS Agenda] Service worker registration failed", error);
         });
       }
@@ -35,7 +103,7 @@
     <main class="cms-agenda">
       <header class="cms-agenda__header">
         <div>
-          <p id="cms-agenda-shell-title">Ward Agenda CMS</p>
+          <p id="cms-agenda-shell-title">Program Agenda CMS</p>
           <h1 id="cms-agenda-profile-name">Loading profile...</h1>
         </div>
       </header>
@@ -69,8 +137,6 @@
         </form>
       </dialog>
 
-      <div id="cms-agenda-loading">Loading agenda editor...</div>
-
       <section id="cms-agenda-content" hidden>
         <div class="cms-agenda__controls">
           <label>
@@ -96,7 +162,9 @@
 
         <div class="cms-agenda__actions">
           <button id="cms-agenda-make-active-btn" type="button" class="cms-agenda-btn--secondary">Make Active</button>
+          <button id="cms-agenda-sign-in-again-btn" type="button" class="cms-agenda-btn--secondary">Sign in with Google</button>
           <button id="cms-agenda-save-draft-btn" type="button" class="cms-agenda-btn--secondary">Save Draft</button>
+          <button id="cms-agenda-discard-draft-btn" type="button" class="cms-agenda-btn--secondary">Discard Draft</button>
           <button id="cms-agenda-publish-btn" type="button" class="cms-agenda-btn--primary">Publish</button>
           <button id="cms-agenda-publish-all-btn" type="button" class="cms-agenda-btn--primary">Publish All Pending</button>
         </div>

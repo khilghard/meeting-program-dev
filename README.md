@@ -155,7 +155,7 @@ To provide program content in multiple languages, use the extended CSV format:
 
 ```csv
 key,en,es,fr,swa
-unitName,Riverview Branch
+unitName,1st Ward
 openingHymn,1001
 speaker1,John Smith,Juan Garcia,Jean Dupont,Yohana Mto
 ```

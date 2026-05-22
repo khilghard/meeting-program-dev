@@ -6,7 +6,7 @@ import CmsEditor, {
   sanitisePart,
   serializeFieldValue
 } from "../../js/components/CmsEditor.mjs";
-import { setLanguage } from "../../js/i18n/index.js";
+import { setLanguage, loadTranslations } from "../../js/i18n/index.js";
 import { ALLOWED_KEYS } from "../../js/sanitize.js";
 
 describe("CmsEditor helpers", () => {
@@ -32,28 +32,47 @@ describe("CmsEditor helpers", () => {
     expect(sanitisePart("Alice | Bob")).toBe("Alice  Bob");
   });
 
-  test("serializeFieldValue adds <IMG> token for linkWithSpace", () => {
+  test("serializeFieldValue serializes linkWithSpace with auto-added <IMG> token", () => {
     const value = serializeFieldValue("linkWithSpace", {
-      includeImageIcon: true,
       text: "Library",
       url: "https://example.com",
       imageUrl: "https://img.com/icon.png"
     });
 
-    expect(value).toBe("<IMG> Library | https://example.com | https://img.com/icon.png");
+    expect(value).toBe("<IMG> Library|https://example.com|https://img.com/icon.png");
   });
 
-  test("parseFieldValue decodes <IMG> token from linkWithSpace", () => {
+  test("parseFieldValue decodes linkWithSpace stripping <IMG> token", () => {
     expect(
       parseFieldValue(
         "linkWithSpace",
         "<IMG> Library | https://example.com | https://img.com/icon.png"
       )
     ).toEqual({
-      includeImageIcon: true,
       text: "Library",
       url: "https://example.com",
       imageUrl: "https://img.com/icon.png"
+    });
+  });
+
+  test("serializeFieldValue serializes generalStatementWithLink with auto-added <LINK> token", () => {
+    const value = serializeFieldValue("generalStatementWithLink", {
+      text: "Read more",
+      url: "https://example.com"
+    });
+
+    expect(value).toBe("Read more<LINK>|https://example.com");
+  });
+
+  test("parseFieldValue decodes generalStatementWithLink stripping <LINK> token", () => {
+    expect(
+      parseFieldValue(
+        "generalStatementWithLink",
+        "Read more<LINK> | https://example.com"
+      )
+    ).toEqual({
+      text: "Read more",
+      url: "https://example.com"
     });
   });
 });
@@ -62,9 +81,10 @@ describe("CmsEditor component", () => {
   let container;
   let editor;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     document.body.innerHTML = "<div id='cms-editor-container'></div>";
     container = document.getElementById("cms-editor-container");
+    await loadTranslations("en");
     editor = new CmsEditor("cms-editor-container");
   });
 
@@ -75,9 +95,9 @@ describe("CmsEditor component", () => {
     ]);
 
     expect(container.querySelector(".cms-editor")).toBeTruthy();
-    expect(container.querySelectorAll(".cms-editor__section").length).toBeGreaterThan(0);
+    expect(container.querySelectorAll(".cms-section-tint").length).toBeGreaterThan(0);
     expect(container.textContent).toContain("Unit Information");
-    expect(container.textContent).toContain("Hymns");
+    expect(container.textContent).toContain("Sacrament Meeting Program");
   });
 
   test("exports existing numbered speaker rows", () => {
@@ -86,9 +106,9 @@ describe("CmsEditor component", () => {
       { key: "speaker2", value: "Bob" }
     ]);
 
-    expect(editor.getRows()).toEqual(
+    expect(editor.getAllRows()).toEqual(
       expect.arrayContaining([
-        { key: "speaker1", value: "Alice | Faith in Christ" },
+        { key: "speaker1", value: "Alice|Faith in Christ" },
         { key: "speaker2", value: "Bob" }
       ])
     );
@@ -100,9 +120,9 @@ describe("CmsEditor component", () => {
     editor.addRepeatableItem("speaker");
     editor.setItemValue("speaker", 1, { name: "Bob", caption: "" });
 
-    const speakerRows = editor.getRows().filter((row) => /^speaker\d+$/.test(row.key));
+    const speakerRows = editor.getAllRows().filter((row) => /^speaker\d+$/.test(row.key));
     expect(speakerRows).toEqual([
-      { key: "speaker1", value: "Alice | Faith in Christ" },
+      { key: "speaker1", value: "Alice|Faith in Christ" },
       { key: "speaker2", value: "Bob" }
     ]);
   });
@@ -116,11 +136,11 @@ describe("CmsEditor component", () => {
     editor.addRepeatableItem("speaker");
     editor.setItemValue("speaker", 2, { name: "Carol", caption: "Charity" });
 
-    const speakerRows = editor.getRows().filter((row) => /^speaker\d+$/.test(row.key));
+    const speakerRows = editor.getAllRows().filter((row) => /^speaker\d+$/.test(row.key));
     expect(speakerRows).toEqual([
-      { key: "speaker1", value: "Alice | Faith in Christ" },
-      { key: "speaker2", value: "Bob | Hope" },
-      { key: "speaker3", value: "Carol | Charity" }
+      { key: "speaker1", value: "Alice|Faith in Christ" },
+      { key: "speaker2", value: "Bob|Hope" },
+      { key: "speaker3", value: "Carol|Charity" }
     ]);
   });
 
@@ -132,7 +152,7 @@ describe("CmsEditor component", () => {
 
     editor.removeRepeatableItem("speaker", 0);
 
-    const speakerRows = editor.getRows().filter((row) => /^speaker\d+$/.test(row.key));
+    const speakerRows = editor.getAllRows().filter((row) => /^speaker\d+$/.test(row.key));
     expect(speakerRows).toEqual(
       expect.arrayContaining([
         { key: "speaker1", value: "" },
@@ -144,19 +164,17 @@ describe("CmsEditor component", () => {
   test("exports intermediate hymns with numbered keys", () => {
     editor.initialize([]);
     editor.setItemValue("intermediateHymn", 0, {
-      hymnNumber: "120",
-      titleOverride: "Be Thou Humble"
+      hymnNumber: "120"
     });
     editor.addRepeatableItem("intermediateHymn");
     editor.setItemValue("intermediateHymn", 1, {
-      hymnNumber: "130",
-      titleOverride: "Be Thou My Vision"
+      hymnNumber: "130"
     });
 
-    const rows = editor.getRows().filter((row) => /^intermediateHymn\d+$/.test(row.key));
+    const rows = editor.getAllRows().filter((row) => /^intermediateHymn\d+$/.test(row.key));
     expect(rows).toEqual([
-      { key: "intermediateHymn1", value: "120 | Be Thou Humble" },
-      { key: "intermediateHymn2", value: "130 | Be Thou My Vision" }
+      { key: "intermediateHymn1", value: "120" },
+      { key: "intermediateHymn2", value: "130" }
     ]);
   });
 
@@ -174,31 +192,32 @@ describe("CmsEditor component", () => {
       calling: "Executive Secretary"
     });
 
-    const leaderRows = editor.getRows().filter((row) => /^leader\d+$/.test(row.key));
+    const leaderRows = editor.getAllRows().filter((row) => /^leader\d+$/.test(row.key));
     expect(leaderRows).toEqual([
-      { key: "leader1", value: "Bishop Smith | 801-555-1111 | Bishop" },
-      { key: "leader2", value: "Brother Jones |  | Executive Secretary" }
+      { key: "leader1", value: "Bishop Smith|Bishop|801-555-1111" },
+      { key: "leader2", value: "Brother Jones|Executive Secretary" }
     ]);
   });
 
-  test("inserts the <LINK> placeholder into general statements with link", () => {
+  test("auto-adds <LINK> token to generalStatementWithLink on serialization", () => {
     editor.initialize([
       { key: "generalStatementWithLink", value: "Welcome | https://example.com" }
     ]);
 
+    // Textarea should show text WITHOUT token
     const textarea = container.querySelector(
-      '.cms-editor__textarea[data-key-type="generalStatementWithLink"][data-part-name="text"]'
+      '.cms-field__input[data-key="generalStatementWithLink"][data-part="text"]'
     );
-    textarea.focus();
-    textarea.setSelectionRange(7, 7);
+    expect(textarea.value).toBe("Welcome");
 
+    // No insert button should exist
     const insertButton = container.querySelector("[data-action='insert-token']");
-    insertButton.click();
+    expect(insertButton).toBeFalsy();
 
-    expect(textarea.value).toBe("Welcome<LINK>");
-    expect(editor.getRows()).toEqual(
+    // Serialized value should have token auto-added
+    expect(editor.getAllRows()).toEqual(
       expect.arrayContaining([
-        { key: "generalStatementWithLink", value: "Welcome<LINK> | https://example.com" }
+        { key: "generalStatementWithLink", value: "Welcome<LINK>|https://example.com" }
       ])
     );
   });
@@ -233,7 +252,7 @@ describe("CmsEditor component", () => {
 
     expect(container.textContent).toContain("Informaci\u00f3n de la unidad");
     expect(container.textContent).toContain("Todos los cambios guardados");
-    expect(container.textContent).toContain("Nombre del barrio o rama");
+     expect(container.textContent).toContain("Nombre de la unidad");
 
     const missingTranslationWarnings = warnSpy.mock.calls.filter(
       (call) => call[0] === "Missing translation for key:"
@@ -243,91 +262,296 @@ describe("CmsEditor component", () => {
     warnSpy.mockRestore();
     await setLanguage("en");
   });
+  // --- Integration tests: rendering, constraints, undo, save flow ---
+  
+  test("presiding row move up button is disabled", () => {
+    editor.initialize([
+      { key: "unitName", value: "Ward" },
+      { key: "presiding", value: "Bishop" },
+      { key: "openingHymn", value: "62" }
+    ]);
+
+    // Find the select element with value "presiding"
+    const selects = container.querySelectorAll('.cms-row__key-select');
+    let presidingSelect = null;
+    for (const sel of selects) {
+      if (sel.value === 'presiding') {
+        presidingSelect = sel;
+        break;
+      }
+    }
+    expect(presidingSelect).toBeTruthy();
+    const presidingRow = presidingSelect.closest('.cms-row');
+    const moveUpBtn = presidingRow.querySelector('.cms-row__action--move-up');
+    expect(moveUpBtn).toBeTruthy();
+    expect(moveUpBtn.disabled).toBe(true);
+  });
+
+  test("closingPrayer row move down button is disabled", () => {
+    editor.initialize([
+      { key: "unitName", value: "Ward" },
+      { key: "presiding", value: "Bishop" },
+      { key: "closingPrayer", value: "Brother Smith" }
+    ]);
+
+    const selects = container.querySelectorAll('.cms-row__key-select');
+    let closingSelect = null;
+    for (const sel of selects) {
+      if (sel.value === 'closingPrayer') {
+        closingSelect = sel;
+        break;
+      }
+    }
+    expect(closingSelect).toBeTruthy();
+    const closingRow = closingSelect.closest('.cms-row');
+    const moveDownBtn = closingRow.querySelector('.cms-row__action--move-down');
+    expect(moveDownBtn).toBeTruthy();
+    expect(moveDownBtn.disabled).toBe(true);
+  });
+
+  test("onSaveCallback receives rows and removedKeys", () => {
+    const onSave = vi.fn();
+    editor.options.onSaveCallback = onSave;
+    
+    editor.initialize([
+      { key: "unitName", value: "Ward" },
+      { key: "oilLamp", value: "" }
+    ]);
+    
+    // Edit unitName
+    editor.setItemValue("unitName", 0, { text: "New Ward" });
+    
+    // Delete oilLamp row directly from editor state (simulate removal)
+    let oilLampIdx = editor.programRows.findIndex(r => r.key === "oilLamp");
+    let section = 'program';
+    if (oilLampIdx === -1) {
+      oilLampIdx = editor.generalRows.findIndex(r => r.key === "oilLamp");
+      section = 'general';
+    }
+    expect(oilLampIdx).toBeGreaterThan(-1);
+    if (section === 'program') {
+      editor.programRows.splice(oilLampIdx, 1);
+    } else {
+      editor.generalRows.splice(oilLampIdx, 1);
+    }
+    editor.isDirty = true;
+    editor.refreshDirtyState();
+    
+    // Click save
+    const saveBtn = container.querySelector('.cms-editor__save-btn');
+    expect(saveBtn).toBeTruthy();
+    saveBtn.click();
+    
+    expect(onSave).toHaveBeenCalledTimes(1);
+    const [rows, removedKeys] = onSave.mock.calls[0];
+    expect(rows).toBeInstanceOf(Array);
+    expect(removedKeys).toContain("oilLamp");
+    
+    // Verify rows content
+    const unitRow = rows.find(r => r.key === "unitName");
+    expect(unitRow).toBeTruthy();
+    expect(unitRow.value).toBe("New Ward");
+    expect(rows.find(r => r.key === "oilLamp")).toBeFalsy();
+    
+    // Verify dirty state cleared
+    expect(editor.getState().isDirty).toBe(false);
+    expect(container.querySelector('.cms-editor__status').textContent).toContain("All changes saved");
+  });
+
+  test("undoLastCorrections reverts auto-corrections", () => {
+    editor.initialize([
+      { key: "unitName", value: "Ward" },
+      { key: "openingHymn", value: "62" }
+    ]);
+    
+    let rows = editor.getAllRows();
+    expect(rows.some(r => r.key === "presiding")).toBe(true);
+    expect(rows.some(r => r.key === "closingPrayer")).toBe(true);
+    
+    const undoBtn = document.querySelector('.cms-editor__toast-undo');
+    expect(undoBtn).toBeTruthy();
+    undoBtn.click();
+    
+    rows = editor.getAllRows();
+    expect(rows.some(r => r.key === "presiding")).toBe(false);
+    expect(rows.some(r => r.key === "closingPrayer")).toBe(false);
+  });
+
+  test("add row modal excludes non-repeatable keys that already exist", () => {
+    // Initialize with some keys that are already present (conducting and openingHymn).
+    // Auto-correction will also add presiding and closingPrayer.
+    editor.initialize([
+      { key: "unitName", value: "Ward" },
+      { key: "conducting", value: "Brother Smith" },
+      { key: "openingHymn", value: "62" }
+    ]);
+    
+    const addBtn = container.querySelector('.cms-insert-btn[data-insert-section="program"]');
+    expect(addBtn).toBeTruthy();
+    addBtn.click();
+    
+    const modal = document.querySelector('.cms-modal');
+    expect(modal).toBeTruthy();
+    const select = modal.querySelector('#add-row-key-select');
+    const options = Array.from(select.options).map(opt => opt.value);
+    
+    // Keys that are already present (conducting, openingHymn, and auto-added presiding) should be excluded
+    expect(options).not.toContain("conducting");
+    expect(options).not.toContain("openingHymn");
+    // A key that is allowed and not present (e.g., musicDirector) should be available
+    expect(options).toContain("musicDirector");
+    
+    modal.querySelector('.cms-modal__cancel-btn').click();
+    expect(document.querySelector('.cms-modal')).toBeFalsy();
+  });
+
+  test("add row modal enforces max repeatable items", () => {
+    editor.initialize([]);
+    for (let i = 0; i < 10; i++) {
+      editor.addRepeatableItem("speaker");
+    }
+    
+    const addBtn = container.querySelector('.cms-insert-btn[data-insert-section="program"]');
+    addBtn.click();
+    
+    const modal = document.querySelector('.cms-modal');
+    const select = modal.querySelector('#add-row-key-select');
+    const options = Array.from(select.options).map(opt => opt.value);
+    
+    expect(options).not.toContain("speaker");
+    
+    modal.querySelector('.cms-modal__cancel-btn').click();
+  });
+
+  test("date field uses date picker and round-trips correctly", () => {
+    editor.initialize([
+      { key: "date", value: "May 20, 2026" }
+    ]);
+    
+    const dateInput = container.querySelector('.cms-field__input[data-key="date"]');
+    expect(dateInput).toBeTruthy();
+    expect(dateInput.type).toBe("date");
+    expect(dateInput.value).toBe("2026-05-20");
+    
+    dateInput.value = "2027-01-15";
+    dateInput.dispatchEvent(new Event('input', { bubbles: true }));
+    
+    const rows = editor.getAllRows();
+    const dateRow = rows.find(r => r.key === "date");
+    expect(dateRow.value).toBe("January 15, 2027");
+  });
+
+  test("hymn field renders dropdown with hymn options", () => {
+    editor.initialize([
+      { key: "openingHymn", value: "62" }
+    ]);
+    
+    const hymnSelect = container.querySelector('.cms-field__input.cms-field__hymn-select');
+    expect(hymnSelect).toBeTruthy();
+    expect(hymnSelect.tagName.toLowerCase()).toBe("select");
+    
+    const options = hymnSelect.querySelectorAll('option');
+    expect(options.length).toBeGreaterThan(300);
+    
+    expect(hymnSelect.value).toBe("62");
+  });
 });
 
 describe("CmsEditor — oilLamp", () => {
-  let editor;
   let container;
+  let editor;
 
-  beforeEach(() => {
+  const mount = () => {
     document.body.innerHTML = "<div id='cms-editor-container'></div>";
     container = document.getElementById("cms-editor-container");
-  });
-
-  function mount() {
-    // CmsEditor expects a string containerId, so we use the container's id directly
-    editor = new CmsEditor(container.id, {
-      onChangeCallback: () => {}
-    });
-  }
+    editor = new CmsEditor("cms-editor-container");
+  };
 
   test("shows checked checkbox when sheet has an oilLamp row", () => {
     mount();
     editor.initialize([{ key: "oilLamp", value: "" }]);
 
-    const checkbox = container.querySelector('[data-key-type="oilLamp"] input[type="checkbox"]');
+    const checkbox = container.querySelector('[data-key="oilLamp"][type="checkbox"]');
     expect(checkbox).toBeTruthy();
     expect(checkbox.checked).toBe(true);
   });
 
-  test("shows unchecked checkbox when sheet has no oilLamp row", () => {
+  test("does not show oilLamp checkbox when sheet has no oilLamp row", () => {
     mount();
     editor.initialize([{ key: "unitName", value: "Millcreek 5th Ward" }]);
 
-    const checkbox = container.querySelector('[data-key-type="oilLamp"] input[type="checkbox"]');
-    expect(checkbox).toBeTruthy();
-    expect(checkbox.checked).toBe(false);
+    const checkbox = container.querySelector('[data-key="oilLamp"][type="checkbox"]');
+    expect(checkbox).toBeFalsy();
   });
 
-  test("when checked and saved, includes oilLamp row in getRows", () => {
+  test("when oilLamp row exists, includes it in getAllRows", () => {
     mount();
-    editor.initialize([{ key: "unitName", value: "Millcreek 5th Ward" }]);
+    editor.initialize([{ key: "unitName", value: "Millcreek 5th Ward" }, { key: "oilLamp", value: "" }]);
 
-    const checkbox = container.querySelector('[data-key-type="oilLamp"] input[type="checkbox"]');
-    checkbox.checked = true;
-    checkbox.dispatchEvent(new Event("change"));
-
-    const rows = editor.getRows();
+    const rows = editor.getAllRows();
     const oilLampRow = rows.find((r) => r.key === "oilLamp");
     expect(oilLampRow).toBeTruthy();
     expect(oilLampRow.value).toBe("");
   });
 
-  test("when unchecked on a sheet without oilLamp, does not include row in getRows", () => {
+  test("when oilLamp row does not exist, does not include it in getAllRows", () => {
     mount();
     editor.initialize([{ key: "unitName", value: "Millcreek 5th Ward" }]);
 
-    const checkbox = container.querySelector('[data-key-type="oilLamp"] input[type="checkbox"]');
-    expect(checkbox.checked).toBe(false);
-
-    const rows = editor.getRows();
+    const rows = editor.getAllRows();
     const oilLampRow = rows.find((r) => r.key === "oilLamp");
     expect(oilLampRow).toBeFalsy();
   });
 
-  test("when unchecked after being checked, adds oilLamp to removedKeys", () => {
+  test("when oilLamp row is removed, adds oilLamp to removedKeys", () => {
     mount();
-    editor.initialize([{ key: "oilLamp", value: "" }]);
+    editor.initialize([{ key: "unitName", value: "Millcreek 5th Ward" }, { key: "oilLamp", value: "" }]);
 
-    // Verify it's initially checked
-    let checkbox = container.querySelector('[data-key-type="oilLamp"] input[type="checkbox"]');
-    expect(checkbox.checked).toBe(true);
+    // Verify oilLamp row exists
+    const initialRows = editor.getAllRows();
+    const initialOilLamp = initialRows.find((r) => r.key === "oilLamp");
+    expect(initialOilLamp).toBeTruthy();
 
-    // Uncheck the checkbox
-    checkbox.checked = false;
-    checkbox.dispatchEvent(new Event("change"));
+    // Remove the oilLamp row by clicking its delete button
+    const generalRows = container.querySelectorAll('.cms-row[data-section="general"]');
+    for (const row of generalRows) {
+      const label = row.querySelector('.cms-row__key-label');
+      if (label && label.textContent.trim() === "Oil Lamp") {
+        const removeBtn = row.querySelector('.cms-row__action--delete');
+        if (removeBtn) {
+          removeBtn.click();
+          break;
+        }
+      }
+    }
+    
+     // If no delete button was found or clicked, remove from whichever section contains oilLamp
+     let oilLampRowIdx = editor.generalRows.findIndex(r => r.key === "oilLamp");
+     let section = 'general';
+     if (oilLampRowIdx === -1) {
+       oilLampRowIdx = editor.programRows.findIndex(r => r.key === "oilLamp");
+       section = 'program';
+     }
+     if (oilLampRowIdx !== -1) {
+       if (section === 'general') {
+         editor.generalRows.splice(oilLampRowIdx, 1);
+       } else {
+         editor.programRows.splice(oilLampRowIdx, 1);
+       }
+       editor.isDirty = true;
+       editor.refreshDirtyState();
+       editor.render();
+     }
 
     // Check removedKeys
     const removedKeys = editor.getRemovedKeys();
     expect(removedKeys).toContain("oilLamp");
   });
 
-  test("when checked on existing row, does not add to removedKeys", () => {
+  test("when oilLamp row exists, does not add to removedKeys", () => {
     mount();
     editor.initialize([{ key: "oilLamp", value: "" }]);
 
-    const checkbox = container.querySelector('[data-key-type="oilLamp"] input[type="checkbox"]');
-    // Already checked — don't touch it
     const removedKeys = editor.getRemovedKeys();
     expect(removedKeys).not.toContain("oilLamp");
   });

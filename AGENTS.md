@@ -68,3 +68,99 @@ Rules:
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+
+## Meeting Program CMS - Key & Language Findings
+
+This section captures critical decisions about the CMS editor to avoid repeating discovery work.
+
+### Data Model
+- Rows: `{ key: string, value: string }`
+- `value` is a pipe‑delimited string encoding one or more fields.
+- The sheet stores values per locale (EN, ES, FR, SWA). The CMS editor shows all four language fields simultaneously using pill indicators; no language dropdown is used. The user edits the content for all languages at once.
+
+### Languages (Locales)
+Supported locales: `en`, `es`, `fr`, `swa`.
+All keys can have values in any language. The editor displays all language fields together.
+
+### Key Field Definitions
+
+| Key | Fields (name: type) | Notes |
+|-----|---------------------|-------|
+| unitName | `text: text` | Ward/Branch name |
+| stakeName | `text: text` | Stake/District name |
+| unitAddress | `text: text` | Meeting address |
+| date | `text: date` | Use native date picker; store as "MMMM D, YYYY" (e.g., "March 29, 2026") |
+| presiding | `text: text` | Full name; auto‑translate honorifics |
+| conducting | `text: text` | Full name; auto‑translate honorifics |
+| musicDirector | `text: text` | Full name |
+| musicOrganist | `text: text` | Full name |
+| openingPrayer | `text: text` | Full name; auto‑translate honorifics |
+| closingPrayer | `text: text` | Full name; auto‑translate honorifics |
+| openingHymn | `hymnNumber: number`, `titleOverride: text` | Hymn number: dropdown of all known hymns (including children's songs, numbers >1000); title optional |
+| sacramentHymn | `hymnNumber: number`, `titleOverride: text` | Same as above |
+| intermediateHymn | `hymnNumber: number`, `titleOverride: text` | Repeatable |
+| closingHymn | `hymnNumber: number`, `titleOverride: text` | |
+| hymn | `hymnNumber: number`, `titleOverride: text` | |
+| speaker | `name: text`, `caption: text` | Repeatable (max 2) |
+| leader | `name: text`, `phone: text`, `calling: text` | Repeatable (max 5) |
+| photo | `url: text`, `caption: text` | Image URL + optional caption |
+| link | `text: text`, `url: text` | |
+| linkWithSpace | `text: text`, `url: text`, `imageUrl: text` | Button to insert `<IMG>` into text; no separate `includeImageIcon` field |
+| generalStatement | `text: textarea` | |
+| generalStatementWithLink | `text: textarea`, `url: text` | Button to insert `<LINK>` into text |
+| horizontalLine | `text: text` | Section label |
+| sacramentLine | `text: text` | Custom sacrament heading |
+| agendaGeneral | `text: textarea` | General notes |
+| agendaAnnouncements | `text: text` | Repeatable |
+| agendaAckVisitingLeaders | `text: text` | |
+| agendaBusinessReleases | `text: text` | Repeatable |
+| agendaBusinessCallings | `text: text` | Repeatable |
+| agendaBusinessPriesthood | `text: textarea` | |
+| agendaBusinessNewMoveIns | `text: text` | Repeatable |
+| agendaBusinessNewConverts | `text: text` | Repeatable |
+| agendaBusinessGeneral | `text: textarea` | |
+| agendaBusinessStake | `text: textarea` | |
+| lessonEQRS | `text: text` | |
+| lessonSundaySchool | `text: text` | |
+| lessonYouth | `text: text` | |
+| lessonPrimary | `text: text` | |
+| oilLamp | `enabled: checkbox` | Display oil lamp |
+| migrationUrl | `text: text` | |
+| obsolete | `text: text` | |
+
+### Section Partitioning
+Three sections based on key type:
+- **Unit Information** (locked): `unitName`, `unitAddress`, `stakeName`, `date` (must stay in that order).
+- **Sacrament Meeting Program**: All keys in canonical order (see plan). Must include `presiding` (first) and `closingPrayer` (last). `speaker`, `intermediateHymn` are repeatable.
+- **General Information**: Remaining keys. Order per template but flexible.
+
+Universal keys (e.g., `horizontalLine`, `photo`, `oilLamp`) can appear in any section.
+
+### Constraints
+- Unit Info: cannot delete, change key, or reorder rows.
+- Program: `presiding` and `closingPrayer` cannot be deleted; `presiding` must stay at index 0; `closingPrayer` must stay at last index.
+- Non‑repeatable keys must appear only once.
+
+### Serialization
+- `sanitisePart(value)`: remove `|`, trim.
+- `joinParts(parts)`: join with `|`.
+- Multi‑field keys produce pipe‑delimited values.
+- Simple single‑field keys store raw text.
+
+### Rendering
+- Row editor: dropdown (readonly for locked) to select key, then appropriate inputs for fields.
+- Hymns: number input (1‑999) with optional dropdown later.
+- Date: native date picker; display "MMMM D, YYYY".
+- Token insertion buttons for `generalStatementWithLink` and `linkWithSpace`.
+- Move up/down buttons; delete where allowed.
+- Repeatable fields have an "Add" button.
+
+### Performance
+Target incremental rendering: update only changed row DOM elements.
+
+### Security
+- Escape all user content on render.
+- Validate URLs (warn on invalid).
+- Limit field lengths (text ≤1000, textarea ≤5000).
+- Treat `<LINK>` and `<IMG>` as plain text.
+
