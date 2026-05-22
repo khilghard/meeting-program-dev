@@ -139,20 +139,24 @@
 
       <section id="cms-agenda-content" hidden>
         <div class="cms-agenda__controls">
-          <label>
-            <span id="cms-agenda-tab-label">Sheet Tab</span>
-            <select id="cms-agenda-tab-select"></select>
-          </label>
-          <label>
-            <span id="cms-agenda-key-label">Agenda Key</span>
-            <select id="cms-agenda-key-select"></select>
-          </label>
+          <div class="cms-agenda__controls-main">
+            <label>
+              <span id="cms-agenda-tab-label">Sheet Tab</span>
+              <select id="cms-agenda-tab-select"></select>
+            </label>
+            <label>
+              <span id="cms-agenda-key-label">Agenda Key</span>
+              <select id="cms-agenda-key-select"></select>
+            </label>
+          </div>
           <label id="cms-agenda-row-field" hidden>
             <span id="cms-agenda-row-label">Agenda Row</span>
             <div class="cms-agenda__row-selector">
-              <button id="cms-agenda-row-prev-btn" type="button" class="cms-agenda-btn--secondary cms-agenda-btn--nav" aria-label="Previous agenda row">&larr;</button>
               <select id="cms-agenda-row-select"></select>
-              <button id="cms-agenda-row-next-btn" type="button" class="cms-agenda-btn--secondary cms-agenda-btn--nav" aria-label="Next agenda row">&rarr;</button>
+              <div class="cms-agenda__row-nav">
+                <button id="cms-agenda-row-prev-btn" type="button" class="cms-agenda-btn--secondary cms-agenda-btn--nav" aria-label="Previous agenda row">&larr;</button>
+                <button id="cms-agenda-row-next-btn" type="button" class="cms-agenda-btn--secondary cms-agenda-btn--nav" aria-label="Next agenda row">&rarr;</button>
+              </div>
             </div>
           </label>
         </div>
