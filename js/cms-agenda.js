@@ -326,6 +326,10 @@ export function createCmsAgendaApp(dependencies = {}) {
     if (signInButton) {
       signInButton.hidden = !state.hasConfiguredClientId;
       signInButton.disabled = !state.hasConfiguredClientId;
+      signInButton.classList.toggle(
+        "cms-agenda__sign-in-pulse",
+        state.hasConfiguredClientId && !state.isAuthenticated
+      );
     }
     if (setupButton) {
       setupButton.hidden = false;
@@ -340,9 +344,10 @@ export function createCmsAgendaApp(dependencies = {}) {
     if (authPanel) {
       authPanel.hidden = true;
     }
-    if (signInButton && state.isAuthenticated) {
+    if (signInButton) {
       signInButton.hidden = true;
       signInButton.disabled = true;
+      signInButton.classList.remove("cms-agenda__sign-in-pulse");
     }
   }
 
