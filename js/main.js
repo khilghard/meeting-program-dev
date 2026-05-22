@@ -395,6 +395,19 @@ function toggleElementClasses(elements, classesToAdd = [], classesToRemove = [])
   });
 }
 
+function setAgendaActionButtonsVisibility(profile) {
+  const editBtn = document.getElementById("agenda-edit-btn");
+  const cmsBtn = document.getElementById("cms-edit-btn");
+  const shouldShow = Boolean(profile?.agendaUrl);
+
+  if (editBtn) {
+    editBtn.style.display = shouldShow ? "inline-flex" : "none";
+  }
+  if (cmsBtn) {
+    cmsBtn.style.display = shouldShow ? "inline-flex" : "none";
+  }
+}
+
 // Helper: Handle zero state (no program loaded)
 async function handleZeroState() {
   const ui = getUIElements();
@@ -439,13 +452,12 @@ async function handleZeroState() {
     openHelpModal();
   }
 
-  // Show edit agenda button on zero state if profile has agendaUrl
-  const editBtn = document.getElementById("agenda-edit-btn");
-  if (editBtn) {
-    const currentProfile = Profiles.getCurrentProfile();
-    editBtn.style.display = currentProfile?.agendaUrl ? "inline-block" : "none";
-    console.log("[INIT] Edit agenda button display:", editBtn.style.display);
-  }
+  // Show agenda/CMS action buttons on zero state if profile has agendaUrl
+  const currentProfile = Profiles.getCurrentProfile();
+  setAgendaActionButtonsVisibility(currentProfile);
+  console.log("[INIT] Agenda/CMS action visibility updated:", {
+    hasAgendaUrl: !!currentProfile?.agendaUrl
+  });
 }
 
 // Helper: Add reset button to help modal with warnings
@@ -763,6 +775,8 @@ async function loadAgendaForCurrentProfile(profile) {
   leadershipState.hasAgendaContent = false;
   leadershipState.agendaValid = false;
 
+  setAgendaActionButtonsVisibility(profile);
+
   const toggleBtn = document.getElementById("agenda-toggle-btn");
 
   if (!profile?.agendaUrl) {
@@ -841,16 +855,13 @@ async function loadAgendaForCurrentProfile(profile) {
 
   // Show toggle button if we have content
   if (toggleBtn) {
-    toggleBtn.style.display = profile.agendaValid && hasContent ? "inline-block" : "none";
+    toggleBtn.style.display = profile.agendaValid && hasContent ? "inline-flex" : "none";
     console.log("[Leadership] Toggle button display:", toggleBtn.style.display);
   }
 
-  // Show edit agenda button if agendaUrl is configured
-  const editBtn = document.getElementById("agenda-edit-btn");
-  if (editBtn) {
-    editBtn.style.display = profile.agendaUrl ? "inline-block" : "none";
-    console.log("[Leadership] Edit agenda button display:", editBtn.style.display);
-  }
+  console.log("[Leadership] Agenda/CMS action visibility updated:", {
+    hasAgendaUrl: !!profile?.agendaUrl
+  });
 
   // Determine initial view from sessionStorage or URL, default to program
   const urlParams = new URLSearchParams(window.location.search);
@@ -1101,6 +1112,13 @@ function initLeadershipToggle() {
         const agendaUrl = `cms_agenda/index.html?profileId=${encodeURIComponent(currentProfile.id)}`;
         window.location.href = agendaUrl;
       }
+    });
+  }
+
+  const cmsBtn = document.getElementById("cms-edit-btn");
+  if (cmsBtn) {
+    cmsBtn.addEventListener("click", () => {
+      window.location.href = "cms/index.html";
     });
   }
 }
