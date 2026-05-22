@@ -395,34 +395,122 @@
       </div>
 
       <!-- PROFILE MANAGEMENT BUTTONS -->
-      <div style="justify-content: center; align-items: center; text-align: center">
-        <button id="manage-profiles-btn" class="icon-btn" aria-label="Manage Programs">⚙️</button>
-        <button id="view-archives-btn" class="icon-btn" aria-label="View Archives">📦</button>
-        <button id="update-btn" class="icon-btn" aria-label="Check for Updates">🔄</button>
-        <button id="agenda-settings-btn" class="icon-btn" aria-label="Manage Private Agenda">
-          🔒
+      <div class="page-action-row page-action-row--primary">
+        <button
+          id="manage-profiles-btn"
+          class="icon-btn icon-btn--svg icon-btn--labeled"
+          aria-label="Manage Programs"
+          title="Manage Programs"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 1 1-4 0v-.08a1.7 1.7 0 0 0-1.04-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06A2 2 0 0 1 4.24 17l.06-.06A1.7 1.7 0 0 0 4.64 15a1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 1 1 0-4h.08a1.7 1.7 0 0 0 1.56-1.04 1.7 1.7 0 0 0-.34-1.87L4.24 7A2 2 0 1 1 7.07 4.2l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.56V3a2 2 0 1 1 4 0v.08a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06A2 2 0 1 1 19.8 7l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.56 1.04H21a2 2 0 1 1 0 4h-.08a1.7 1.7 0 0 0-1.52.96z" />
+          </svg>
+          <span class="icon-btn__label">Manage Programs</span>
         </button>
         <button
-          id="agenda-edit-btn"
-          class="icon-btn"
-          aria-label="Edit Agenda"
-          style="display: none"
+          id="view-archives-btn"
+          class="icon-btn icon-btn--svg icon-btn--labeled"
+          aria-label="View Archives"
+          title="View Archives"
         >
-          📋
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="3" y="4" width="18" height="4" rx="1.5" />
+            <path d="M5 8h14v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z" />
+            <path d="M10 12h4" />
+          </svg>
+          <span class="icon-btn__label">View Archives</span>
         </button>
         <button
-          id="agenda-toggle-btn"
-          class="icon-btn"
-          aria-label="Toggle Leadership Agenda"
-          style="display: none"
+          id="update-btn"
+          class="icon-btn icon-btn--svg icon-btn--labeled"
+          aria-label="Pull Updates"
+          title="Pull Updates"
         >
-          👔
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M20 6v5h-5" />
+            <path d="M4 18v-5h5" />
+            <path d="M6.6 9A7 7 0 0 1 18 7l2 2" />
+            <path d="M17.4 15A7 7 0 0 1 6 17l-2-2" />
+          </svg>
+          <span class="icon-btn__label">Pull Updates</span>
         </button>
       </div>
 
+      <hr class="page-action-divider page-action-divider--between-primary-agenda" />
+
+      <!-- AGENDA + CMS BUTTONS -->
+      <div class="page-action-row page-action-row--agenda" id="agenda-action-row">
+        <button
+          id="agenda-settings-btn"
+          class="icon-btn icon-btn--svg icon-btn--labeled"
+          aria-label="Manage Private Agenda"
+          title="Manage Private Agenda"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <line x1="4" y1="6" x2="8" y2="6" />
+            <line x1="12" y1="6" x2="20" y2="6" />
+            <circle cx="10" cy="6" r="2" />
+            <line x1="4" y1="12" x2="14" y2="12" />
+            <line x1="18" y1="12" x2="20" y2="12" />
+            <circle cx="16" cy="12" r="2" />
+            <line x1="4" y1="18" x2="6" y2="18" />
+            <line x1="10" y1="18" x2="20" y2="18" />
+            <circle cx="8" cy="18" r="2" />
+          </svg>
+          <span class="icon-btn__label">Agenda Settings</span>
+        </button>
+        <button
+          id="agenda-edit-btn"
+          class="icon-btn icon-btn--svg icon-btn--labeled"
+          aria-label="Edit Agenda"
+          title="Edit Agenda"
+          style="display: none"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M14 4l4 4" />
+            <path d="M8 4h6l4 4v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
+            <path d="M9 14h6" />
+            <path d="M9 17h4" />
+          </svg>
+          <span class="icon-btn__label">Agenda CMS</span>
+        </button>
+        <button
+          id="agenda-toggle-btn"
+          class="icon-btn icon-btn--svg icon-btn--labeled"
+          aria-label="Toggle Leadership Agenda"
+          title="Toggle Leadership Agenda"
+          style="display: none"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <circle cx="9" cy="8" r="2.5" />
+            <path d="M4.8 18a4.2 4.2 0 0 1 8.4 0" />
+            <circle cx="16.5" cy="9" r="2" />
+            <path d="M13.5 18a3.2 3.2 0 0 1 6.4 0" />
+          </svg>
+          <span class="icon-btn__label">Leadership View</span>
+        </button>
+        <button
+          id="cms-edit-btn"
+          class="icon-btn icon-btn--svg icon-btn--labeled"
+          aria-label="Open CMS Editor"
+          title="Open CMS Editor"
+          style="display: none"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="3" y="4" width="18" height="15" rx="2" />
+            <line x1="3" y1="8" x2="21" y2="8" />
+            <path d="M10 16l5.5-5.5 2 2L12 18l-3 1z" />
+          </svg>
+          <span class="icon-btn__label">Program CMS</span>
+        </button>
+      </div>
+
+      <hr class="page-action-divider" />
+
       <!-- QR ACTION BUTTON (dynamic text + behavior handled in main.js) -->
-      <button id="qr-action-btn" class="qr-action-btn"></button>
-      <button id="reload-btn" class="qr-action-btn hidden">Reload Program</button>
+      <button id="qr-action-btn" class="qr-action-btn home-pill-btn"></button>
+      <button id="reload-btn" class="qr-action-btn home-pill-btn hidden">Reload Program</button>
       <button id="back-to-home-btn" class="qr-action-btn hidden">← Back to Home</button>
       <button id="reset-data-btn" class="qr-action-btn hidden">Reset Cache & Data</button>
 

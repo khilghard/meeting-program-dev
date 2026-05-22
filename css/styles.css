@@ -23,6 +23,11 @@
   --sacrament-rule: rgba(0, 0, 0, 0.15);
   --border-color: rgba(0, 0, 0, 0.15);
   --input-bg: #ffffff;
+  --home-pill-bg: #ffffff;
+  --home-pill-text: #0b4f7b;
+  --home-pill-border: #b8cde0;
+  --home-pill-hover-bg: #f2f8fd;
+  --home-pill-hover-text: #003f85;
 
   /* Spacing & Sizes */
   --transition-speed: 0.3s;
@@ -48,6 +53,11 @@
   --sacrament-rule: rgba(255, 255, 255, 0.15);
   --border-color: rgba(255, 255, 255, 0.2);
   --input-bg: #2a2a2a;
+  --home-pill-bg: #1f2730;
+  --home-pill-text: #cde9ff;
+  --home-pill-border: #3f5568;
+  --home-pill-hover-bg: #2b3846;
+  --home-pill-hover-text: #edf7ff;
 }
 
 /* =========================================================
@@ -571,6 +581,65 @@ body.archive-view::after {
   transform: scale(0.98);
 }
 
+.home-pill-btn {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  margin: 0.45rem 0 0 1rem;
+  width: min(320px, calc(100% - 1rem));
+  max-width: none;
+  min-height: 2.6rem;
+  padding: 0.55rem 0.95rem;
+  border-radius: 999px;
+  border: 1px solid var(--home-pill-border);
+  background: var(--home-pill-bg);
+  color: var(--home-pill-text);
+  box-shadow: none;
+  font-size: 1rem;
+  font-weight: 600;
+  transition:
+    background-color 0.2s,
+    color 0.2s,
+    box-shadow 0.2s,
+    transform 0.15s;
+}
+
+.home-pill-btn:hover {
+  background: var(--home-pill-hover-bg);
+  color: var(--home-pill-hover-text);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+}
+
+.home-pill-btn:active {
+  transform: scale(0.99);
+}
+
+#qr-action-btn.home-pill-btn::before,
+#reload-btn.home-pill-btn::before {
+  content: "";
+  width: 1.08rem;
+  height: 1.08rem;
+  flex: 0 0 auto;
+  background-color: currentColor;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+}
+
+#qr-action-btn.home-pill-btn::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM12 12h2v2h-2zM14 14h2v2h-2zM16 12h4v2h-4zM12 16h2v4h-2zM16 16h2v2h-2zM18 18h2v2h-2z' fill='%23000'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM12 12h2v2h-2zM14 14h2v2h-2zM16 12h4v2h-4zM12 16h2v4h-2zM16 16h2v2h-2zM18 18h2v2h-2z' fill='%23000'/%3E%3C/svg%3E");
+}
+
+#reload-btn.home-pill-btn::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 6v5h-5l1.9-1.9a6 6 0 1 0 1.05 6.77l1.8.87A8 8 0 1 1 18.1 7.4L20 6z' fill='%23000'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 6v5h-5l1.9-1.9a6 6 0 1 0 1.05 6.77l1.8.87A8 8 0 1 1 18.1 7.4L20 6z' fill='%23000'/%3E%3C/svg%3E");
+}
+
 .manual-url-input {
   display: block;
   margin: 10px auto;
@@ -847,7 +916,7 @@ footer {
 
 .profile-selector-container {
   margin: 20px auto;
-  padding: 0 10px;
+  padding: 0 10px 25px;
   max-width: var(--max-width);
 }
 
@@ -996,6 +1065,165 @@ footer {
 .icon-btn:hover {
   filter: grayscale(0%);
   transform: scale(1.1);
+}
+
+.page-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.55rem;
+  text-align: center;
+}
+
+.page-action-row--primary {
+  margin-bottom: 0.7rem;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding-left: 1rem;
+}
+
+.page-action-row--agenda {
+  margin-top: 2.1rem;
+  margin-bottom: 0.6rem;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding-left: 1rem;
+}
+
+.page-action-divider {
+  width: min(430px, calc(100% - 2rem));
+  margin: 1.6rem 0 1.6rem 1rem;
+  border: 0;
+  border-top: 2px solid var(--home-pill-border);
+  opacity: 0.7;
+}
+
+.page-action-divider--between-primary-agenda {
+  margin: 1.6rem 0 -8px 1rem;
+}
+
+.icon-btn--svg {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 2.35rem;
+  min-height: 2.35rem;
+  padding: 0.38rem;
+  border-radius: 0.65rem;
+  border: 1px solid var(--border-color);
+  background: var(--input-bg);
+  color: var(--accent-color);
+  filter: none;
+  transition:
+    background-color 0.2s,
+    color 0.2s,
+    box-shadow 0.2s,
+    transform 0.15s;
+}
+
+.icon-btn--labeled {
+  display: inline-flex;
+  gap: 0.5rem;
+  justify-content: flex-start;
+  width: min(320px, calc(100% - 1rem));
+  min-height: 2.6rem;
+  padding: 0.55rem 0.95rem;
+  border-radius: 999px;
+  border: 1px solid var(--home-pill-border);
+  background: var(--home-pill-bg);
+  color: var(--home-pill-text);
+  box-shadow: none;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.icon-btn--labeled:hover {
+  background: var(--home-pill-hover-bg);
+  color: var(--home-pill-hover-text);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+}
+
+.icon-btn__label {
+  color: currentColor;
+  white-space: nowrap;
+}
+
+.icon-btn--svg:hover {
+  filter: none;
+  color: var(--accent-hover);
+  background: var(--card-bg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+}
+
+.icon-btn--svg svg {
+  width: 1.28rem;
+  height: 1.28rem;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media screen and (max-width: 600px) {
+  .page-action-row {
+    gap: 0.3rem;
+  }
+
+  .page-action-row--primary {
+    margin-bottom: 0.55rem;
+    padding-left: 0.35rem;
+    gap: 0.48rem;
+  }
+
+  .page-action-row--agenda {
+    margin-top: 1.9rem;
+    padding-left: 0.35rem;
+    gap: 0.48rem;
+  }
+
+  .page-action-divider {
+    width: min(350px, calc(100% - 0.7rem));
+    margin: 1.3rem 0 1.3rem 0.35rem;
+  }
+
+  .page-action-divider--between-primary-agenda {
+    margin: 1.3rem 0 -8px 0.35rem;
+  }
+
+  .icon-btn--svg svg {
+    width: 1.16rem;
+    height: 1.16rem;
+  }
+
+  .icon-btn--svg {
+    min-width: 2.15rem;
+    min-height: 2.15rem;
+    padding: 0.32rem;
+  }
+
+  .icon-btn--labeled {
+    gap: 0.4rem;
+    font-size: 0.92rem;
+    width: min(300px, calc(100% - 0.6rem));
+    min-height: 2.45rem;
+    padding: 0.46rem 0.78rem;
+  }
+
+  .home-pill-btn {
+    margin-left: 0.35rem;
+    width: min(300px, calc(100% - 0.6rem));
+    min-height: 2.45rem;
+    padding: 0.46rem 0.78rem;
+    font-size: 0.92rem;
+  }
 }
 
 /* Modal Overlay */
