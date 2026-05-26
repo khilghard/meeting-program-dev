@@ -412,6 +412,13 @@ export function createCmsApp(dependencies = {}) {
     }
   }
 
+  function updateDraftIndicator() {
+    const badge = deps.documentRef.getElementById("cms-draft-badge");
+    if (badge) {
+      badge.hidden = !state.lastDraftRestored;
+    }
+  }
+
   function populateLocaleOptions() {
     const { localeSelect } = getElements();
     if (!localeSelect) return;
@@ -535,7 +542,8 @@ export function createCmsApp(dependencies = {}) {
         state.pendingDraft ??
         (state.profile ? await deps.getDraft(buildCmsDraftKey(state.profile.id)) : null);
       // Discard corrupted or outdated drafts
-      const validDraft = draft && isCmsDraftPayload(draft) && isDraftVersionValid(draft) ? draft : null;
+      const validDraft =
+        draft && isCmsDraftPayload(draft) && isDraftVersionValid(draft) ? draft : null;
       if (draft && !isDraftVersionValid(draft)) {
         await deps.clearDraft(buildCmsDraftKey(state.profile.id));
       }
@@ -544,6 +552,7 @@ export function createCmsApp(dependencies = {}) {
       state.pendingDraft = state.lastDraftRestored ? validDraft : null;
       updateHeader();
       setStatus("");
+      updateDraftIndicator();
       return true;
     } catch (error) {
       if (isAuthError(error)) {

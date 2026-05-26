@@ -104,6 +104,25 @@
   stroke-linejoin: round;
 }
 
+/* Draft badge (indicates data from local draft, not from Google Sheet) */
+.cms-draft-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  margin-top: 0.25rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #ffc107;
+  color: #000;
+  vertical-align: middle;
+}
+
+[data-theme="dark"] .cms-draft-badge {
+  background: #ff9800;
+  color: #000;
+}
+
 /* Toolbar */
 .cms-page__toolbar {
   display: flex;

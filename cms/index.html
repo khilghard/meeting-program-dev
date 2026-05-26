@@ -25,7 +25,8 @@
       (function applyThemeImmediately() {
         try {
           const storedTheme = localStorage.getItem("userPreference_theme");
-          const systemIsDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+          const systemIsDark =
+            window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
           const theme = storedTheme || (systemIsDark ? "dark" : "light");
           document.documentElement.dataset.theme = theme;
           const criticalCSS = `
@@ -103,6 +104,7 @@
         <div>
           <p id="cms-shell-title">Sacrament Meeting Program CMS</p>
           <h1 id="cms-profile-name">Loading profile…</h1>
+          <span id="cms-draft-badge" class="cms-draft-badge" hidden>Draft</span>
           <p id="cms-modified-time"></p>
           <a id="cms-home-btn" class="cms-home-link cms-btn--secondary" href="../index.html">
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -131,8 +133,12 @@
 
       <section id="cms-auth-panel" class="cms-auth-panel" hidden>
         <p id="cms-auth-message">Sign in with Google to edit the selected program sheet.</p>
-        <button id="cms-setup-btn" type="button" class="cms-btn--secondary">Configure Google Settings</button>
-        <button id="cms-sign-in-btn" type="button" class="cms-btn--primary">Sign in with Google</button>
+        <button id="cms-setup-btn" type="button" class="cms-btn--secondary">
+          Configure Google Settings
+        </button>
+        <button id="cms-sign-in-btn" type="button" class="cms-btn--primary">
+          Sign in with Google
+        </button>
       </section>
 
       <dialog id="cms-setup-modal">
@@ -140,7 +146,11 @@
           <h2 id="cms-setup-title">Google Settings</h2>
           <label>
             <span id="cms-setup-client-id-label">Google Client ID</span>
-            <input id="cms-setup-client-id" type="text" placeholder="12345.apps.googleusercontent.com" />
+            <input
+              id="cms-setup-client-id"
+              type="text"
+              placeholder="12345.apps.googleusercontent.com"
+            />
           </label>
           <label>
             <span id="cms-setup-sheet-url-label">Program Sheet URL</span>
@@ -148,8 +158,12 @@
           </label>
           <p id="cms-setup-status" class="cms-page__status" hidden></p>
           <div class="cms-setup-modal__actions">
-            <button id="cms-setup-cancel-btn" type="button" class="cms-btn--secondary">Cancel</button>
-            <button id="cms-setup-save-btn" type="button" class="cms-btn--primary">Save Settings</button>
+            <button id="cms-setup-cancel-btn" type="button" class="cms-btn--secondary">
+              Cancel
+            </button>
+            <button id="cms-setup-save-btn" type="button" class="cms-btn--primary">
+              Save Settings
+            </button>
           </div>
         </form>
       </dialog>
