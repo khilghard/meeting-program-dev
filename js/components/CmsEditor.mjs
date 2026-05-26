@@ -2648,6 +2648,13 @@ class CmsEditor {
   }
 
   /**
+   * Backward-compatible alias for callers that still expect getRows().
+   */
+  getRows() {
+    return this.getAllRows();
+  }
+
+  /**
    * Get removed keys
    */
   getRemovedKeys() {
