@@ -470,7 +470,9 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: background-color var(--transition-speed), border-color var(--transition-speed);
+  transition:
+    background-color var(--transition-speed),
+    border-color var(--transition-speed);
 }
 
 /* Section header */
@@ -615,7 +617,9 @@
   touch-action: none;
   position: relative;
   z-index: 10;
-  transition: background-color 0.15s, transform 0.1s;
+  transition:
+    background-color 0.15s,
+    transform 0.1s;
   border-top: 2px dashed var(--handle-program);
   border-bottom: 2px dashed var(--handle-program);
 }
@@ -705,7 +709,10 @@
   align-items: center;
   justify-content: center;
   opacity: 0;
-  transition: opacity 0.15s, transform 0.15s, background-color 0.15s;
+  transition:
+    opacity 0.15s,
+    transform 0.15s,
+    background-color 0.15s;
 }
 
 .cms-row:hover + .cms-insert-btn::after,
@@ -717,6 +724,14 @@
 .cms-insert-btn:hover::after {
   background: var(--accent-color);
   color: var(--accent-text);
+}
+
+/* Mobile: always show insert button */
+@media screen and (max-width: 799px) {
+  .cms-insert-btn::after {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
 }
 
 /* Drop preview line */
@@ -821,7 +836,10 @@
   color: var(--text-color);
   font-size: 0.8rem;
   cursor: pointer;
-  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    border-color 0.15s;
   padding: 0;
   line-height: 1;
 }
@@ -920,7 +938,9 @@
   color: var(--text-color);
   font-size: 0.85rem;
   font-family: inherit;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
   box-sizing: border-box;
 }
 
@@ -972,7 +992,10 @@
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  transition: background-color 0.2s, color 0.2s, border-style 0.2s;
+  transition:
+    background-color 0.2s,
+    color 0.2s,
+    border-style 0.2s;
   margin-top: 0.15rem;
 }
 
@@ -996,7 +1019,10 @@
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  transition: border-color 0.2s, color 0.2s, background-color 0.2s;
+  transition:
+    border-color 0.2s,
+    color 0.2s,
+    background-color 0.2s;
 }
 
 .cms-editor__add-btn:hover {
@@ -1056,7 +1082,10 @@
   font-family: inherit;
   cursor: pointer;
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
-  transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s;
+  transition:
+    background-color 0.2s,
+    transform 0.1s,
+    box-shadow 0.2s;
 }
 
 .cms-editor__save-btn:hover {
@@ -1210,7 +1239,10 @@
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  transition: background-color 0.2s, opacity 0.2s, transform 0.1s;
+  transition:
+    background-color 0.2s,
+    opacity 0.2s,
+    transform 0.1s;
 }
 
 .cms-modal__cancel-btn {
@@ -1244,8 +1276,12 @@
 }
 
 @keyframes cms-modal-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes cms-modal-scale-in {
@@ -1358,7 +1394,6 @@
     width: 100%;
     justify-content: center;
   }
-
 }
 
 /* =========================================================
@@ -1407,7 +1442,6 @@
     width: 100%;
     text-align: center;
   }
-
 }
 
 /* =========================================================
