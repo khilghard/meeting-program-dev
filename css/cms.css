@@ -661,6 +661,12 @@
   opacity: 0.8;
 }
 
+/* Split marker actions (up/down arrows) */
+.cms-split-marker__actions {
+  display: none;
+  gap: 0.25rem;
+}
+
 /* Split marker variants */
 .cms-split-marker--program {
   color: var(--handle-program);
@@ -1296,108 +1302,23 @@
 }
 
 /* =========================================================
-   CMS — Mobile Breakpoint (below 1024px)
+   CMS — Mobile Split Marker (below 800px)
    ========================================================= */
 
-@media screen and (max-width: 1023px) {
-  /* Page shell */
-  .cms-page {
-    padding: 1rem;
-    gap: 1rem;
+@media screen and (max-width: 799px) {
+  .cms-split-marker__handle {
+    display: none;
   }
 
-  .cms-page__header {
-    flex-direction: column;
-    padding: 1rem 1.25rem;
-    gap: 1rem;
-  }
-
-  .cms-page__header h1 {
-    font-size: 1.25rem;
-  }
-
-  .cms-page__toolbar {
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .cms-page__toolbar label {
-    width: 100%;
-  }
-
-  .cms-page__toolbar select {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .cms-page__toolbar .cms-btn--primary,
-  .cms-page__toolbar .cms-btn--danger {
-    width: 100%;
-    text-align: center;
-  }
-
-  /* Editor — single column */
-  .cms-editor {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto;
-    gap: 1rem;
-  }
-
-  .cms-editor > .cms-section[data-section="program"] {
-    grid-column: 1;
-    grid-row: auto;
-  }
-
-  .cms-editor > .cms-section[data-section="unitInfo"] {
-    grid-column: 1;
-    grid-row: auto;
-  }
-
-  .cms-editor > .cms-section[data-section="general"] {
-    grid-column: 1;
-    grid-row: auto;
-  }
-
-  .cms-section__body {
-    max-height: none;
-  }
-
-  .cms-section[data-section="program"] .cms-section__body {
-    max-height: none;
-  }
-
-  .cms-section h2 {
-    padding: 0.75rem 1rem;
-    font-size: 0.95rem;
-  }
-
-  .cms-row {
-    padding: 0.75rem 1rem;
-  }
-
-  .cms-row__fields {
-    padding-left: 0.25rem;
-  }
-
-  .cms-editor__add-btn {
-    width: calc(100% - 2rem);
-    margin: 0.5rem 1rem 0.75rem;
-  }
-
-  .cms-editor__save-btn {
-    width: 100%;
-    text-align: center;
-  }
-
-  .cms-editor__status {
-    width: 100%;
-    justify-content: center;
+  .cms-split-marker__actions {
+    display: flex;
+    gap: 0.25rem;
+    margin-left: auto;
   }
 }
 
 /* =========================================================
-   CMS — Small Mobile (below 480px)
+     CMS — Small Mobile (below 480px)
    ========================================================= */
 
 @media screen and (max-width: 479px) {
