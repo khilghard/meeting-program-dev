@@ -417,7 +417,8 @@ export function createCmsApp(dependencies = {}) {
   function updateDraftIndicator() {
     const badge = deps.documentRef.getElementById("cms-draft-badge");
     if (badge) {
-      badge.hidden = !state.lastDraftRestored;
+      // Show badge only when there is an unsaved draft (pendingDraft exists)
+      badge.hidden = !state.pendingDraft;
     }
   }
 
@@ -474,6 +475,7 @@ export function createCmsApp(dependencies = {}) {
     if (!state.profile || !state.editor) return;
     const draftPayload = buildDraftPayload(state);
     state.pendingDraft = draftPayload;
+    updateDraftIndicator();
     await deps.saveDraft(buildCmsDraftKey(state.profile.id), draftPayload);
   }
 
