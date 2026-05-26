@@ -31,6 +31,7 @@ describe("cms.js", () => {
           <section id="cms-content" hidden>
             <p id="cms-shell-title"></p>
             <h1 id="cms-profile-name"></h1>
+            <span id="cms-draft-badge" class="cms-draft-badge" hidden>Draft</span>
             <div id="cms-modified-time"></div>
             <div id="cms-toolbar">
               <label><span id="cms-locale-label"></span><select id="cms-locale-select"></select></label>
@@ -236,7 +237,8 @@ describe("cms.js", () => {
       locale: "en",
       selectedTabTitle: "Sheet1",
       rows: [{ key: "unitName", value: "Updated Ward" }],
-      savedAt: expect.any(Number)
+      savedAt: expect.any(Number),
+      sheetModifiedTime: expect.any(String)
     });
   });
 
@@ -1130,7 +1132,8 @@ describe("cms.js", () => {
         version: 2,
         locale: "en",
         selectedTabTitle: "Sheet1",
-        rows: [{ key: "unitName", value: "Restored Ward" }]
+        rows: [{ key: "unitName", value: "Restored Ward" }],
+        sheetModifiedTime: "2026-05-16T12:00:00.000Z"
       }),
       saveDraft: vi.fn().mockResolvedValue(true),
       clearDraft: vi.fn().mockResolvedValue(true),
@@ -1192,6 +1195,170 @@ describe("cms.js", () => {
     expect(document.getElementById("cms-editor-container").textContent).toContain("Restored Ward");
     expect(document.getElementById("cms-page-status").textContent).toContain("Session restored");
     expect(window.sessionStorage.getItem("cms_auth_pending")).toBeNull();
+  });
+
+  test("does not restore draft when sheet modified time differs", async () => {
+    const readSheet = vi.fn().mockResolvedValue({
+      rows: [{ key: "unitName", value: "Sheet Ward" }],
+      modifiedTime: "2026-05-16T12:00:00.000Z"
+    });
+    const clearDraft = vi.fn().mockResolvedValue(true);
+
+    const app = createCmsApp({
+      documentRef: document,
+      windowRef: window,
+      profileManager: {
+        initProfileManager: vi.fn().mockResolvedValue(),
+        getCurrentProfile: vi.fn().mockResolvedValue({
+          id: "profile-stale",
+          url: "https://docs.google.com/spreadsheets/d/abc123/edit",
+          unitName: "Stale Ward"
+        })
+      },
+      initI18n: vi.fn().mockResolvedValue("en"),
+      getSupportedLanguages: () => ["en", "es"],
+      setLanguage: vi.fn().mockResolvedValue(),
+      t: (key) => key,
+      getMetadata: vi.fn().mockResolvedValue("test-client-id"),
+      getDraft: vi.fn().mockResolvedValue({
+        version: 2,
+        locale: "en",
+        selectedTabTitle: "Sheet1",
+        rows: [{ key: "unitName", value: "Draft Ward" }],
+        sheetModifiedTime: "2026-05-15T12:00:00.000Z" // different from sheet
+      }),
+      saveDraft: vi.fn().mockResolvedValue(true),
+      clearDraft,
+      auth: { initialize: vi.fn(), isAuthenticated: () => true, getAccessToken: () => "token" },
+      createClient: vi.fn().mockReturnValue({}),
+      ProgramSheetServiceClass: class {
+        async readSheet(locale, tab) {
+          return readSheet(locale, tab);
+        }
+        async writeSheet() {
+          return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
+        }
+        async writeSheetWithDeletes() {
+          return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
+        }
+      },
+      SheetTabServiceClass: class {
+        async listTabs() {
+          return [{ sheetId: 9, title: "Sheet1", index: 0, isActive: true }];
+        }
+      },
+      CmsEditorClass: class {
+        constructor(containerId) {
+          this.container = document.getElementById(containerId);
+        }
+        initialize(rows) {
+          this.rows = rows;
+          this.container.textContent = JSON.stringify(rows);
+        }
+        getRows() {
+          return this.rows;
+        }
+        getAllRows() {
+          return this.rows;
+        }
+        getRemovedKeys() {
+          return [];
+        }
+        discardChanges() {}
+      }
+    });
+
+    await app.initialize();
+
+    // Should load sheet rows, not draft
+    expect(document.getElementById("cms-editor-container").textContent).toContain("Sheet Ward");
+    // Clear draft should be called because it's stale
+    expect(clearDraft).toHaveBeenCalledWith("cms_draft_profile-stale");
+    // Draft badge should be hidden
+    const badge = document.getElementById("cms-draft-badge");
+    expect(badge.hidden).toBe(true);
+  });
+
+  test("restores draft when sheet modified time matches", async () => {
+    const readSheet = vi.fn().mockResolvedValue({
+      rows: [{ key: "unitName", value: "Sheet Ward" }],
+      modifiedTime: "2026-05-16T12:00:00.000Z"
+    });
+    const clearDraft = vi.fn().mockResolvedValue(true);
+
+    const app = createCmsApp({
+      documentRef: document,
+      windowRef: window,
+      profileManager: {
+        initProfileManager: vi.fn().mockResolvedValue(),
+        getCurrentProfile: vi.fn().mockResolvedValue({
+          id: "profile-fresh",
+          url: "https://docs.google.com/spreadsheets/d/abc123/edit",
+          unitName: "Fresh Ward"
+        })
+      },
+      initI18n: vi.fn().mockResolvedValue("en"),
+      getSupportedLanguages: () => ["en", "es"],
+      setLanguage: vi.fn().mockResolvedValue(),
+      t: (key) => key,
+      getMetadata: vi.fn().mockResolvedValue("test-client-id"),
+      getDraft: vi.fn().mockResolvedValue({
+        version: 2,
+        locale: "en",
+        selectedTabTitle: "Sheet1",
+        rows: [{ key: "unitName", value: "Draft Ward" }],
+        sheetModifiedTime: "2026-05-16T12:00:00.000Z" // same as sheet
+      }),
+      saveDraft: vi.fn().mockResolvedValue(true),
+      clearDraft,
+      auth: { initialize: vi.fn(), isAuthenticated: () => true, getAccessToken: () => "token" },
+      createClient: vi.fn().mockReturnValue({}),
+      ProgramSheetServiceClass: class {
+        async readSheet(locale, tab) {
+          return readSheet(locale, tab);
+        }
+        async writeSheet() {
+          return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
+        }
+        async writeSheetWithDeletes() {
+          return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
+        }
+      },
+      SheetTabServiceClass: class {
+        async listTabs() {
+          return [{ sheetId: 9, title: "Sheet1", index: 0, isActive: true }];
+        }
+      },
+      CmsEditorClass: class {
+        constructor(containerId) {
+          this.container = document.getElementById(containerId);
+        }
+        initialize(rows) {
+          this.rows = rows;
+          this.container.textContent = JSON.stringify(rows);
+        }
+        getRows() {
+          return this.rows;
+        }
+        getAllRows() {
+          return this.rows;
+        }
+        getRemovedKeys() {
+          return [];
+        }
+        discardChanges() {}
+      }
+    });
+
+    await app.initialize();
+
+    // Should restore draft rows
+    expect(document.getElementById("cms-editor-container").textContent).toContain("Draft Ward");
+    // Should NOT clear draft
+    expect(clearDraft).not.toHaveBeenCalled();
+    // Draft badge should be visible
+    const badge = document.getElementById("cms-draft-badge");
+    expect(badge.hidden).toBe(false);
   });
 
   test("restores saved locale but defaults to active tab on hard reload", async () => {
