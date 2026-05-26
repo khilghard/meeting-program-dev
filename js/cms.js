@@ -81,7 +81,9 @@ function buildDraftPayload(state) {
     locale: state.locale,
     selectedTabTitle: state.selectedTab?.title ?? DEFAULT_SHEET_TAB_NAME,
     rows: getEditorRows(state.editor),
-    savedAt: Date.now()
+    savedAt: Date.now(),
+    // Track the sheet's modifiedTime at the time of draft creation
+    sheetModifiedTime: state.modifiedTime
   };
 }
 
@@ -541,15 +543,35 @@ export function createCmsApp(dependencies = {}) {
       const draft =
         state.pendingDraft ??
         (state.profile ? await deps.getDraft(buildCmsDraftKey(state.profile.id)) : null);
-      // Discard corrupted or outdated drafts
-      const validDraft =
+
+      // Validate draft structure and version
+      let validDraft =
         draft && isCmsDraftPayload(draft) && isDraftVersionValid(draft) ? draft : null;
-      if (draft && !isDraftVersionValid(draft)) {
+
+      // Discard corrupted or outdated version drafts
+      if (draft && (!isCmsDraftPayload(draft) || !isDraftVersionValid(draft))) {
         await deps.clearDraft(buildCmsDraftKey(state.profile.id));
+        validDraft = null;
       }
-      state.lastDraftRestored = draftMatchesCurrentView(validDraft);
-      mountEditor(state.lastDraftRestored ? validDraft.rows : rows);
-      state.pendingDraft = state.lastDraftRestored ? validDraft : null;
+
+      // Determine if we should restore the draft based on sheetModifiedTime
+      // Ensures we only use a draft if the sheet hasn't changed since the draft was created
+      let shouldRestoreDraft = false;
+      if (validDraft) {
+        const matchesLocale = validDraft.locale === state.locale;
+        const matchesTab =
+          validDraft.selectedTabTitle === (state.selectedTab?.title ?? DEFAULT_SHEET_TAB_NAME);
+        const matchesSheetVersion = validDraft.sheetModifiedTime === modifiedTime;
+        shouldRestoreDraft = matchesLocale && matchesTab && matchesSheetVersion;
+        if (!shouldRestoreDraft) {
+          // Sheet changed or draft is from different view - discard outdated draft
+          await deps.clearDraft(buildCmsDraftKey(state.profile.id));
+        }
+      }
+
+      state.lastDraftRestored = shouldRestoreDraft;
+      mountEditor(shouldRestoreDraft ? validDraft.rows : rows);
+      state.pendingDraft = shouldRestoreDraft ? validDraft : null;
       updateHeader();
       setStatus("");
       updateDraftIndicator();
