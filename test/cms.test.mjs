@@ -969,6 +969,94 @@ describe("cms.js", () => {
     expect(document.getElementById("cms-page-status").textContent).toContain("Save cancelled");
   });
 
+  test("saves successfully when the editor only exposes getAllRows", async () => {
+    const clearDraft = vi.fn().mockResolvedValue(true);
+    const writeSheet = vi.fn().mockResolvedValue({
+      conflict: false,
+      modifiedTime: "2026-05-16T12:30:00.000Z"
+    });
+
+    const app = createCmsApp({
+      documentRef: document,
+      windowRef: window,
+      profileManager: {
+        initProfileManager: vi.fn().mockResolvedValue(),
+        getCurrentProfile: vi.fn().mockResolvedValue({
+          id: "profile-rows-fallback",
+          url: "https://docs.google.com/spreadsheets/d/abc123/edit",
+          unitName: "Fallback Ward"
+        })
+      },
+      initI18n: vi.fn().mockResolvedValue("en"),
+      getSupportedLanguages: () => ["en", "es"],
+      setLanguage: vi.fn().mockResolvedValue(),
+      t: (key) => key,
+      getMetadata: vi.fn().mockResolvedValue("test-client-id"),
+      getDraft: vi.fn().mockResolvedValue(null),
+      saveDraft: vi.fn().mockResolvedValue(true),
+      clearDraft,
+      auth: {
+        initialize: vi.fn(),
+        isAuthenticated: () => true,
+        getAccessToken: () => "token"
+      },
+      createClient: vi.fn().mockReturnValue({}),
+      ProgramSheetServiceClass: class {
+        async readSheet() {
+          return {
+            rows: [{ key: "unitName", value: "Fallback Ward" }],
+            modifiedTime: "2026-05-16T12:00:00.000Z"
+          };
+        }
+
+        async writeSheet(...args) {
+          return writeSheet(...args);
+        }
+
+        async writeSheetWithDeletes(...args) {
+          return writeSheet(...args);
+        }
+      },
+      SheetTabServiceClass: class {
+        async listTabs() {
+          return [{ sheetId: 9, title: "Sheet1", index: 0, isActive: true }];
+        }
+      },
+      CmsEditorClass: class {
+        constructor(containerId) {
+          this.container = document.getElementById(containerId);
+          this.rows = [];
+        }
+
+        initialize(rows) {
+          this.rows = rows;
+        }
+
+        getAllRows() {
+          return this.rows;
+        }
+
+        getRemovedKeys() {
+          return [];
+        }
+
+        discardChanges() {}
+      }
+    });
+
+    await app.initialize();
+    await app.handleSave();
+
+    expect(writeSheet).toHaveBeenCalledWith(
+      [{ key: "unitName", value: "Fallback Ward" }],
+      "en",
+      "2026-05-16T12:00:00.000Z",
+      expect.objectContaining({ title: "Sheet1" }),
+      []
+    );
+    expect(clearDraft).toHaveBeenCalledTimes(1);
+  });
+
   test("saves the Google Client ID from the setup modal", async () => {
     const getMetadata = vi.fn().mockResolvedValue(null);
     const setMetadata = vi.fn().mockResolvedValue(true);

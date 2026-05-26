@@ -64,12 +64,23 @@ function summarizeTabsForDebug(tabs = []) {
 
 const CMS_DRAFT_VERSION = 2; // Increment when serialization format changes
 
+function getEditorRows(editor) {
+  if (!editor) return [];
+  if (typeof editor.getAllRows === "function") {
+    return editor.getAllRows();
+  }
+  if (typeof editor.getRows === "function") {
+    return editor.getRows();
+  }
+  return [];
+}
+
 function buildDraftPayload(state) {
   return {
     version: CMS_DRAFT_VERSION,
     locale: state.locale,
     selectedTabTitle: state.selectedTab?.title ?? DEFAULT_SHEET_TAB_NAME,
-    rows: state.editor?.getAllRows?.() ?? [],
+    rows: getEditorRows(state.editor),
     savedAt: Date.now()
   };
 }
@@ -592,7 +603,7 @@ export function createCmsApp(dependencies = {}) {
     if (!state.editor) return;
 
     setLoading(true, "Saving CMS...");
-    const currentRows = state.editor.getRows();
+    const currentRows = getEditorRows(state.editor);
     const removedKeys = state.editor.getRemovedKeys();
 
     try {
