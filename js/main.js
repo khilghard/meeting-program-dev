@@ -395,17 +395,49 @@ function toggleElementClasses(elements, classesToAdd = [], classesToRemove = [])
   });
 }
 
-function setAgendaActionButtonsVisibility(profile) {
+function isMobileActionLayout() {
+  return (
+    globalThis.window?.matchMedia?.("(max-width: 600px)")?.matches ??
+    (globalThis.window?.innerWidth ?? Number.MAX_SAFE_INTEGER) <= 600
+  );
+}
+
+async function hasValidGoogleClientId() {
+  const configuredClientId =
+    (await getMetadata("googleClientId")) || globalThis.window?.GOOGLE_CLIENT_ID || "";
+  return Boolean(
+    configuredClientId &&
+      !String(configuredClientId).startsWith("YOUR_GOOGLE_CLIENT_ID") &&
+      String(configuredClientId).includes(".apps.googleusercontent.com")
+  );
+}
+
+function updateAgendaCmsDividerVisibility() {
+  const divider = document.getElementById("agenda-program-divider");
+  const toggleBtn = document.getElementById("agenda-toggle-btn");
+  const cmsBtn = document.getElementById("cms-edit-btn");
+  if (!divider) return;
+
+  const toggleVisible = Boolean(toggleBtn && toggleBtn.style.display !== "none");
+  const cmsVisible = Boolean(cmsBtn && cmsBtn.style.display !== "none");
+  divider.hidden = !(toggleVisible && cmsVisible);
+}
+
+async function setAgendaActionButtonsVisibility(profile) {
   const editBtn = document.getElementById("agenda-edit-btn");
   const cmsBtn = document.getElementById("cms-edit-btn");
-  const shouldShow = Boolean(profile?.agendaUrl);
+  const hasAgendaSetup = Boolean(profile?.agendaUrl);
+  const clientIdValid = await hasValidGoogleClientId();
+  const showProgramCms = isMobileActionLayout() ? hasAgendaSetup : clientIdValid;
 
   if (editBtn) {
-    editBtn.style.display = shouldShow ? "inline-flex" : "none";
+    editBtn.style.display = hasAgendaSetup ? "inline-flex" : "none";
   }
   if (cmsBtn) {
-    cmsBtn.style.display = shouldShow ? "inline-flex" : "none";
+    cmsBtn.style.display = showProgramCms ? "inline-flex" : "none";
   }
+
+  updateAgendaCmsDividerVisibility();
 }
 
 // Helper: Handle zero state (no program loaded)
@@ -454,7 +486,7 @@ async function handleZeroState() {
 
   // Show agenda/CMS action buttons on zero state if profile has agendaUrl
   const currentProfile = Profiles.getCurrentProfile();
-  setAgendaActionButtonsVisibility(currentProfile);
+  await setAgendaActionButtonsVisibility(currentProfile);
   console.log("[INIT] Agenda/CMS action visibility updated:", {
     hasAgendaUrl: !!currentProfile?.agendaUrl
   });
@@ -775,7 +807,7 @@ async function loadAgendaForCurrentProfile(profile) {
   leadershipState.hasAgendaContent = false;
   leadershipState.agendaValid = false;
 
-  setAgendaActionButtonsVisibility(profile);
+  await setAgendaActionButtonsVisibility(profile);
 
   const toggleBtn = document.getElementById("agenda-toggle-btn");
 
@@ -783,6 +815,7 @@ async function loadAgendaForCurrentProfile(profile) {
     // No agenda configured
     console.log("[Leadership] No agendaUrl configured for profile:", profile?.id);
     if (toggleBtn) toggleBtn.style.display = "none";
+    updateAgendaCmsDividerVisibility();
     leadershipState.currentView = "program";
     renderMain();
     return;
@@ -813,6 +846,7 @@ async function loadAgendaForCurrentProfile(profile) {
       profile.agendaValid = false;
       await Profiles.updateProfile(profile);
       if (toggleBtn) toggleBtn.style.display = "none";
+      updateAgendaCmsDividerVisibility();
       leadershipState.currentView = "program";
       renderMain();
       return;
@@ -858,6 +892,7 @@ async function loadAgendaForCurrentProfile(profile) {
     toggleBtn.style.display = profile.agendaValid && hasContent ? "inline-flex" : "none";
     console.log("[Leadership] Toggle button display:", toggleBtn.style.display);
   }
+  updateAgendaCmsDividerVisibility();
 
   console.log("[Leadership] Agenda/CMS action visibility updated:", {
     hasAgendaUrl: !!profile?.agendaUrl
@@ -2631,4 +2666,12 @@ export {
 export { fetchSheet, parseCSV } from "./utils/csv.js";
 
 // Keep local exports
-export { init, fetchWithTimeout, initNetworkStatus, determineSheetUrl, doesCurrentProfileMatchSheetUrl };
+export {
+  init,
+  fetchWithTimeout,
+  initNetworkStatus,
+  determineSheetUrl,
+  doesCurrentProfileMatchSheetUrl,
+  setAgendaActionButtonsVisibility,
+  updateAgendaCmsDividerVisibility
+};
