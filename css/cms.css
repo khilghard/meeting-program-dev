@@ -118,6 +118,10 @@
   vertical-align: middle;
 }
 
+.cms-draft-badge[hidden] {
+  display: none;
+}
+
 [data-theme="dark"] .cms-draft-badge {
   background: #ff9800;
   color: #000;

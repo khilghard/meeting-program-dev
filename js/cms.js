@@ -87,6 +87,10 @@ function buildDraftPayload(state) {
   };
 }
 
+function rowsDiffer(leftRows, rightRows) {
+  return JSON.stringify(leftRows ?? []) !== JSON.stringify(rightRows ?? []);
+}
+
 function isCmsDraftPayload(draft) {
   return Boolean(draft && typeof draft === "object" && Array.isArray(draft.rows));
 }
@@ -417,8 +421,9 @@ export function createCmsApp(dependencies = {}) {
   function updateDraftIndicator() {
     const badge = deps.documentRef.getElementById("cms-draft-badge");
     if (badge) {
-      // Show badge only when there is an unsaved draft (pendingDraft exists)
-      badge.hidden = !state.pendingDraft;
+      const hasDraftChanges =
+        Boolean(state.pendingDraft) && rowsDiffer(state.pendingDraft?.rows, state.sheetRows);
+      badge.hidden = !hasDraftChanges;
     }
   }
 
@@ -473,10 +478,20 @@ export function createCmsApp(dependencies = {}) {
 
   async function persistDraft() {
     if (!state.profile || !state.editor) return;
+    const currentRows = getEditorRows(state.editor);
+    const draftKey = buildCmsDraftKey(state.profile.id);
+
+    if (!rowsDiffer(currentRows, state.sheetRows)) {
+      state.pendingDraft = null;
+      updateDraftIndicator();
+      await deps.clearDraft(draftKey);
+      return;
+    }
+
     const draftPayload = buildDraftPayload(state);
     state.pendingDraft = draftPayload;
     updateDraftIndicator();
-    await deps.saveDraft(buildCmsDraftKey(state.profile.id), draftPayload);
+    await deps.saveDraft(draftKey, draftPayload);
   }
 
   async function restoreDraftViewPreference() {
@@ -572,8 +587,10 @@ export function createCmsApp(dependencies = {}) {
       }
 
       state.lastDraftRestored = shouldRestoreDraft;
-      mountEditor(shouldRestoreDraft ? validDraft.rows : rows);
-      state.pendingDraft = shouldRestoreDraft ? validDraft : null;
+      const restoredRows = shouldRestoreDraft ? validDraft.rows : rows;
+      mountEditor(restoredRows);
+      state.pendingDraft =
+        shouldRestoreDraft && rowsDiffer(validDraft.rows, rows) ? validDraft : null;
       updateHeader();
       setStatus("");
       updateDraftIndicator();

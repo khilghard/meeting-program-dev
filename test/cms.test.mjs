@@ -242,6 +242,182 @@ describe("cms.js", () => {
     });
   });
 
+  test("does not show Draft badge when restored draft matches loaded sheet", async () => {
+    const app = createCmsApp({
+      documentRef: document,
+      windowRef: window,
+      profileManager: {
+        initProfileManager: vi.fn().mockResolvedValue(),
+        getCurrentProfile: vi.fn().mockResolvedValue({
+          id: "profile-draft-match",
+          url: "https://docs.google.com/spreadsheets/d/abc123/edit",
+          unitName: "Test Ward"
+        })
+      },
+      initI18n: vi.fn().mockResolvedValue("en"),
+      getSupportedLanguages: () => ["en", "es"],
+      setLanguage: vi.fn().mockResolvedValue(),
+      t: (key) => key,
+      getMetadata: vi.fn().mockResolvedValue("test-client-id"),
+      getDraft: vi.fn().mockResolvedValue({
+        version: 2,
+        locale: "en",
+        selectedTabTitle: "Sheet1",
+        rows: [{ key: "unitName", value: "Test Ward" }],
+        savedAt: Date.now(),
+        sheetModifiedTime: "2026-05-16T12:00:00.000Z"
+      }),
+      saveDraft: vi.fn().mockResolvedValue(true),
+      clearDraft: vi.fn().mockResolvedValue(true),
+      auth: {
+        initialize: vi.fn(),
+        isAuthenticated: () => true,
+        getAccessToken: () => "token"
+      },
+      createClient: vi.fn().mockReturnValue({}),
+      ProgramSheetServiceClass: class {
+        async readSheet() {
+          return {
+            rows: [{ key: "unitName", value: "Test Ward" }],
+            modifiedTime: "2026-05-16T12:00:00.000Z"
+          };
+        }
+
+        async writeSheet() {
+          return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
+        }
+
+        async writeSheetWithDeletes() {
+          return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
+        }
+      },
+      SheetTabServiceClass: class {
+        async listTabs() {
+          return [{ sheetId: 9, title: "Sheet1", index: 0, isActive: true }];
+        }
+      },
+      CmsEditorClass: class {
+        constructor(containerId, options) {
+          this.container = document.getElementById(containerId);
+          this.options = options;
+          this.rows = [];
+          editorInstance = this;
+        }
+
+        initialize(rows) {
+          this.rows = rows;
+          this.container.textContent = "ready";
+        }
+
+        getRows() {
+          return this.rows;
+        }
+
+        getAllRows() {
+          return this.rows;
+        }
+
+        getRemovedKeys() {
+          return [];
+        }
+
+        discardChanges() {}
+      }
+    });
+
+    await app.initialize();
+
+    expect(document.getElementById("cms-draft-badge").hidden).toBe(true);
+  });
+
+  test("clears no-op draft changes and keeps Draft badge hidden", async () => {
+    const clearDraft = vi.fn().mockResolvedValue(true);
+    const saveDraft = vi.fn().mockResolvedValue(true);
+
+    const app = createCmsApp({
+      documentRef: document,
+      windowRef: window,
+      profileManager: {
+        initProfileManager: vi.fn().mockResolvedValue(),
+        getCurrentProfile: vi.fn().mockResolvedValue({
+          id: "profile-noop",
+          url: "https://docs.google.com/spreadsheets/d/abc123/edit",
+          unitName: "Test Ward"
+        })
+      },
+      initI18n: vi.fn().mockResolvedValue("en"),
+      getSupportedLanguages: () => ["en", "es"],
+      setLanguage: vi.fn().mockResolvedValue(),
+      t: (key) => key,
+      getMetadata: vi.fn().mockResolvedValue("test-client-id"),
+      getDraft: vi.fn().mockResolvedValue(null),
+      saveDraft,
+      clearDraft,
+      auth: {
+        initialize: vi.fn(),
+        isAuthenticated: () => true,
+        getAccessToken: () => "token"
+      },
+      createClient: vi.fn().mockReturnValue({}),
+      ProgramSheetServiceClass: class {
+        async readSheet() {
+          return {
+            rows: [{ key: "unitName", value: "Test Ward" }],
+            modifiedTime: "2026-05-16T12:00:00.000Z"
+          };
+        }
+
+        async writeSheet() {
+          return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
+        }
+
+        async writeSheetWithDeletes() {
+          return { conflict: false, modifiedTime: "2026-05-16T12:00:00.000Z" };
+        }
+      },
+      SheetTabServiceClass: class {
+        async listTabs() {
+          return [{ sheetId: 9, title: "Sheet1", index: 0, isActive: true }];
+        }
+      },
+      CmsEditorClass: class {
+        constructor(containerId, options) {
+          this.container = document.getElementById(containerId);
+          this.options = options;
+          this.rows = [];
+          editorInstance = this;
+        }
+
+        initialize(rows) {
+          this.rows = rows;
+          this.container.textContent = "ready";
+        }
+
+        getRows() {
+          return this.rows;
+        }
+
+        getAllRows() {
+          return this.rows;
+        }
+
+        getRemovedKeys() {
+          return [];
+        }
+
+        discardChanges() {}
+      }
+    });
+
+    await app.initialize();
+    editorInstance.rows = [{ key: "unitName", value: "Test Ward" }];
+    await editorInstance.options.onChangeCallback();
+
+    expect(saveDraft).not.toHaveBeenCalled();
+    expect(clearDraft).toHaveBeenCalledWith(buildCmsDraftKey("profile-noop"));
+    expect(document.getElementById("cms-draft-badge").hidden).toBe(true);
+  });
+
   test("reloads the page when Discard Draft is clicked", async () => {
     const clearDraft = vi.fn().mockResolvedValue(true);
     const reloadSpy = vi.fn();
