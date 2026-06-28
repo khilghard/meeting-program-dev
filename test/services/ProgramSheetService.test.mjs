@@ -49,8 +49,8 @@ describe("ProgramSheetService — readSheet", () => {
 
     expect(modifiedTime).toBe(MOD_TIME);
     expect(rows).toHaveLength(3);
-    expect(rows[0]).toEqual({ key: "presiding", value: "Bishop Jones|Obispo Jones|Évêque Jones|Askofu Jones" });
-    expect(rows[2]).toEqual({ key: "openingHymn", value: "How Firm a Foundation|||" });
+    expect(rows[0]).toEqual({ key: "presiding", value: "Bishop Jones" });
+    expect(rows[2]).toEqual({ key: "openingHymn", value: "How Firm a Foundation" });
   });
 
   test("returns es column values", async () => {
@@ -59,7 +59,7 @@ describe("ProgramSheetService — readSheet", () => {
     });
     const svc = new ProgramSheetService(client, EDIT_URL);
     const { rows } = await svc.readSheet("es");
-    expect(rows[0]).toEqual({ key: "presiding", value: "Bishop Jones|Obispo Jones|Évêque Jones|Askofu Jones" });
+    expect(rows[0]).toEqual({ key: "presiding", value: "Obispo Jones" });
   });
 
   test("filters out rows with empty key", async () => {
@@ -317,21 +317,21 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
     expect(requests[2].values[0][0]).toBe("");
   });
 
-  test("fans out locale-column key (lessonEQRS) across B/C/D/E", async () => {
+  test("keeps lesson key payload in selected locale column only", async () => {
     const client = makeWriteClient();
     const svc = new ProgramSheetService(client, EDIT_URL);
-    // value is pipe-joined en|es|fr|swa
-    const lessonValue = "EQRS Topic|Tema EQRS|Sujet EQRSD|Somo la EQRS";
+    const lessonValue =
+      "Priesthood & Relief Society Lesson Assignment: June 28 Love All; Love Each | https://www.churchofjesuschrist.org/study/general-conference/2026/04/27causse?lang=eng";
 
     await svc.writeSheet([{ key: "lessonEQRS", value: lessonValue }], "en", MOD_TIME);
 
     const [, requests] = client.batchUpdate.mock.calls[0];
     expect(requests).toHaveLength(5);
     expect(requests[1].range).toBe("Sheet1!B2:B4");
-    expect(requests[1].values[0][0]).toBe("EQRS Topic");
-    expect(requests[2].values[0][0]).toBe("Tema EQRS");
-    expect(requests[3].values[0][0]).toBe("Sujet EQRSD");
-    expect(requests[4].values[0][0]).toBe("Somo la EQRS");
+    expect(requests[1].values[0][0]).toBe(lessonValue);
+    expect(requests[2].values[0][0]).toBe("");
+    expect(requests[3].values[0][0]).toBe("");
+    expect(requests[4].values[0][0]).toBe("");
   });
 
   test("fans out locale-column key (horizontalLine) across B/C/D/E", async () => {
