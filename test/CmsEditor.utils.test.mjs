@@ -144,8 +144,9 @@ describe('getFieldsForKeyType', () => {
     expect(dateFields[0].type).toBe('date');
   });
 
-  it('includes checkbox for oilLamp', () => {
+  it('includes optional caption text field for oilLamp', () => {
     const oilFields = getFieldsForKeyType('oilLamp');
-    expect(oilFields[0].type).toBe('checkbox');
+    expect(oilFields[0].type).toBe('text');
+    expect(oilFields[0].name).toBe('caption');
   });
 });

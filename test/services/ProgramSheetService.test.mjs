@@ -49,8 +49,8 @@ describe("ProgramSheetService — readSheet", () => {
 
     expect(modifiedTime).toBe(MOD_TIME);
     expect(rows).toHaveLength(3);
-    expect(rows[0]).toEqual({ key: "presiding", value: "Bishop Jones" });
-    expect(rows[2]).toEqual({ key: "openingHymn", value: "How Firm a Foundation" });
+    expect(rows[0]).toEqual({ key: "presiding", value: "Bishop Jones|Obispo Jones|Évêque Jones|Askofu Jones" });
+    expect(rows[2]).toEqual({ key: "openingHymn", value: "How Firm a Foundation|||" });
   });
 
   test("returns es column values", async () => {
@@ -59,7 +59,7 @@ describe("ProgramSheetService — readSheet", () => {
     });
     const svc = new ProgramSheetService(client, EDIT_URL);
     const { rows } = await svc.readSheet("es");
-    expect(rows[0]).toEqual({ key: "presiding", value: "Obispo Jones" });
+    expect(rows[0]).toEqual({ key: "presiding", value: "Bishop Jones|Obispo Jones|Évêque Jones|Askofu Jones" });
   });
 
   test("filters out rows with empty key", async () => {
@@ -102,7 +102,7 @@ describe("ProgramSheetService — readSheet", () => {
     await svc.readSheet("en", "May 18, 2026");
 
     expect(client.getValues).toHaveBeenNthCalledWith(1, expect.any(String), "'May 18, 2026'!1:1");
-    expect(client.getValues).toHaveBeenNthCalledWith(2, expect.any(String), "'May 18, 2026'!A:B");
+    expect(client.getValues).toHaveBeenNthCalledWith(2, expect.any(String), "'May 18, 2026'!A:E");
   });
 
   test("accepts a selected-tab object from SheetTabService", async () => {
