@@ -436,7 +436,10 @@ export function parseFieldValue(keyType, raw) {
     case "photo":
       return { url: parts[0] || "", caption: parts[1] || "" };
     case "oilLamp":
-      return { enabled: true };
+      return {
+        enabled: true,
+        caption: /^(yes|true)$/i.test(parts[0] || "") ? "" : parts[0] || ""
+      };
     default:
       // For user-translated keys, parse up to 4 locale parts: en|es|fr|swa
       if (USER_TRANSLATED_KEYS.has(normalizedKey)) {
@@ -498,7 +501,7 @@ export function serializeFieldValue(keyType, value) {
     case "photo":
       return joinParts([sanitisePart(value.url), sanitisePart(value.caption)]);
     case "oilLamp":
-      return "";
+      return value.enabled ? sanitisePart(value.caption) : "";
     default:
       // For user-translated keys, collect locale-specific fields
       const normalizedKey = normalizeCmsKeyType(keyType);
@@ -842,7 +845,10 @@ function getFieldDefinition(keyType) {
       fields: [{ name: "text", type: "text", placeholder: "cms.input.optionalSacramentHeading" }]
     },
     oilLamp: {
-      fields: [{ name: "enabled", type: "checkbox", label: "cms.label.oilLamp" }]
+      fields: [
+        { name: "enabled", type: "checkbox", label: "cms.label.oilLamp" },
+        { name: "caption", type: "text", placeholder: "cms.input.optionalCaption" }
+      ]
     },
     leader: {
       fields: [
