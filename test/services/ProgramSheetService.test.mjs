@@ -136,7 +136,7 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
     });
   }
 
-  test("calls batchUpdate with key plus selected locale column", async () => {
+  test("calls batchUpdate with key plus all locale columns", async () => {
     const client = makeWriteClient();
     const svc = new ProgramSheetService(client, EDIT_URL);
     const edits = [{ key: "presiding", value: "New Bishop" }];
@@ -145,11 +145,13 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
     expect(result.conflict).toBe(false);
     expect(client.batchUpdate).toHaveBeenCalledTimes(1);
     const [, requests] = client.batchUpdate.mock.calls[0];
-    // 1 key column + selected locale column
-    expect(requests).toHaveLength(2);
+    // 1 key column + 4 locale columns (en/es/fr/swa)
+    expect(requests).toHaveLength(5);
     expect(requests[0].range).toMatch(/^Sheet1!A/);
     expect(requests[1].range).toMatch(/^Sheet1!B/);
     expect(requests[1].values[0][0]).toBe("New Bishop");
+    // other locale columns get empty string for non-locale-column keys
+    expect(requests[2].values[0][0]).toBe("");
   });
 
   test("writes rows in the provided order", async () => {
@@ -173,10 +175,13 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
     await svc.writeSheet(edits, "en", MOD_TIME);
 
     const [, requests] = client.batchUpdate.mock.calls[0];
-    // key=A, en=B
+    // key=A, en=B, es=C, fr=D, swa=E
     expect(requests[0].range).toMatch(/^Sheet1!A/);
     expect(requests[1].range).toMatch(/^Sheet1!B/);
-    expect(requests).toHaveLength(2);
+    expect(requests[2].range).toMatch(/^Sheet1!C/);
+    expect(requests[3].range).toMatch(/^Sheet1!D/);
+    expect(requests[4].range).toMatch(/^Sheet1!E/);
+    expect(requests).toHaveLength(5);
   });
 
   test("does not call batchUpdate if no data rows", async () => {
@@ -200,7 +205,7 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
     );
 
     expect(client.getValues).toHaveBeenNthCalledWith(1, expect.any(String), "'May 18, 2026'!1:1");
-    expect(client.getValues).toHaveBeenNthCalledWith(2, expect.any(String), "'May 18, 2026'!A:B");
+    expect(client.getValues).toHaveBeenNthCalledWith(2, expect.any(String), "'May 18, 2026'!A:E");
     const [, requests] = client.batchUpdate.mock.calls[0];
     expect(requests[0].range).toBe("'May 18, 2026'!A2:A4");
   });
@@ -264,7 +269,7 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
     expect(requests[1].values).toEqual([["Alice"], ["Bob"], ["Brother Lee"]]);
   });
 
-  test("keeps leader payload serialized in one locale cell", async () => {
+  test("keeps leader payload serialized in en locale cell only", async () => {
     const client = makeWriteClient();
     const svc = new ProgramSheetService(client, EDIT_URL);
     const leaderValue = "Jane Doe|555-1234|Relief Society President";
@@ -272,12 +277,14 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
     await svc.writeSheet([{ key: "leader", value: leaderValue }], "en", MOD_TIME);
 
     const [, requests] = client.batchUpdate.mock.calls[0];
-    expect(requests).toHaveLength(2);
+    expect(requests).toHaveLength(5);
+    // Full payload stays in column B (en); other locale columns get empty string
     expect(requests[1].range).toBe("Sheet1!B2:B4");
     expect(requests[1].values[0][0]).toBe(leaderValue);
+    expect(requests[2].values[0][0]).toBe("");
   });
 
-  test("keeps linkWithSpace payload serialized in one locale cell", async () => {
+  test("keeps linkWithSpace payload serialized in en locale cell only", async () => {
     const client = makeWriteClient();
     const svc = new ProgramSheetService(client, EDIT_URL);
     const linkWithSpaceValue =
@@ -286,12 +293,13 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
     await svc.writeSheet([{ key: "linkWithSpace", value: linkWithSpaceValue }], "en", MOD_TIME);
 
     const [, requests] = client.batchUpdate.mock.calls[0];
-    expect(requests).toHaveLength(2);
+    expect(requests).toHaveLength(5);
     expect(requests[1].range).toBe("Sheet1!B2:B4");
     expect(requests[1].values[0][0]).toBe(linkWithSpaceValue);
+    expect(requests[2].values[0][0]).toBe("");
   });
 
-  test("keeps generalStatementWithLink payload serialized in one locale cell", async () => {
+  test("keeps generalStatementWithLink payload serialized in en locale cell only", async () => {
     const client = makeWriteClient();
     const svc = new ProgramSheetService(client, EDIT_URL);
     const statementWithLinkValue = "Lesson: January 1<LINK>|https://example.com";
@@ -303,22 +311,42 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
     );
 
     const [, requests] = client.batchUpdate.mock.calls[0];
-    expect(requests).toHaveLength(2);
+    expect(requests).toHaveLength(5);
     expect(requests[1].range).toBe("Sheet1!B2:B4");
     expect(requests[1].values[0][0]).toBe(statementWithLinkValue);
+    expect(requests[2].values[0][0]).toBe("");
   });
 
-  test("keeps lesson key locale bundle serialized in one locale cell", async () => {
+  test("fans out locale-column key (lessonEQRS) across B/C/D/E", async () => {
     const client = makeWriteClient();
     const svc = new ProgramSheetService(client, EDIT_URL);
+    // value is pipe-joined en|es|fr|swa
     const lessonValue = "EQRS Topic|Tema EQRS|Sujet EQRSD|Somo la EQRS";
 
     await svc.writeSheet([{ key: "lessonEQRS", value: lessonValue }], "en", MOD_TIME);
 
     const [, requests] = client.batchUpdate.mock.calls[0];
-    expect(requests).toHaveLength(2);
+    expect(requests).toHaveLength(5);
     expect(requests[1].range).toBe("Sheet1!B2:B4");
-    expect(requests[1].values[0][0]).toBe(lessonValue);
+    expect(requests[1].values[0][0]).toBe("EQRS Topic");
+    expect(requests[2].values[0][0]).toBe("Tema EQRS");
+    expect(requests[3].values[0][0]).toBe("Sujet EQRSD");
+    expect(requests[4].values[0][0]).toBe("Somo la EQRS");
+  });
+
+  test("fans out locale-column key (horizontalLine) across B/C/D/E", async () => {
+    const client = makeWriteClient();
+    const svc = new ProgramSheetService(client, EDIT_URL);
+    const sectionValue = "Section|Sección|Section FR|Sehemu";
+
+    await svc.writeSheet([{ key: "horizontalLine", value: sectionValue }], "en", MOD_TIME);
+
+    const [, requests] = client.batchUpdate.mock.calls[0];
+    expect(requests).toHaveLength(5);
+    expect(requests[1].values[0][0]).toBe("Section");
+    expect(requests[2].values[0][0]).toBe("Sección");
+    expect(requests[3].values[0][0]).toBe("Section FR");
+    expect(requests[4].values[0][0]).toBe("Sehemu");
   });
 });
 
