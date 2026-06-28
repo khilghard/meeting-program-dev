@@ -81,8 +81,14 @@ function buildDraftPayload(state) {
     locale: state.locale,
     selectedTabTitle: state.selectedTab?.title ?? DEFAULT_SHEET_TAB_NAME,
     rows: getEditorRows(state.editor),
-    savedAt: Date.now()
+    savedAt: Date.now(),
+    // Track the sheet's modifiedTime at the time of draft creation
+    sheetModifiedTime: state.modifiedTime
   };
+}
+
+function rowsDiffer(leftRows, rightRows) {
+  return JSON.stringify(leftRows ?? []) !== JSON.stringify(rightRows ?? []);
 }
 
 function isCmsDraftPayload(draft) {
@@ -412,6 +418,15 @@ export function createCmsApp(dependencies = {}) {
     }
   }
 
+  function updateDraftIndicator() {
+    const badge = deps.documentRef.getElementById("cms-draft-badge");
+    if (badge) {
+      const hasDraftChanges =
+        Boolean(state.pendingDraft) && rowsDiffer(state.pendingDraft?.rows, state.sheetRows);
+      badge.hidden = !hasDraftChanges;
+    }
+  }
+
   function populateLocaleOptions() {
     const { localeSelect } = getElements();
     if (!localeSelect) return;
@@ -463,9 +478,20 @@ export function createCmsApp(dependencies = {}) {
 
   async function persistDraft() {
     if (!state.profile || !state.editor) return;
+    const currentRows = getEditorRows(state.editor);
+    const draftKey = buildCmsDraftKey(state.profile.id);
+
+    if (!rowsDiffer(currentRows, state.sheetRows)) {
+      state.pendingDraft = null;
+      updateDraftIndicator();
+      await deps.clearDraft(draftKey);
+      return;
+    }
+
     const draftPayload = buildDraftPayload(state);
     state.pendingDraft = draftPayload;
-    await deps.saveDraft(buildCmsDraftKey(state.profile.id), draftPayload);
+    updateDraftIndicator();
+    await deps.saveDraft(draftKey, draftPayload);
   }
 
   async function restoreDraftViewPreference() {
@@ -534,16 +560,40 @@ export function createCmsApp(dependencies = {}) {
       const draft =
         state.pendingDraft ??
         (state.profile ? await deps.getDraft(buildCmsDraftKey(state.profile.id)) : null);
-      // Discard corrupted or outdated drafts
-      const validDraft = draft && isCmsDraftPayload(draft) && isDraftVersionValid(draft) ? draft : null;
-      if (draft && !isDraftVersionValid(draft)) {
+
+      // Validate draft structure and version
+      let validDraft =
+        draft && isCmsDraftPayload(draft) && isDraftVersionValid(draft) ? draft : null;
+
+      // Discard corrupted or outdated version drafts
+      if (draft && (!isCmsDraftPayload(draft) || !isDraftVersionValid(draft))) {
         await deps.clearDraft(buildCmsDraftKey(state.profile.id));
+        validDraft = null;
       }
-      state.lastDraftRestored = draftMatchesCurrentView(validDraft);
-      mountEditor(state.lastDraftRestored ? validDraft.rows : rows);
-      state.pendingDraft = state.lastDraftRestored ? validDraft : null;
+
+      // Determine if we should restore the draft based on sheetModifiedTime
+      // Ensures we only use a draft if the sheet hasn't changed since the draft was created
+      let shouldRestoreDraft = false;
+      if (validDraft) {
+        const matchesLocale = validDraft.locale === state.locale;
+        const matchesTab =
+          validDraft.selectedTabTitle === (state.selectedTab?.title ?? DEFAULT_SHEET_TAB_NAME);
+        const matchesSheetVersion = validDraft.sheetModifiedTime === modifiedTime;
+        shouldRestoreDraft = matchesLocale && matchesTab && matchesSheetVersion;
+        if (!shouldRestoreDraft) {
+          // Sheet changed or draft is from different view - discard outdated draft
+          await deps.clearDraft(buildCmsDraftKey(state.profile.id));
+        }
+      }
+
+      state.lastDraftRestored = shouldRestoreDraft;
+      const restoredRows = shouldRestoreDraft ? validDraft.rows : rows;
+      mountEditor(restoredRows);
+      state.pendingDraft =
+        shouldRestoreDraft && rowsDiffer(validDraft.rows, rows) ? validDraft : null;
       updateHeader();
       setStatus("");
+      updateDraftIndicator();
       return true;
     } catch (error) {
       if (isAuthError(error)) {

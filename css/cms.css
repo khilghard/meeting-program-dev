@@ -104,6 +104,29 @@
   stroke-linejoin: round;
 }
 
+/* Draft badge (indicates data from local draft, not from Google Sheet) */
+.cms-draft-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  margin-top: 0.25rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #ffc107;
+  color: #000;
+  vertical-align: middle;
+}
+
+.cms-draft-badge[hidden] {
+  display: none;
+}
+
+[data-theme="dark"] .cms-draft-badge {
+  background: #ff9800;
+  color: #000;
+}
+
 /* Toolbar */
 .cms-page__toolbar {
   display: flex;
@@ -470,7 +493,9 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: background-color var(--transition-speed), border-color var(--transition-speed);
+  transition:
+    background-color var(--transition-speed),
+    border-color var(--transition-speed);
 }
 
 /* Section header */
@@ -615,7 +640,9 @@
   touch-action: none;
   position: relative;
   z-index: 10;
-  transition: background-color 0.15s, transform 0.1s;
+  transition:
+    background-color 0.15s,
+    transform 0.1s;
   border-top: 2px dashed var(--handle-program);
   border-bottom: 2px dashed var(--handle-program);
 }
@@ -655,6 +682,12 @@
   letter-spacing: 0.05em;
   text-transform: uppercase;
   opacity: 0.8;
+}
+
+/* Split marker actions (up/down arrows) */
+.cms-split-marker__actions {
+  display: none;
+  gap: 0.25rem;
 }
 
 /* Split marker variants */
@@ -705,7 +738,10 @@
   align-items: center;
   justify-content: center;
   opacity: 0;
-  transition: opacity 0.15s, transform 0.15s, background-color 0.15s;
+  transition:
+    opacity 0.15s,
+    transform 0.15s,
+    background-color 0.15s;
 }
 
 .cms-row:hover + .cms-insert-btn::after,
@@ -717,6 +753,14 @@
 .cms-insert-btn:hover::after {
   background: var(--accent-color);
   color: var(--accent-text);
+}
+
+/* Mobile: always show insert button */
+@media screen and (max-width: 799px) {
+  .cms-insert-btn::after {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
 }
 
 /* Drop preview line */
@@ -813,15 +857,18 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 36px;
+  height: 36px;
   border: 1px solid var(--border-color);
   border-radius: 5px;
   background: var(--card-bg);
   color: var(--text-color);
-  font-size: 0.8rem;
+  font-size: 1rem;
   cursor: pointer;
-  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    border-color 0.15s;
   padding: 0;
   line-height: 1;
 }
@@ -840,6 +887,7 @@
 .cms-row__action--delete {
   color: var(--offline-text);
   border-color: var(--offline-bg);
+  margin-left: 20px;
 }
 
 .cms-row__action--delete:hover:not(:disabled) {
@@ -920,7 +968,9 @@
   color: var(--text-color);
   font-size: 0.85rem;
   font-family: inherit;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
   box-sizing: border-box;
 }
 
@@ -972,7 +1022,10 @@
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  transition: background-color 0.2s, color 0.2s, border-style 0.2s;
+  transition:
+    background-color 0.2s,
+    color 0.2s,
+    border-style 0.2s;
   margin-top: 0.15rem;
 }
 
@@ -996,7 +1049,10 @@
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  transition: border-color 0.2s, color 0.2s, background-color 0.2s;
+  transition:
+    border-color 0.2s,
+    color 0.2s,
+    background-color 0.2s;
 }
 
 .cms-editor__add-btn:hover {
@@ -1056,7 +1112,10 @@
   font-family: inherit;
   cursor: pointer;
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
-  transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s;
+  transition:
+    background-color 0.2s,
+    transform 0.1s,
+    box-shadow 0.2s;
 }
 
 .cms-editor__save-btn:hover {
@@ -1210,7 +1269,10 @@
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  transition: background-color 0.2s, opacity 0.2s, transform 0.1s;
+  transition:
+    background-color 0.2s,
+    opacity 0.2s,
+    transform 0.1s;
 }
 
 .cms-modal__cancel-btn {
@@ -1244,8 +1306,12 @@
 }
 
 @keyframes cms-modal-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes cms-modal-scale-in {
@@ -1260,109 +1326,23 @@
 }
 
 /* =========================================================
-   CMS — Mobile Breakpoint (below 1024px)
+   CMS — Mobile Split Marker (below 800px)
    ========================================================= */
 
-@media screen and (max-width: 1023px) {
-  /* Page shell */
-  .cms-page {
-    padding: 1rem;
-    gap: 1rem;
+@media screen and (max-width: 799px) {
+  .cms-split-marker__handle {
+    display: none;
   }
 
-  .cms-page__header {
-    flex-direction: column;
-    padding: 1rem 1.25rem;
-    gap: 1rem;
+  .cms-split-marker__actions {
+    display: flex;
+    gap: 0.25rem;
+    margin-left: auto;
   }
-
-  .cms-page__header h1 {
-    font-size: 1.25rem;
-  }
-
-  .cms-page__toolbar {
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .cms-page__toolbar label {
-    width: 100%;
-  }
-
-  .cms-page__toolbar select {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .cms-page__toolbar .cms-btn--primary,
-  .cms-page__toolbar .cms-btn--danger {
-    width: 100%;
-    text-align: center;
-  }
-
-  /* Editor — single column */
-  .cms-editor {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto;
-    gap: 1rem;
-  }
-
-  .cms-editor > .cms-section[data-section="program"] {
-    grid-column: 1;
-    grid-row: auto;
-  }
-
-  .cms-editor > .cms-section[data-section="unitInfo"] {
-    grid-column: 1;
-    grid-row: auto;
-  }
-
-  .cms-editor > .cms-section[data-section="general"] {
-    grid-column: 1;
-    grid-row: auto;
-  }
-
-  .cms-section__body {
-    max-height: none;
-  }
-
-  .cms-section[data-section="program"] .cms-section__body {
-    max-height: none;
-  }
-
-  .cms-section h2 {
-    padding: 0.75rem 1rem;
-    font-size: 0.95rem;
-  }
-
-  .cms-row {
-    padding: 0.75rem 1rem;
-  }
-
-  .cms-row__fields {
-    padding-left: 0.25rem;
-  }
-
-  .cms-editor__add-btn {
-    width: calc(100% - 2rem);
-    margin: 0.5rem 1rem 0.75rem;
-  }
-
-  .cms-editor__save-btn {
-    width: 100%;
-    text-align: center;
-  }
-
-  .cms-editor__status {
-    width: 100%;
-    justify-content: center;
-  }
-
 }
 
 /* =========================================================
-   CMS — Small Mobile (below 480px)
+     CMS — Small Mobile (below 480px)
    ========================================================= */
 
 @media screen and (max-width: 479px) {
@@ -1407,7 +1387,6 @@
     width: 100%;
     text-align: center;
   }
-
 }
 
 /* =========================================================

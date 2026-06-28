@@ -443,7 +443,7 @@
       <div class="page-action-row page-action-row--agenda" id="agenda-action-row">
         <button
           id="agenda-settings-btn"
-          class="icon-btn icon-btn--svg icon-btn--labeled"
+          class="icon-btn icon-btn--svg icon-btn--labeled icon-btn--agenda"
           aria-label="Manage Private Agenda"
           title="Manage Private Agenda"
         >
@@ -462,7 +462,7 @@
         </button>
         <button
           id="agenda-edit-btn"
-          class="icon-btn icon-btn--svg icon-btn--labeled"
+          class="icon-btn icon-btn--svg icon-btn--labeled icon-btn--agenda"
           aria-label="Edit Agenda"
           title="Edit Agenda"
           style="display: none"
@@ -477,7 +477,7 @@
         </button>
         <button
           id="agenda-toggle-btn"
-          class="icon-btn icon-btn--svg icon-btn--labeled"
+          class="icon-btn icon-btn--svg icon-btn--labeled icon-btn--agenda"
           aria-label="Toggle Leadership Agenda"
           title="Toggle Leadership Agenda"
           style="display: none"
@@ -490,9 +490,14 @@
           </svg>
           <span class="icon-btn__label">Leadership View</span>
         </button>
+        <hr
+          id="agenda-program-divider"
+          class="page-action-divider page-action-divider--within-agenda"
+          hidden
+        />
         <button
           id="cms-edit-btn"
-          class="icon-btn icon-btn--svg icon-btn--labeled"
+          class="icon-btn icon-btn--svg icon-btn--labeled icon-btn--program"
           aria-label="Open CMS Editor"
           title="Open CMS Editor"
           style="display: none"

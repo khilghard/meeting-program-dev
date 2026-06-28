@@ -13,6 +13,12 @@ const setupDOM = () => {
     </header>
     <div id="offline-banner" hidden></div>
     <div id="main-program"></div>
+    <div id="agenda-action-row">
+      <button id="agenda-edit-btn" style="display:none"></button>
+      <button id="agenda-toggle-btn" style="display:none"></button>
+      <hr id="agenda-program-divider" hidden />
+      <button id="cms-edit-btn" style="display:none"></button>
+    </div>
     <button id="qr-action-btn"></button>
     <button id="reload-btn" class="hidden"></button>
     <div id="app-version"></div>
@@ -55,7 +61,9 @@ const {
   renderers,
   fetchWithTimeout,
   determineSheetUrl,
-  doesCurrentProfileMatchSheetUrl
+  doesCurrentProfileMatchSheetUrl,
+  setAgendaActionButtonsVisibility,
+  updateAgendaCmsDividerVisibility
 } = Main;
 
 // Set up test isolation with browser API stubs
@@ -64,6 +72,7 @@ stubBrowserAPIs();
 // Reusable DOM setup for each test
 beforeEach(async () => {
   setupDOM();
+  vi.restoreAllMocks();
   // Initialize i18n to load translations
   await I18n.initI18n();
   // Reset language to English for consistent test baseline
@@ -239,6 +248,73 @@ describe("appendRowHymn()", () => {
     const div = document.querySelector("#openingHymn");
     expect(div.querySelector(".value-on-right").textContent).toBe("🎵 9999");
     expect(div.querySelector(".hymn-title").textContent).toBe("Be Still");
+  });
+});
+
+describe("homepage action visibility", () => {
+  test("shows Program CMS on desktop when Google Client ID is configured", async () => {
+    window.matchMedia = vi.fn().mockImplementation((query) => ({
+      matches: false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn()
+    }));
+
+    const metadataModule = await import("../js/data/IndexedDBManager.js");
+    vi.spyOn(metadataModule, "getMetadata").mockImplementation(async (key) => {
+      if (key === "googleClientId") {
+        return "test-client-id.apps.googleusercontent.com";
+      }
+      return null;
+    });
+
+    await setAgendaActionButtonsVisibility({ agendaUrl: "" });
+
+    expect(document.getElementById("agenda-edit-btn").style.display).toBe("none");
+    expect(document.getElementById("cms-edit-btn").style.display).toBe("inline-flex");
+  });
+
+  test("keeps Program CMS hidden on mobile without agenda setup even with Google Client ID", async () => {
+    window.matchMedia = vi.fn().mockImplementation((query) => ({
+      matches: true,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn()
+    }));
+
+    const metadataModule = await import("../js/data/IndexedDBManager.js");
+    vi.spyOn(metadataModule, "getMetadata").mockImplementation(async (key) => {
+      if (key === "googleClientId") {
+        return "test-client-id.apps.googleusercontent.com";
+      }
+      return null;
+    });
+
+    await setAgendaActionButtonsVisibility({ agendaUrl: "" });
+
+    expect(document.getElementById("cms-edit-btn").style.display).toBe("none");
+  });
+
+  test("shows divider only when both Leadership View and Program CMS are visible", async () => {
+    window.matchMedia = vi.fn().mockImplementation((query) => ({
+      matches: true,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn()
+    }));
+
+    const metadataModule = await import("../js/data/IndexedDBManager.js");
+    vi.spyOn(metadataModule, "getMetadata").mockResolvedValue(null);
+
+    await setAgendaActionButtonsVisibility({ agendaUrl: "https://docs.google.com/spreadsheets/d/a/edit" });
+    expect(document.getElementById("agenda-program-divider").hidden).toBe(true);
+
+    document.getElementById("agenda-toggle-btn").style.display = "inline-flex";
+    updateAgendaCmsDividerVisibility();
+
+    expect(document.getElementById("agenda-edit-btn").style.display).toBe("inline-flex");
+    expect(document.getElementById("cms-edit-btn").style.display).toBe("inline-flex");
+    expect(document.getElementById("agenda-program-divider").hidden).toBe(false);
   });
 });
 

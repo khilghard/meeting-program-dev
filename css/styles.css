@@ -28,6 +28,16 @@
   --home-pill-border: #b8cde0;
   --home-pill-hover-bg: #f2f8fd;
   --home-pill-hover-text: #003f85;
+  --agenda-pill-bg: #f6ddd7;
+  --agenda-pill-text: #7a3328;
+  --agenda-pill-border: #d28b7d;
+  --agenda-pill-hover-bg: #f0cec5;
+  --agenda-pill-hover-text: #65271e;
+  --program-pill-bg: #f4dfc0;
+  --program-pill-text: #6a4300;
+  --program-pill-border: #c8923a;
+  --program-pill-hover-bg: #ebcf9d;
+  --program-pill-hover-text: #553500;
 
   /* Spacing & Sizes */
   --transition-speed: 0.3s;
@@ -58,6 +68,16 @@
   --home-pill-border: #3f5568;
   --home-pill-hover-bg: #2b3846;
   --home-pill-hover-text: #edf7ff;
+  --agenda-pill-bg: #4a2722;
+  --agenda-pill-text: #f6d2ca;
+  --agenda-pill-border: #a9685b;
+  --agenda-pill-hover-bg: #5a302a;
+  --agenda-pill-hover-text: #ffe3dd;
+  --program-pill-bg: #3b2b12;
+  --program-pill-text: #ffd489;
+  --program-pill-border: #926623;
+  --program-pill-hover-bg: #4a3616;
+  --program-pill-hover-text: #ffe3ae;
 }
 
 /* =========================================================
@@ -1107,6 +1127,13 @@ footer {
   margin: 1.6rem 0 -8px 1rem;
 }
 
+.page-action-divider--within-agenda {
+  width: min(320px, calc(100% - 1rem));
+  margin: 0.7rem 0 0.8rem 0;
+  border-top-color: var(--program-pill-border);
+  opacity: 0.85;
+}
+
 .icon-btn--svg {
   display: inline-flex;
   justify-content: center;
@@ -1147,6 +1174,28 @@ footer {
   background: var(--home-pill-hover-bg);
   color: var(--home-pill-hover-text);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+}
+
+.icon-btn--agenda {
+  background: var(--agenda-pill-bg);
+  color: var(--agenda-pill-text);
+  border-color: var(--agenda-pill-border);
+}
+
+.icon-btn--agenda:hover {
+  background: var(--agenda-pill-hover-bg);
+  color: var(--agenda-pill-hover-text);
+}
+
+.icon-btn--program {
+  background: var(--program-pill-bg);
+  color: var(--program-pill-text);
+  border-color: var(--program-pill-border);
+}
+
+.icon-btn--program:hover {
+  background: var(--program-pill-hover-bg);
+  color: var(--program-pill-hover-text);
 }
 
 .icon-btn__label {
@@ -1196,6 +1245,11 @@ footer {
 
   .page-action-divider--between-primary-agenda {
     margin: 1.3rem 0 -8px 0.35rem;
+  }
+
+  .page-action-divider--within-agenda {
+    width: min(300px, calc(100% - 0.6rem));
+    margin: 0.6rem 0 0.7rem 0;
   }
 
   .icon-btn--svg svg {

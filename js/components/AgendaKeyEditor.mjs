@@ -17,6 +17,11 @@ const REPEATABLE_SINGLE_KEYS = new Set([
 
 const REPEATABLE_PAIR_KEYS = new Set(["agendaBusinessReleases", "agendaBusinessCallings"]);
 
+const REQUIRED_PARTS_BY_KEY = {
+  agendaBusinessCallings: [true, true],
+  agendaBusinessReleases: [true, false]
+};
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -77,12 +82,21 @@ export function getAgendaFieldDefinition(key) {
   }
 
   if (REPEATABLE_PAIR_KEYS.has(key)) {
+    const required = REQUIRED_PARTS_BY_KEY[key] ?? [true, true];
     return {
       type: "repeatable-pair",
       label: t(key),
       parts: [
-        { label: t("cmsAgenda.nameLabel"), placeholder: t("cmsAgenda.namePlaceholder") },
-        { label: t("cmsAgenda.callingLabel"), placeholder: t("cmsAgenda.callingPlaceholder") }
+        {
+          label: t("cmsAgenda.nameLabel"),
+          placeholder: t("cmsAgenda.namePlaceholder"),
+          required: Boolean(required[0])
+        },
+        {
+          label: t("cmsAgenda.callingLabel"),
+          placeholder: t("cmsAgenda.callingPlaceholder"),
+          required: Boolean(required[1])
+        }
       ]
     };
   }
@@ -92,6 +106,41 @@ export function getAgendaFieldDefinition(key) {
     label: t(key),
     parts: [{ label: t("cmsAgenda.itemLabel"), placeholder: t("cmsAgenda.itemPlaceholder") }]
   };
+}
+
+export function validateAgendaValues(key, values) {
+  const definition = getAgendaFieldDefinition(key);
+  const rows = Array.isArray(values) ? values : [];
+  const errors = [];
+
+  if (definition.type === "textarea") {
+    return errors;
+  }
+
+  rows.forEach((row, rowIndex) => {
+    const normalized = definition.parts.map((_, partIndex) =>
+      sanitiseAgendaPart(Array.isArray(row) ? row[partIndex] ?? "" : "").trim()
+    );
+
+    const hasAnyValue = normalized.some(Boolean);
+    if (!hasAnyValue) {
+      return;
+    }
+
+    definition.parts.forEach((part, partIndex) => {
+      if (!part.required) {
+        return;
+      }
+
+      if (!normalized[partIndex]) {
+        errors.push(
+          `${t(key)} row ${rowIndex + 1}: ${part.label || `field ${partIndex + 1}`} is required.`
+        );
+      }
+    });
+  });
+
+  return errors;
 }
 
 export default class AgendaKeyEditor {
