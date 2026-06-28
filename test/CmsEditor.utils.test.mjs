@@ -90,9 +90,12 @@ describe('parseFieldValue and serializeFieldValue round-trip', () => {
     });
   });
 
-    it('handles oilLamp', () => {
-      // oilLamp cursor presence indicates enabled; value ignored
-      testRoundTrip('oilLamp', { enabled: true });
+    it('handles oilLamp with optional caption', () => {
+      testRoundTrip('oilLamp', { enabled: true, caption: 'Let your light so shine' });
+      expect(parseFieldValue('oilLamp', 'true')).toEqual({ enabled: true, caption: '' });
+      expect(serializeFieldValue('oilLamp', { enabled: true, caption: 'Evening Devotional' })).toBe(
+        'Evening Devotional'
+      );
     });
 
   it('handles textarea fields (agendaGeneral, generalStatement)', () => {

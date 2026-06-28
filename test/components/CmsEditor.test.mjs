@@ -494,6 +494,19 @@ describe("CmsEditor — oilLamp", () => {
     expect(oilLampRow.value).toBe("");
   });
 
+  test("preserves oilLamp caption value in getAllRows", () => {
+    mount();
+    editor.initialize([
+      { key: "unitName", value: "Millcreek 5th Ward" },
+      { key: "oilLamp", value: "Keep your lamp trimmed" }
+    ]);
+
+    const rows = editor.getAllRows();
+    const oilLampRow = rows.find((r) => r.key === "oilLamp");
+    expect(oilLampRow).toBeTruthy();
+    expect(oilLampRow.value).toBe("Keep your lamp trimmed");
+  });
+
   test("when oilLamp row does not exist, does not include it in getAllRows", () => {
     mount();
     editor.initialize([{ key: "unitName", value: "Millcreek 5th Ward" }]);
