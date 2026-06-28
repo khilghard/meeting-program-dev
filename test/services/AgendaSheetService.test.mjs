@@ -269,6 +269,41 @@ describe("AgendaSheetService — row metadata", () => {
     expect(range).toBe("Sheet1!A2:D2");
     expect(values).toEqual([["agendaAnnouncements", "ann1", "Only announcement left", ""]]);
   });
+
+  test("preserves existing agendaId when updating by sheet row without an agendaId", async () => {
+    const client = makeClient({
+      getValues: vi.fn(() => Promise.resolve(SHEET_ROWS_NO_HEADER))
+    });
+    const svc = new AgendaSheetService(client, AGENDA_URL);
+
+    await svc.writeAgendaRow(
+      {
+        key: "agendaAnnouncements",
+        agendaId: "",
+        values: [["Updated announcement"]],
+        sheetRow: 2
+      },
+      "Sheet1"
+    );
+
+    const [, range, values] = client.valueUpdate.mock.calls[0];
+    expect(range).toBe("Sheet1!A2:D2");
+    expect(values).toEqual([["agendaAnnouncements", "ann1", "Updated announcement", ""]]);
+  });
+
+  test("throws when duplicate non-empty agenda IDs exist in the same tab", async () => {
+    const client = makeClient({
+      getValues: vi.fn(() =>
+        Promise.resolve([
+          ["agendaGeneral", "dup1", "A"],
+          ["agendaAnnouncements", "dup1", "B"]
+        ])
+      )
+    });
+    const svc = new AgendaSheetService(client, AGENDA_URL);
+
+    await expect(svc.listAgendaRows("Sheet1")).rejects.toThrow(/Duplicate agenda IDs/);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -361,14 +396,27 @@ describe("AgendaSheetService — oilLamp integration", () => {
 // ---------------------------------------------------------------------------
 
 describe("AgendaSheetService — conflict detection", () => {
-  test("does not have built-in conflict detection (relies on Sheets API)", async () => {
+  test("returns conflict when modifiedTimeSeen does not match", async () => {
     const client = makeClient({
+      getSpreadsheetMeta: vi.fn(() =>
+        Promise.resolve({ modifiedTime: "2026-05-16T11:00:00.000Z", name: "Agenda" })
+      ),
       getValues: vi.fn(() => Promise.resolve([["agendaGeneral", "gen1", "Some value"]]))
     });
     const svc = new AgendaSheetService(client, AGENDA_URL);
-    // Should not throw — write is optimistic
-    await svc.writeAgendaKey("agendaGeneral", [["Updated"]], "Sheet1");
-    expect(client.valueUpdate).toHaveBeenCalledTimes(1);
+    const result = await svc.writeAgendaRow(
+      {
+        key: "agendaGeneral",
+        agendaId: "gen1",
+        values: [["Updated"]],
+        sheetRow: 1,
+        modifiedTimeSeen: "2026-05-16T10:00:00.000Z"
+      },
+      "Sheet1"
+    );
+
+    expect(result.conflict).toBe(true);
+    expect(client.valueUpdate).not.toHaveBeenCalled();
   });
 
   test("multiple writes in sequence update different keys", async () => {

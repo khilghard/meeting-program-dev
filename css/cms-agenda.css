@@ -421,13 +421,118 @@
 
 .cms-agenda__pending-item {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.45rem;
   padding: 0.6rem 0.75rem;
   background: var(--bg-color);
   border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
   font-size: 0.9rem;
   color: var(--text-color);
+  cursor: pointer;
+  transition:
+    border-color 0.18s,
+    box-shadow 0.18s,
+    background-color 0.18s;
+}
+
+[data-theme="dark"] .cms-agenda__pending-item {
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.cms-agenda__pending-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.cms-agenda__pending-main strong {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.cms-agenda__pending-item:hover {
+  border-color: var(--accent-color);
+}
+
+.cms-agenda__pending-item[data-active="true"] {
+  border-color: var(--accent-color);
+  background: rgba(13, 101, 158, 0.07);
+  box-shadow: 0 0 0 1px rgba(13, 101, 158, 0.22);
+}
+
+[data-theme="dark"] .cms-agenda__pending-item[data-active="true"] {
+  background: rgba(144, 202, 249, 0.12);
+  box-shadow: 0 0 0 1px rgba(144, 202, 249, 0.3);
+}
+
+.cms-agenda__pending-item:focus-visible {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(13, 101, 158, 0.28);
+}
+
+.cms-agenda__pending-status {
+  flex: 0 0 auto;
+  align-self: center;
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.77rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+}
+
+.cms-agenda__pending-status[data-tone="pending"] {
+  background: rgba(13, 101, 158, 0.12);
+  color: #0d659e;
+  border-color: rgba(13, 101, 158, 0.28);
+}
+
+.cms-agenda__pending-status[data-tone="saving"] {
+  background: rgba(255, 152, 0, 0.16);
+  color: #ad6800;
+  border-color: rgba(173, 104, 0, 0.32);
+}
+
+.cms-agenda__pending-status[data-tone="saved"] {
+  background: rgba(46, 125, 50, 0.14);
+  color: #2e7d32;
+  border-color: rgba(46, 125, 50, 0.34);
+}
+
+.cms-agenda__pending-status[data-tone="failed"],
+.cms-agenda__pending-status[data-tone="invalid"] {
+  background: var(--offline-bg);
+  color: var(--offline-text);
+  border-color: rgba(122, 31, 36, 0.35);
+}
+
+[data-theme="dark"] .cms-agenda__pending-status[data-tone="pending"] {
+  background: rgba(144, 202, 249, 0.2);
+  color: #90caf9;
+  border-color: rgba(144, 202, 249, 0.36);
+}
+
+[data-theme="dark"] .cms-agenda__pending-status[data-tone="saving"] {
+  background: rgba(255, 183, 77, 0.18);
+  color: #ffcc80;
+  border-color: rgba(255, 204, 128, 0.36);
+}
+
+[data-theme="dark"] .cms-agenda__pending-status[data-tone="saved"] {
+  background: rgba(129, 199, 132, 0.22);
+  color: #81c784;
+  border-color: rgba(129, 199, 132, 0.4);
+}
+
+.cms-agenda__pending-detail {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: var(--offline-text);
 }
 
 #cms-agenda-setup-modal {

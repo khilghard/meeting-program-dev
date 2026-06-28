@@ -17,6 +17,7 @@ const CMS_TRANSLATION_KEYS = [
   "cmsAgenda.configureGoogleSettings",
   "cmsAgenda.noPendingChanges",
   "cmsAgenda.pendingStatus",
+  "cmsAgenda.invalidStatus",
   "cmsAgenda.invalidClientId",
   "cmsAgenda.settingsSaved",
   "cmsAgenda.signInCancelled",

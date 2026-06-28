@@ -53,6 +53,11 @@ export class AgendaSheetService {
     this._spreadsheetId = extractSpreadsheetId(spreadsheetUrl);
   }
 
+  async getSheetModifiedTime() {
+    const meta = await this._client.getSpreadsheetMeta(this._spreadsheetId);
+    return String(meta?.modifiedTime ?? "");
+  }
+
   // -------------------------------------------------------------------------
   // Public API
   // -------------------------------------------------------------------------
@@ -85,7 +90,15 @@ export class AgendaSheetService {
   /**
    * Write a specific agenda sheet row.
    *
-   * @param {{key: string, agendaId?: string, values?: string[][], sheetRow?: number|null}} row
+   * @param {{
+   *   key: string,
+   *   agendaId?: string,
+   *   values?: string[][],
+   *   sheetRow?: number|null,
+   *   allowAgendaIdChange?: boolean,
+   *   modifiedTimeSeen?: string|null,
+   *   forceOverwrite?: boolean
+   * }} row
    * @param {string|import("../utils/sheetRanges.js").SheetTabSelection} [sheetName]
    * @returns {Promise<void>}
    */
@@ -95,9 +108,27 @@ export class AgendaSheetService {
       throw new Error("AgendaSheetService.writeAgendaRow requires a key");
     }
 
-    const agendaId = String(row?.agendaId ?? "").trim();
+    const requestedAgendaId = String(row?.agendaId ?? "").trim();
+    const allowAgendaIdChange = Boolean(row?.allowAgendaIdChange);
+    const modifiedTimeSeen = row?.modifiedTimeSeen ? String(row.modifiedTimeSeen) : null;
+    const forceOverwrite = Boolean(row?.forceOverwrite);
     const id = this._spreadsheetId;
     const tabTitle = normalizeSheetTabName(sheetName);
+
+    if (modifiedTimeSeen && !forceOverwrite) {
+      const meta = await this._client.getSpreadsheetMeta(id);
+      if (meta?.modifiedTime && meta.modifiedTime !== modifiedTimeSeen) {
+        return {
+          conflict: true,
+          modifiedTime: meta.modifiedTime,
+          tabTitle,
+          key,
+          agendaId: requestedAgendaId,
+          sheetRow: Number.isInteger(row?.sheetRow) ? row.sheetRow : null
+        };
+      }
+    }
+
     const rawRows = await this._client.getValues(id, toSheetRange(sheetName, AGENDA_ROW_SCAN_RANGE));
     const offset = this._headerOffset(rawRows);
     const parsedRows = rawRows
@@ -105,12 +136,33 @@ export class AgendaSheetService {
       .map((rawRow, index) => this._toAgendaRow(rawRow, offset + index + 1))
       .filter(Boolean);
 
+    this._assertUniqueAgendaIds(parsedRows, sheetName);
+
     const existingRow = parsedRows.find((candidate) => {
       if (Number.isInteger(row?.sheetRow) && row.sheetRow > 0) {
         return candidate.sheetRow === row.sheetRow;
       }
-      return candidate.key === key && candidate.agendaId === agendaId;
+      return candidate.key === key && candidate.agendaId === requestedAgendaId;
     });
+
+    let agendaId = requestedAgendaId;
+    if (existingRow) {
+      // Preserve the original agendaId unless a caller explicitly opts into changing it.
+      agendaId = allowAgendaIdChange ? requestedAgendaId : existingRow.agendaId || requestedAgendaId;
+    }
+
+    if (agendaId) {
+      const conflictingRow = parsedRows.find((candidate) => {
+        if (candidate.agendaId !== agendaId) return false;
+        if (!existingRow) return true;
+        return candidate.sheetRow !== existingRow.sheetRow;
+      });
+      if (conflictingRow) {
+        throw new Error(
+          `Agenda ID "${agendaId}" already exists in tab "${tabTitle}" at sheet row ${conflictingRow.sheetRow}. Agenda IDs must be unique.`
+        );
+      }
+    }
 
     const serializedValues = this._serializeRowEntries(row?.values ?? []);
     const rowValues = [key, agendaId, ...serializedValues];
@@ -126,6 +178,7 @@ export class AgendaSheetService {
         [paddedRow]
       );
       return {
+        conflict: false,
         action: "update",
         key,
         agendaId,
@@ -145,6 +198,7 @@ export class AgendaSheetService {
       [rowValues]
     );
     return {
+      conflict: false,
       action: "append",
       key,
       agendaId,
@@ -179,10 +233,13 @@ export class AgendaSheetService {
     const rows = await this._client.getValues(id, toSheetRange(sheetName, AGENDA_ROW_SCAN_RANGE));
     const offset = this._headerOffset(rows);
 
-    return rows
+    const parsedRows = rows
       .slice(offset)
       .map((row, index) => this._toAgendaRow(row, offset + index + 1))
       .filter(Boolean);
+
+    this._assertUniqueAgendaIds(parsedRows, sheetName);
+    return parsedRows;
   }
 
   /**
@@ -292,5 +349,30 @@ export class AgendaSheetService {
   /** Returns start index to skip a header row (if row 0 col 0 is "key"). */
   _headerOffset(rows) {
     return rows.length > 0 && (rows[0][0] ?? "").toLowerCase() === "key" ? 1 : 0;
+  }
+
+  _assertUniqueAgendaIds(rows, sheetName = DEFAULT_SHEET_TAB_NAME) {
+    const tabTitle = normalizeSheetTabName(sheetName);
+    const seen = new Map();
+    const duplicateMessages = [];
+
+    for (const row of Array.isArray(rows) ? rows : []) {
+      const agendaId = String(row?.agendaId ?? "").trim();
+      if (!agendaId) continue;
+
+      const firstRow = seen.get(agendaId);
+      if (!firstRow) {
+        seen.set(agendaId, row.sheetRow);
+        continue;
+      }
+
+      duplicateMessages.push(`${agendaId} (rows ${firstRow} and ${row.sheetRow})`);
+    }
+
+    if (duplicateMessages.length > 0) {
+      throw new Error(
+        `Duplicate agenda IDs found in tab "${tabTitle}": ${duplicateMessages.join(", ")}. Agenda IDs must be unique.`
+      );
+    }
   }
 }

@@ -157,6 +157,7 @@ const translationsData = {
     "cmsAgenda.configureGoogleSettings": "Configure Google Settings",
     "cmsAgenda.noPendingChanges": "No pending changes.",
     "cmsAgenda.pendingStatus": "Pending",
+    "cmsAgenda.invalidStatus": "Invalid",
     "cmsAgenda.invalidClientId": "Enter a valid Google Client ID before saving.",
     "cmsAgenda.settingsSaved": "Google settings saved. Sign in to continue.",
     "cmsAgenda.signInCancelled": "Google sign-in was cancelled.",
@@ -472,6 +473,7 @@ const translationsData = {
     "cmsAgenda.configureGoogleSettings": "Configurar Google",
     "cmsAgenda.noPendingChanges": "No hay cambios pendientes.",
     "cmsAgenda.pendingStatus": "Pendiente",
+    "cmsAgenda.invalidStatus": "Inv\u00e1lido",
     "cmsAgenda.invalidClientId": "Ingrese un Google Client ID v\u00e1lido antes de guardar.",
     "cmsAgenda.settingsSaved": "La configuraci\u00f3n de Google se guard\u00f3. Inicie sesi\u00f3n para continuar.",
     "cmsAgenda.signInCancelled": "Se cancel\u00f3 el inicio de sesi\u00f3n con Google.",
@@ -787,6 +789,7 @@ const translationsData = {
     "cmsAgenda.configureGoogleSettings": "Configurer Google",
     "cmsAgenda.noPendingChanges": "Aucun changement en attente.",
     "cmsAgenda.pendingStatus": "En attente",
+    "cmsAgenda.invalidStatus": "Invalide",
     "cmsAgenda.invalidClientId": "Entrez un Google Client ID valide avant d'enregistrer.",
     "cmsAgenda.settingsSaved": "Les param\u00e8tres Google sont enregistr\u00e9s. Connectez-vous pour continuer.",
     "cmsAgenda.signInCancelled": "La connexion Google a \u00e9t\u00e9 annul\u00e9e.",
@@ -1101,6 +1104,7 @@ const translationsData = {
     "cmsAgenda.configureGoogleSettings": "Sanidi Google",
     "cmsAgenda.noPendingChanges": "Hakuna mabadiliko yanayosubiri.",
     "cmsAgenda.pendingStatus": "Inasubiri",
+    "cmsAgenda.invalidStatus": "Batili",
     "cmsAgenda.invalidClientId": "Weka Google Client ID halali kabla ya kuhifadhi.",
     "cmsAgenda.settingsSaved": "Mipangilio ya Google imehifadhiwa. Ingia ili kuendelea.",
     "cmsAgenda.signInCancelled": "Kuingia kwa Google kulighairiwa.",
@@ -1349,11 +1353,17 @@ export function getLanguage() {
 }
 
 export function t(key) {
-  if (!translations[key]) {
-    console.warn("Missing translation for key:", key);
-    return key;
+  if (translations[key]) {
+    return translations[key];
   }
-  return translations[key];
+
+  const fallback = translationsData[DEFAULT_LANGUAGE]?.[key];
+  if (fallback) {
+    return fallback;
+  }
+
+  console.warn("Missing translation for key:", key);
+  return key;
 }
 
 export function getSupportedLanguages() {

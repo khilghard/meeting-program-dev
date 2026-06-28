@@ -9,6 +9,7 @@ import {
 import GoogleAuth from "./auth/googleAuth.js";
 import { AGENDA_KEYS } from "./agenda/constants.js";
 import AgendaKeyEditor from "./components/AgendaKeyEditor.mjs";
+import { validateAgendaValues } from "./components/AgendaKeyEditor.mjs";
 import { initI18n, t } from "./i18n/index.js";
 import { AgendaSheetService } from "./services/AgendaSheetService.mjs";
 import { SheetTabService } from "./services/SheetTabService.mjs";
@@ -163,18 +164,22 @@ export function createCmsAgendaApp(dependencies = {}) {
     profile: null,
     tabs: [],
     selectedTab: null,
+    modifiedTime: "",
     selectedKey: AGENDA_KEYS[0],
     selectedRowToken: buildAgendaRowToken("", null),
     rowsForTab: [],
     dirtyMap: {},
     loadedMap: {},
+    validationMap: {},
     publishStatusMap: {},
     draftSelectedTabTitle: "",
     editor: null,
     agendaService: null,
     tabService: null,
     hasConfiguredClientId: false,
-    isAuthenticated: false
+    isAuthenticated: false,
+    isPublishing: false,
+    activePendingIdentity: ""
   };
 
   function getElements() {
@@ -225,6 +230,9 @@ export function createCmsAgendaApp(dependencies = {}) {
     if (!pageStatus) return;
     pageStatus.textContent = message;
     pageStatus.dataset.tone = tone;
+    pageStatus.setAttribute("role", "status");
+    pageStatus.setAttribute("aria-atomic", "true");
+    pageStatus.setAttribute("aria-live", tone === "error" || tone === "warning" ? "assertive" : "polite");
     pageStatus.hidden = !message;
   }
 
@@ -360,9 +368,15 @@ export function createCmsAgendaApp(dependencies = {}) {
       signInAgainButton,
       discardDraftButton
     } = getElements();
-    [publishButton, publishAllButton, makeActiveButton].filter(Boolean).forEach((control) => {
+    [makeActiveButton].filter(Boolean).forEach((control) => {
       control.disabled = !state.isAuthenticated;
     });
+    if (publishButton) {
+      publishButton.disabled = !state.isAuthenticated || state.isPublishing;
+    }
+    if (publishAllButton) {
+      publishAllButton.disabled = !state.isAuthenticated || state.isPublishing;
+    }
     if (signInAgainButton) {
       signInAgainButton.disabled = !state.hasConfiguredClientId;
     }
@@ -372,6 +386,11 @@ export function createCmsAgendaApp(dependencies = {}) {
     if (tabSelect) {
       tabSelect.disabled = !state.isAuthenticated || state.tabs.length === 0;
     }
+  }
+
+  function setPublishingState(isPublishing) {
+    state.isPublishing = Boolean(isPublishing);
+    setActionState();
   }
 
   function updateHeader() {
@@ -569,24 +588,113 @@ export function createCmsAgendaApp(dependencies = {}) {
 
     const dirtyEntries = Object.entries(state.dirtyMap);
     if (dirtyEntries.length === 0) {
+      state.activePendingIdentity = "";
       pendingList.innerHTML = `<p>${text("cmsAgenda.noPendingChanges", "No pending changes.")}</p>`;
       return;
     }
 
     pendingList.innerHTML = "";
+    const selectedIdentity = getSelectedRowIdentity();
     for (const [identity, entry] of dirtyEntries) {
       const item = document.createElement("div");
       item.className = "cms-agenda__pending-item";
       item.dataset.key = entry.key;
+      item.dataset.identity = identity;
+      const isActive =
+        identity === state.activePendingIdentity ||
+        (identity === selectedIdentity && Boolean(state.dirtyMap[selectedIdentity]));
+      item.dataset.active = isActive ? "true" : "false";
+      item.tabIndex = 0;
+      item.setAttribute("role", "button");
+      item.setAttribute("aria-label", `Edit pending row for ${text(entry.key, entry.key)}`);
+      item.addEventListener("click", () => {
+        focusPendingIdentity(identity).catch((error) => {
+          console.error("[CMS Agenda] Failed to focus pending row", error);
+        });
+      });
+      item.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") {
+          return;
+        }
+
+        event.preventDefault();
+        focusPendingIdentity(identity).catch((error) => {
+          console.error("[CMS Agenda] Failed to focus pending row", error);
+        });
+      });
+
+      const mainRow = document.createElement("div");
+      mainRow.className = "cms-agenda__pending-main";
+
       const label = document.createElement("strong");
       label.textContent = `${text(entry.key, entry.key)}${entry.agendaId ? ` — ${entry.agendaId}` : ""}`;
+
       const statusSpan = document.createElement("span");
-      const status = state.publishStatusMap[identity] || text("cmsAgenda.pendingStatus", "Pending");
+      statusSpan.className = "cms-agenda__pending-status";
+      const validationErrors = state.validationMap[identity] ?? [];
+      const savingStatus = text("cmsAgenda.savingStatus", "Saving");
+      const savedStatus = text("cmsAgenda.savedStatus", "Saved");
+      const failedStatus = text("cmsAgenda.failedStatus", "Failed");
+      const pendingStatus = text("cmsAgenda.pendingStatus", "Pending");
+
+      const status =
+        validationErrors.length > 0
+          ? text("cmsAgenda.invalidStatus", "Invalid")
+          : state.publishStatusMap[identity] || pendingStatus;
+
+      let statusTone = "pending";
+      if (validationErrors.length > 0) {
+        statusTone = "invalid";
+      } else if (status === savingStatus) {
+        statusTone = "saving";
+      } else if (status === savedStatus) {
+        statusTone = "saved";
+      } else if (status === failedStatus) {
+        statusTone = "failed";
+      }
+
+      statusSpan.dataset.tone = statusTone;
       statusSpan.textContent = status;
-      item.appendChild(label);
-      item.appendChild(statusSpan);
+      if (validationErrors.length > 0) {
+        statusSpan.title = validationErrors.join(" ");
+        statusSpan.dataset.validation = "true";
+
+        const detail = document.createElement("p");
+        detail.className = "cms-agenda__pending-detail";
+        const maxErrorsToShow = 2;
+        const shownErrors = validationErrors.slice(0, maxErrorsToShow).join(" ");
+        const remainder = validationErrors.length - maxErrorsToShow;
+        detail.textContent =
+          remainder > 0 ? `${shownErrors} (+${remainder} more)` : shownErrors;
+        item.appendChild(detail);
+      }
+
+      mainRow.appendChild(label);
+      mainRow.appendChild(statusSpan);
+      item.prepend(mainRow);
       pendingList.appendChild(item);
     }
+  }
+
+  function refreshLoadedValidation() {
+    const nextMap = {};
+
+    state.rowsForTab.forEach((row) => {
+      const identity = buildAgendaRowIdentity(row.key, row.rowToken);
+      const errors = validateAgendaValues(row.key, row.values);
+      if (errors.length > 0) {
+        nextMap[identity] = errors;
+      }
+    });
+
+    Object.entries(state.dirtyMap).forEach(([identity, row]) => {
+      const errors = validateAgendaValues(row.key, row.values);
+      if (errors.length > 0) {
+        nextMap[identity] = errors;
+      }
+    });
+
+    state.validationMap = nextMap;
   }
 
   function ensureEditor() {
@@ -618,11 +726,47 @@ export function createCmsAgendaApp(dependencies = {}) {
     showContent();
   }
 
+  function focusEditorInput() {
+    const { editorContainer } = getElements();
+    if (!editorContainer) return;
+    const focusable = editorContainer.querySelector("input, textarea, select, button");
+    focusable?.focus?.();
+  }
+
+  async function focusPendingIdentity(identity) {
+    const row = state.dirtyMap[identity];
+    if (!row) {
+      return;
+    }
+
+    state.activePendingIdentity = identity;
+    state.selectedKey = row.key;
+    state.selectedRowToken = row.rowToken;
+    populateKeyOptions();
+    populateRowOptions();
+    await loadSelectedKey();
+    const refreshedIdentity = getSelectedRowIdentity();
+    state.activePendingIdentity = state.dirtyMap[refreshedIdentity] ? refreshedIdentity : identity;
+    renderPendingList();
+    focusEditorInput();
+    setStatus(
+      `Editing pending row: ${text(row.key, row.key)}${row.agendaId ? ` - ${row.agendaId}` : ""}`,
+      "info"
+    );
+  }
+
   function updateDirtyMap(values) {
     const selectedRow = getSelectedRow();
     const identity = getSelectedRowIdentity();
     const draftValues = cloneEntries(values);
     const loadedValues = state.loadedMap[identity] ?? [];
+    const validationErrors = validateAgendaValues(state.selectedKey, draftValues);
+    if (validationErrors.length > 0) {
+      state.validationMap[identity] = validationErrors;
+    } else {
+      delete state.validationMap[identity];
+    }
+
     if (stringifyEntries(draftValues) === stringifyEntries(loadedValues)) {
       delete state.dirtyMap[identity];
       delete state.publishStatusMap[identity];
@@ -688,13 +832,19 @@ export function createCmsAgendaApp(dependencies = {}) {
     setLoading(true);
     try {
       if (state.isAuthenticated && state.agendaService) {
+        if (typeof state.agendaService.getSheetModifiedTime === "function") {
+          state.modifiedTime = await state.agendaService.getSheetModifiedTime();
+        }
         const rowSource =
           typeof state.agendaService.listAgendaRows === "function"
             ? await state.agendaService.listAgendaRows(state.selectedTab)
             : await state.agendaService.readAgendaRows(state.selectedKey, state.selectedTab);
         state.rowsForTab = rowSource.map((row) => createAgendaRowMeta(row));
+        refreshLoadedValidation();
       } else {
         state.rowsForTab = [];
+        state.modifiedTime = "";
+        state.validationMap = {};
       }
 
       populateRowOptions();
@@ -705,6 +855,7 @@ export function createCmsAgendaApp(dependencies = {}) {
       populateRowOptions();
 
       const identity = getSelectedRowIdentity();
+      state.activePendingIdentity = state.dirtyMap[identity] ? identity : "";
       let values = state.dirtyMap[identity]?.values;
       if (!values) {
         values = selectedRow.values;
@@ -712,7 +863,15 @@ export function createCmsAgendaApp(dependencies = {}) {
       }
 
       mountEditor(values ?? []);
-      setStatus("");
+      const invalidRows = Object.keys(state.validationMap).length;
+      if (invalidRows > 0) {
+        setStatus(
+          `Loaded ${invalidRows} row(s) with invalid required fields. Fix them before publishing.`,
+          "warning"
+        );
+      } else {
+        setStatus("");
+      }
     } catch (error) {
       if (isAuthError(error)) {
         state.isAuthenticated = false;
@@ -966,16 +1125,24 @@ export function createCmsAgendaApp(dependencies = {}) {
   }
 
   async function publishRow(row) {
+    const forceOverwrite = Boolean(row?.forceOverwrite);
     const identity = buildAgendaRowIdentity(row.key, row.rowToken);
     const publishResult = await state.agendaService.writeAgendaRow(
       {
         key: row.key,
         agendaId: row.agendaId,
         values: row.values,
-        sheetRow: row.sheetRow
+        sheetRow: row.sheetRow,
+        modifiedTimeSeen: forceOverwrite ? null : state.modifiedTime || null,
+        forceOverwrite
       },
       state.selectedTab
     );
+
+    if (publishResult?.conflict) {
+      return publishResult;
+    }
+
     console.info("[CMS Agenda] Published agenda row", {
       tabTitle: publishResult?.tabTitle ?? state.selectedTab?.title ?? DEFAULT_SHEET_TAB_NAME,
       key: row.key,
@@ -990,16 +1157,32 @@ export function createCmsAgendaApp(dependencies = {}) {
       sheetRow: publishResult?.sheetRow ?? row.sheetRow,
       values: row.values
     });
+    const updatedIdentity = buildAgendaRowIdentity(updatedRow.key, updatedRow.rowToken);
     const rowIndex = state.rowsForTab.findIndex((entry) => entry.rowToken === row.rowToken);
     if (rowIndex >= 0) {
       state.rowsForTab[rowIndex] = updatedRow;
     } else {
       state.rowsForTab.push(updatedRow);
     }
-    state.loadedMap[identity] = cloneEntries(row.values);
+
+    if (state.selectedRowToken === row.rowToken) {
+      state.selectedRowToken = updatedRow.rowToken;
+      state.selectedKey = updatedRow.key;
+    }
+
+    delete state.loadedMap[identity];
+    state.loadedMap[updatedIdentity] = cloneEntries(row.values);
     delete state.dirtyMap[identity];
-    state.publishStatusMap[identity] = text("cmsAgenda.savedStatus", "Saved");
+    delete state.validationMap[identity];
+    delete state.validationMap[updatedIdentity];
+    delete state.publishStatusMap[identity];
+    state.publishStatusMap[updatedIdentity] = text("cmsAgenda.savedStatus", "Saved");
+    if (typeof state.agendaService.getSheetModifiedTime === "function") {
+      state.modifiedTime = await state.agendaService.getSheetModifiedTime();
+    }
     await persistDraft();
+    populateRowOptions();
+    renderRowHint();
     renderKeyChangeHint();
     return publishResult;
   }
@@ -1017,11 +1200,55 @@ export function createCmsAgendaApp(dependencies = {}) {
     const values = state.editor?.getValues?.() ?? [];
     updateDirtyMap(values);
     const identity = getSelectedRowIdentity();
+    const validationErrors = validateAgendaValues(state.selectedKey, values);
+    if (validationErrors.length > 0) {
+      state.validationMap[identity] = validationErrors;
+      state.publishStatusMap[identity] = text("cmsAgenda.invalidStatus", "Invalid");
+      renderPendingList();
+      setStatus(`Fix validation errors before publishing: ${validationErrors.join(" ")}`, "error");
+      return;
+    }
+
+    if (!state.dirtyMap[identity]) {
+      renderPendingList();
+      setStatus(text("cmsAgenda.noPendingChanges", "No pending changes."), "info");
+      return;
+    }
+
+    if (state.isPublishing) {
+      return;
+    }
+
     const selectedRow = getSelectedRow();
+    setPublishingState(true);
     try {
       state.publishStatusMap[identity] = text("cmsAgenda.savingStatus", "Saving");
       renderPendingList();
-      const publishResult = await publishRow({ ...selectedRow, key: state.selectedKey, values });
+      let publishResult = await publishRow({ ...selectedRow, key: state.selectedKey, values });
+
+      if (publishResult?.conflict) {
+        const shouldOverwrite =
+          deps.windowRef?.confirm?.(
+            "This agenda sheet was modified by another user since you loaded it. Overwrite with your changes? Select Cancel to reload latest sheet data."
+          ) ?? false;
+
+        if (!shouldOverwrite) {
+          state.modifiedTime = publishResult.modifiedTime || state.modifiedTime;
+          state.publishStatusMap[identity] = text("cmsAgenda.pendingStatus", "Pending");
+          renderPendingList();
+          await loadSelectedKey();
+          setStatus("Publish cancelled. Reloaded latest sheet data.", "warning");
+          return;
+        }
+
+        publishResult = await publishRow({
+          ...selectedRow,
+          key: state.selectedKey,
+          values,
+          forceOverwrite: true
+        });
+      }
+
       renderPendingList();
       const debugSuffix = publishResult?.sheetRow
         ? ` ${text("cmsAgenda.publishSuccess", "Agenda changes published.")} ${publishResult.tabTitle} / ${text("cmsAgenda.sheetRowPrefix", "Sheet row")} ${publishResult.sheetRow}`
@@ -1048,6 +1275,8 @@ export function createCmsAgendaApp(dependencies = {}) {
           : text("cmsAgenda.publishFailed", "Failed to publish agenda changes."),
         "error"
       );
+    } finally {
+      setPublishingState(false);
     }
   }
 
@@ -1066,51 +1295,105 @@ export function createCmsAgendaApp(dependencies = {}) {
     await persistDraft();
     renderPendingList();
 
-    let failedCount = 0;
-    let publishedCount = 0;
-
-    for (const [identity, entry] of Object.entries(state.dirtyMap)) {
-      try {
-        state.publishStatusMap[identity] = text("cmsAgenda.savingStatus", "Saving");
-        renderPendingList();
-        await publishRow(
-          identity === getSelectedRowIdentity() ? { ...entry, values: currentValues } : entry
-        );
-        publishedCount += 1;
-      } catch (error) {
-        if (isAuthError(error)) {
-          state.isAuthenticated = false;
-          setAuthPanelState();
-          setActionState();
-          setStatus(
-            text("cmsAgenda.signInAgainPrompt", "Tap to sign in again to publish agenda changes."),
-            "warning"
-          );
-          return;
-        }
-
-        console.error("[CMS Agenda] Failed to publish pending agenda key", error);
-        state.publishStatusMap[identity] = text("cmsAgenda.failedStatus", "Failed");
-        failedCount += 1;
-      }
-      renderPendingList();
-    }
-
-    if (failedCount > 0) {
-      setStatus(
-        text(
-          "cmsAgenda.publishAllPartial",
-          "Finished publishing pending agenda changes, but some items failed."
-        ),
-        publishedCount > 0 ? "warning" : "error"
-      );
+    if (Object.keys(state.dirtyMap).length === 0) {
+      setStatus(text("cmsAgenda.noPendingChanges", "No pending changes."), "info");
       return;
     }
 
-    setStatus(
-      text("cmsAgenda.publishAllComplete", "Finished publishing pending agenda changes."),
-      "success"
-    );
+    if (state.isPublishing) {
+      return;
+    }
+
+    setPublishingState(true);
+    try {
+      let failedCount = 0;
+      let publishedCount = 0;
+      let overwriteAllConflicts = false;
+
+      for (const [identity, entry] of Object.entries(state.dirtyMap)) {
+        try {
+          const candidateValues =
+            identity === getSelectedRowIdentity() ? currentValues : entry.values;
+          const validationErrors = validateAgendaValues(entry.key, candidateValues);
+          if (validationErrors.length > 0) {
+            state.validationMap[identity] = validationErrors;
+            state.publishStatusMap[identity] = text("cmsAgenda.invalidStatus", "Invalid");
+            failedCount += 1;
+            renderPendingList();
+            continue;
+          }
+
+          state.publishStatusMap[identity] = text("cmsAgenda.savingStatus", "Saving");
+          renderPendingList();
+          let publishResult = await publishRow(
+            identity === getSelectedRowIdentity() ? { ...entry, values: currentValues } : entry
+          );
+
+          if (publishResult?.conflict) {
+            if (!overwriteAllConflicts) {
+              const shouldOverwrite =
+                deps.windowRef?.confirm?.(
+                  "This agenda sheet was modified by another user since you loaded it. Overwrite remaining pending changes? Select Cancel to reload latest sheet data."
+                ) ?? false;
+
+              if (!shouldOverwrite) {
+                state.modifiedTime = publishResult.modifiedTime || state.modifiedTime;
+                state.publishStatusMap[identity] = text("cmsAgenda.pendingStatus", "Pending");
+                renderPendingList();
+                await loadSelectedKey();
+                setStatus("Publish all cancelled. Reloaded latest sheet data.", "warning");
+                return;
+              }
+
+              overwriteAllConflicts = true;
+            }
+
+            publishResult = await publishRow({
+              ...(identity === getSelectedRowIdentity()
+                ? { ...entry, values: currentValues }
+                : entry),
+              forceOverwrite: true
+            });
+          }
+
+          publishedCount += 1;
+        } catch (error) {
+          if (isAuthError(error)) {
+            state.isAuthenticated = false;
+            setAuthPanelState();
+            setActionState();
+            setStatus(
+              text("cmsAgenda.signInAgainPrompt", "Tap to sign in again to publish agenda changes."),
+              "warning"
+            );
+            return;
+          }
+
+          console.error("[CMS Agenda] Failed to publish pending agenda key", error);
+          state.publishStatusMap[identity] = text("cmsAgenda.failedStatus", "Failed");
+          failedCount += 1;
+        }
+        renderPendingList();
+      }
+
+      if (failedCount > 0) {
+        setStatus(
+          text(
+            "cmsAgenda.publishAllPartial",
+            "Finished publishing pending agenda changes, but some items failed."
+          ),
+          publishedCount > 0 ? "warning" : "error"
+        );
+        return;
+      }
+
+      setStatus(
+        text("cmsAgenda.publishAllComplete", "Finished publishing pending agenda changes."),
+        "success"
+      );
+    } finally {
+      setPublishingState(false);
+    }
   }
 
   async function handleMakeActive() {

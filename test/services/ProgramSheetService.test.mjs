@@ -136,7 +136,7 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
     });
   }
 
-  test("calls batchUpdate with all locale columns", async () => {
+  test("calls batchUpdate with key plus all locale columns", async () => {
     const client = makeWriteClient();
     const svc = new ProgramSheetService(client, EDIT_URL);
     const edits = [{ key: "presiding", value: "New Bishop|||" }];
@@ -145,22 +145,25 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
     expect(result.conflict).toBe(false);
     expect(client.batchUpdate).toHaveBeenCalledTimes(1);
     const [, requests] = client.batchUpdate.mock.calls[0];
-    // Should have 4 locale column updates
-    expect(requests).toHaveLength(4);
-    // First locale column (en, index 1 → B) should have the new value
-    expect(requests[0].range).toMatch(/^Sheet1!B/);
-    expect(requests[0].values[0][0]).toBe("New Bishop");
+    // 1 key column + 4 locale columns
+    expect(requests).toHaveLength(5);
+    expect(requests[0].range).toMatch(/^Sheet1!A/);
+    expect(requests[1].range).toMatch(/^Sheet1!B/);
+    expect(requests[1].values[0][0]).toBe("New Bishop");
   });
 
-  test("preserves existing values for keys not in edits", async () => {
+  test("writes rows in the provided order", async () => {
     const client = makeWriteClient();
     const svc = new ProgramSheetService(client, EDIT_URL);
-    const edits = [{ key: "presiding", value: "New Bishop|||" }];
+    const edits = [
+      { key: "openingHymn", value: "How Firm a Foundation|||" },
+      { key: "presiding", value: "New Bishop|||" }
+    ];
     await svc.writeSheet(edits, "en", MOD_TIME);
 
     const [, requests] = client.batchUpdate.mock.calls[0];
-    // Row 2 ("conducting") should retain its existing "en" value
-    expect(requests[0].values[1][0]).toBe("Bishop Smith");
+    expect(requests[0].values[0][0]).toBe("openingHymn");
+    expect(requests[0].values[1][0]).toBe("presiding");
   });
 
   test("writes correct column letters for all locales", async () => {
@@ -170,11 +173,13 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
     await svc.writeSheet(edits, "en", MOD_TIME);
 
     const [, requests] = client.batchUpdate.mock.calls[0];
+    // key=A, en=B, es=C, fr=D, swa=E
+    expect(requests[0].range).toMatch(/^Sheet1!A/);
     // en=B, es=C, fr=D, swa=E
-    expect(requests[0].range).toMatch(/^Sheet1!B/);
-    expect(requests[1].range).toMatch(/^Sheet1!C/);
-    expect(requests[2].range).toMatch(/^Sheet1!D/);
-    expect(requests[3].range).toMatch(/^Sheet1!E/);
+    expect(requests[1].range).toMatch(/^Sheet1!B/);
+    expect(requests[2].range).toMatch(/^Sheet1!C/);
+    expect(requests[3].range).toMatch(/^Sheet1!D/);
+    expect(requests[4].range).toMatch(/^Sheet1!E/);
   });
 
   test("does not call batchUpdate if no data rows", async () => {
@@ -183,8 +188,7 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
     });
     const svc = new ProgramSheetService(client, EDIT_URL);
     await svc.writeSheet([], "en", null);
-    // batchUpdate is called with empty range
-    expect(client.batchUpdate).toHaveBeenCalledTimes(1);
+    expect(client.batchUpdate).not.toHaveBeenCalled();
   });
 
   test("writes to a selected sheet tab using quoted A1 notation", async () => {
@@ -201,7 +205,7 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
     expect(client.getValues).toHaveBeenNthCalledWith(1, expect.any(String), "'May 18, 2026'!1:1");
     expect(client.getValues).toHaveBeenNthCalledWith(2, expect.any(String), "'May 18, 2026'!A:E");
     const [, requests] = client.batchUpdate.mock.calls[0];
-    expect(requests[0].range).toBe("'May 18, 2026'!B2:B4");
+    expect(requests[0].range).toBe("'May 18, 2026'!A2:A4");
   });
 
   test("accepts a selected-tab object when writing", async () => {
@@ -216,10 +220,10 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
     });
 
     const [, requests] = client.batchUpdate.mock.calls[0];
-    expect(requests[0].range).toBe("'May 18, 2026'!B2:B4");
+    expect(requests[0].range).toBe("'May 18, 2026'!A2:A4");
   });
 
-  test("appends newly added keys instead of dropping them", async () => {
+  test("rewrites the full body and clears trailing rows", async () => {
     const client = makeWriteClient();
     const svc = new ProgramSheetService(client, EDIT_URL);
 
@@ -235,14 +239,32 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
     expect(client.batchUpdate).toHaveBeenCalledTimes(1);
     const [, requests] = client.batchUpdate.mock.calls[0];
 
-    // First request: key column
+    // First request writes keys for the full existing row span
     expect(requests[0]).toEqual({
-      range: "Sheet1!A5:A5",
-      values: [["speaker1"]]
+      range: "Sheet1!A2:A4",
+      values: [["presiding"], ["speaker1"], [""]]
     });
-    // Next 4 requests: locale columns (B-E) for rows 2-5
-    expect(requests[1].range).toBe("Sheet1!B2:B5");
-    expect(requests[1].values).toEqual([["New Bishop"], ["Bishop Smith"], ["How Firm a Foundation"], ["Sister Adams"]]);
+    expect(requests[1].range).toBe("Sheet1!B2:B4");
+    expect(requests[1].values).toEqual([["New Bishop"], ["Sister Adams"], [""]]);
+  });
+
+  test("preserves duplicate keys as separate rows", async () => {
+    const client = makeWriteClient();
+    const svc = new ProgramSheetService(client, EDIT_URL);
+
+    await svc.writeSheet(
+      [
+        { key: "speaker", value: "Alice|||" },
+        { key: "speaker", value: "Bob|||" },
+        { key: "closingPrayer", value: "Brother Lee|||" }
+      ],
+      "en",
+      MOD_TIME
+    );
+
+    const [, requests] = client.batchUpdate.mock.calls[0];
+    expect(requests[0].values).toEqual([["speaker"], ["speaker"], ["closingPrayer"]]);
+    expect(requests[1].values).toEqual([["Alice"], ["Bob"], ["Brother Lee"]]);
   });
 });
 
@@ -299,51 +321,53 @@ describe("ProgramSheetService — writeSheetWithDeletes", () => {
     });
   }
 
-  test("deletes a row when key is in deletedKeys", async () => {
-    const client = makeWriteClient();
-    const svc = new ProgramSheetService(client, EDIT_URL);
-    const edits = [{ key: "presiding", value: "New Bishop|||" }];
-    const deletedKeys = ["conducting"];
-    const result = await svc.writeSheetWithDeletes(edits, "en", MOD_TIME, "Sheet1", deletedKeys);
-
-    expect(result.conflict).toBe(false);
-    expect(client.spreadsheetBatchUpdate).toHaveBeenCalledTimes(1);
-    const [, requests] = client.spreadsheetBatchUpdate.mock.calls[0];
-    const deleteReq = requests.find((r) => r.deleteDimension);
-    expect(deleteReq).toBeDefined();
-    expect(deleteReq.deleteDimension.range.startIndex).toBe(2); // row 3 (0-based: 2)
-  });
-
-  test("deletes multiple rows when multiple keys are in deletedKeys", async () => {
-    const client = makeWriteClient();
-    const svc = new ProgramSheetService(client, EDIT_URL);
-    const edits = [{ key: "presiding", value: "New Bishop|||" }];
-    const deletedKeys = ["conducting", "openingHymn"];
-    await svc.writeSheetWithDeletes(edits, "en", MOD_TIME, "Sheet1", deletedKeys);
-
-    expect(client.spreadsheetBatchUpdate).toHaveBeenCalledTimes(1);
-    const [, requests] = client.spreadsheetBatchUpdate.mock.calls[0];
-    const deleteReqs = requests.filter((r) => r.deleteDimension);
-    expect(deleteReqs).toHaveLength(2);
-  });
-
-  test("deletes rows and appends new keys in the same call", async () => {
+  test("excludes deleted keys from the written body", async () => {
     const client = makeWriteClient();
     const svc = new ProgramSheetService(client, EDIT_URL);
     const edits = [
       { key: "presiding", value: "New Bishop|||" },
-      { key: "speaker1", value: "Sister Adams|||" }
+      { key: "conducting", value: "Should Not Appear|||" },
+      { key: "openingHymn", value: "How Firm a Foundation|||" }
+    ];
+    const deletedKeys = ["conducting"];
+    const result = await svc.writeSheetWithDeletes(edits, "en", MOD_TIME, "Sheet1", deletedKeys);
+
+    expect(result.conflict).toBe(false);
+    expect(client.batchUpdate).toHaveBeenCalledTimes(1);
+    const [, requests] = client.batchUpdate.mock.calls[0];
+    expect(requests[0].values).toEqual([["presiding"], ["openingHymn"], [""]]);
+  });
+
+  test("excludes multiple deleted keys", async () => {
+    const client = makeWriteClient();
+    const svc = new ProgramSheetService(client, EDIT_URL);
+    const edits = [
+      { key: "presiding", value: "New Bishop|||" },
+      { key: "conducting", value: "Should Not Appear|||" },
+      { key: "openingHymn", value: "Also Remove|||" }
+    ];
+    const deletedKeys = ["conducting", "openingHymn"];
+    await svc.writeSheetWithDeletes(edits, "en", MOD_TIME, "Sheet1", deletedKeys);
+
+    expect(client.batchUpdate).toHaveBeenCalledTimes(1);
+    const [, requests] = client.batchUpdate.mock.calls[0];
+    expect(requests[0].values).toEqual([["presiding"], [""], [""]]);
+  });
+
+  test("supports delete filtering and new rows in the same call", async () => {
+    const client = makeWriteClient();
+    const svc = new ProgramSheetService(client, EDIT_URL);
+    const edits = [
+      { key: "presiding", value: "New Bishop|||" },
+      { key: "speaker1", value: "Sister Adams|||" },
+      { key: "conducting", value: "Should Not Appear|||" }
     ];
     const deletedKeys = ["conducting"];
     await svc.writeSheetWithDeletes(edits, "en", MOD_TIME, "Sheet1", deletedKeys);
 
-    expect(client.spreadsheetBatchUpdate).toHaveBeenCalledTimes(1);
-    const [, requests] = client.spreadsheetBatchUpdate.mock.calls[0];
-    const deleteReqs = requests.filter((r) => r.deleteDimension);
-    const updateReqs = requests.filter((r) => r.updateRange);
-    expect(deleteReqs).toHaveLength(1);
-    // 1 key column + 4 locale columns
-    expect(updateReqs).toHaveLength(5);
+    expect(client.batchUpdate).toHaveBeenCalledTimes(1);
+    const [, requests] = client.batchUpdate.mock.calls[0];
+    expect(requests[0].values).toEqual([["presiding"], ["speaker1"], [""]]);
   });
 
   test("falls back to writeSheet when deletedKeys is empty", async () => {
@@ -400,13 +424,13 @@ describe("ProgramSheetService — writeSheetWithDeletes", () => {
     const deletedKeys = ["conducting"];
     await svc.writeSheetWithDeletes(edits, "en", MOD_TIME, "Sheet1", deletedKeys);
 
-    expect(client.spreadsheetBatchUpdate).toHaveBeenCalledTimes(1);
-    const [, requests] = client.spreadsheetBatchUpdate.mock.calls[0];
-    const updateReqs = requests.filter((r) => r.updateRange);
+    expect(client.batchUpdate).toHaveBeenCalledTimes(1);
+    const [, requests] = client.batchUpdate.mock.calls[0];
+    const updateReqs = requests;
     // The en locale column should not contain the deleted key's value
     const enUpdate = updateReqs.find((r) => r.range === "Sheet1!B2:B3");
     if (enUpdate) {
-      const values = enUpdate.values.map(v => v[0]);
+      const values = enUpdate.values.map((v) => v[0]);
       expect(values).not.toContain("Should Not Appear");
     }
   });

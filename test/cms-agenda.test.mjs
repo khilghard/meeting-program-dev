@@ -310,6 +310,416 @@ describe("cms-agenda.js", () => {
     expect(document.getElementById("cms-agenda-pending-list").textContent).toContain("Failed");
   });
 
+  test("on publish conflict, choosing overwrite retries with forceOverwrite", async () => {
+    const writeAgendaRow = vi
+      .fn()
+      .mockResolvedValueOnce({
+        conflict: true,
+        modifiedTime: "2026-06-27T09:00:00.000Z"
+      })
+      .mockResolvedValueOnce({
+        conflict: false,
+        action: "update",
+        key: "agendaGeneral",
+        agendaId: "gen1",
+        sheetRow: 2,
+        tabTitle: "Sheet1",
+        range: "Sheet1!A2:C2",
+        rowValues: ["agendaGeneral", "gen1", "Updated note"]
+      });
+
+    const app = createApp({
+      AgendaSheetServiceClass: class {
+        async getSheetModifiedTime() {
+          return "2026-06-27T08:00:00.000Z";
+        }
+
+        async listAgendaRows() {
+          return [{ key: "agendaGeneral", agendaId: "gen1", sheetRow: 2, values: [["General note"]] }];
+        }
+
+        async writeAgendaRow(row, selectedTab) {
+          return writeAgendaRow(row, selectedTab);
+        }
+      }
+    });
+
+    window.confirm = vi.fn(() => true);
+
+    await app.initialize();
+    editorInstance.values = [["Updated note"]];
+    await app.handlePublishCurrent();
+
+    expect(window.confirm).toHaveBeenCalledTimes(1);
+    expect(writeAgendaRow).toHaveBeenCalledTimes(2);
+    expect(writeAgendaRow.mock.calls[1][0]).toEqual(
+      expect.objectContaining({
+        forceOverwrite: true,
+        key: "agendaGeneral",
+        sheetRow: 2,
+        values: [["Updated note"]]
+      })
+    );
+  });
+
+  test("on publish conflict, choosing reload cancels publish and reloads rows", async () => {
+    const listAgendaRows = vi
+      .fn()
+      .mockResolvedValueOnce([
+        { key: "agendaGeneral", agendaId: "gen1", sheetRow: 2, values: [["General note"]] }
+      ])
+      .mockResolvedValueOnce([
+        { key: "agendaGeneral", agendaId: "gen1", sheetRow: 2, values: [["Server latest"]] }
+      ]);
+    const writeAgendaRow = vi.fn().mockResolvedValue({
+      conflict: true,
+      modifiedTime: "2026-06-27T10:00:00.000Z"
+    });
+
+    const app = createApp({
+      AgendaSheetServiceClass: class {
+        async getSheetModifiedTime() {
+          return "2026-06-27T08:00:00.000Z";
+        }
+
+        async listAgendaRows() {
+          return listAgendaRows();
+        }
+
+        async writeAgendaRow(row, selectedTab) {
+          return writeAgendaRow(row, selectedTab);
+        }
+      }
+    });
+
+    window.confirm = vi.fn(() => false);
+
+    await app.initialize();
+    editorInstance.values = [["Local edit"]];
+    await app.handlePublishCurrent();
+
+    expect(window.confirm).toHaveBeenCalledTimes(1);
+    expect(writeAgendaRow).toHaveBeenCalledTimes(1);
+    expect(listAgendaRows).toHaveBeenCalledTimes(2);
+    expect(document.getElementById("cms-agenda-page-status").textContent).toContain(
+      "Publish cancelled. Reloaded latest sheet data."
+    );
+  });
+
+  test("shows warning when loaded rows are missing required fields", async () => {
+    const app = createApp({
+      getDraft: vi.fn().mockResolvedValue({
+        selectedTabTitle: "Sheet1",
+        selectedKey: "agendaBusinessCallings"
+      }),
+      AgendaSheetServiceClass: class {
+        async getSheetModifiedTime() {
+          return "2026-06-27T08:00:00.000Z";
+        }
+
+        async listAgendaRows() {
+          return [
+            {
+              key: "agendaBusinessCallings",
+              agendaId: "call1",
+              sheetRow: 3,
+              values: [["Alice", ""]]
+            }
+          ];
+        }
+
+        async writeAgendaRow() {}
+      }
+    });
+
+    await app.initialize();
+
+    expect(document.getElementById("cms-agenda-page-status").dataset.tone).toBe("warning");
+    expect(document.getElementById("cms-agenda-page-status").textContent).toContain(
+      "invalid required fields"
+    );
+  });
+
+  test("blocks publish current when required fields are invalid", async () => {
+    const writeAgendaRow = vi.fn().mockResolvedValue({
+      conflict: false,
+      action: "update",
+      key: "agendaBusinessCallings",
+      agendaId: "call1",
+      sheetRow: 3,
+      tabTitle: "Sheet1",
+      range: "Sheet1!A3:D3",
+      rowValues: ["agendaBusinessCallings", "call1", "Alice|"]
+    });
+
+    const app = createApp({
+      getDraft: vi.fn().mockResolvedValue({
+        selectedTabTitle: "Sheet1",
+        selectedKey: "agendaBusinessCallings"
+      }),
+      AgendaSheetServiceClass: class {
+        async getSheetModifiedTime() {
+          return "2026-06-27T08:00:00.000Z";
+        }
+
+        async listAgendaRows() {
+          return [
+            {
+              key: "agendaBusinessCallings",
+              agendaId: "call1",
+              sheetRow: 3,
+              values: [["Alice", ""]]
+            }
+          ];
+        }
+
+        async writeAgendaRow(row, selectedTab) {
+          return writeAgendaRow(row, selectedTab);
+        }
+      }
+    });
+
+    await app.initialize();
+    await app.handlePublishCurrent();
+
+    expect(writeAgendaRow).not.toHaveBeenCalled();
+    expect(document.getElementById("cms-agenda-page-status").dataset.tone).toBe("error");
+    expect(document.getElementById("cms-agenda-page-status").textContent).toContain(
+      "Fix validation errors before publishing"
+    );
+  });
+
+  test("does not publish current row when there are no meaningful changes", async () => {
+    const writeAgendaRow = vi.fn().mockResolvedValue({
+      conflict: false,
+      action: "update",
+      key: "agendaGeneral",
+      agendaId: "gen1",
+      sheetRow: 2,
+      tabTitle: "Sheet1",
+      range: "Sheet1!A2:C2",
+      rowValues: ["agendaGeneral", "gen1", "General note"]
+    });
+
+    const app = createApp({
+      AgendaSheetServiceClass: class {
+        async getSheetModifiedTime() {
+          return "2026-06-27T08:00:00.000Z";
+        }
+
+        async listAgendaRows() {
+          return [
+            { key: "agendaGeneral", agendaId: "gen1", sheetRow: 2, values: [["General note"]] }
+          ];
+        }
+
+        async writeAgendaRow(row, selectedTab) {
+          return writeAgendaRow(row, selectedTab);
+        }
+      }
+    });
+
+    await app.initialize();
+    await app.handlePublishCurrent();
+
+    expect(writeAgendaRow).not.toHaveBeenCalled();
+    expect(document.getElementById("cms-agenda-page-status").textContent).toContain(
+      "No pending changes"
+    );
+  });
+
+  test("publish all skips invalid pending rows", async () => {
+    const writeAgendaRow = vi.fn().mockResolvedValue({
+      conflict: false,
+      action: "update",
+      key: "agendaGeneral",
+      agendaId: "gen1",
+      sheetRow: 2,
+      tabTitle: "Sheet1",
+      range: "Sheet1!A2:C2",
+      rowValues: ["agendaGeneral", "gen1", "General note"]
+    });
+
+    const app = createApp({
+      getDraft: vi.fn().mockResolvedValue({
+        selectedTabTitle: "Sheet1",
+        selectedKey: "agendaBusinessCallings",
+        dirtyMap: {
+          agendaBusinessCallings: [["Alice", ""]]
+        }
+      }),
+      AgendaSheetServiceClass: class {
+        async getSheetModifiedTime() {
+          return "2026-06-27T08:00:00.000Z";
+        }
+
+        async listAgendaRows() {
+          return [
+            {
+              key: "agendaGeneral",
+              agendaId: "gen1",
+              sheetRow: 2,
+              values: [["General note"]]
+            }
+          ];
+        }
+
+        async writeAgendaRow(row, selectedTab) {
+          return writeAgendaRow(row, selectedTab);
+        }
+      }
+    });
+
+    await app.initialize();
+    await app.handlePublishAll();
+
+    expect(writeAgendaRow).not.toHaveBeenCalled();
+    expect(document.getElementById("cms-agenda-page-status").textContent).toContain(
+      "some items failed"
+    );
+
+    const pendingList = document.getElementById("cms-agenda-pending-list");
+    expect(pendingList.textContent).toContain("Callings row 1: Calling is required.");
+    expect(pendingList.querySelector(".cms-agenda__pending-status")?.dataset.tone).toBe(
+      "invalid"
+    );
+  });
+
+  test("publish all exits early when there are no pending changes", async () => {
+    const writeAgendaRow = vi.fn().mockResolvedValue({
+      conflict: false,
+      action: "update"
+    });
+
+    const app = createApp({
+      AgendaSheetServiceClass: class {
+        async getSheetModifiedTime() {
+          return "2026-06-27T08:00:00.000Z";
+        }
+
+        async listAgendaRows() {
+          return [
+            { key: "agendaGeneral", agendaId: "gen1", sheetRow: 2, values: [["General note"]] }
+          ];
+        }
+
+        async writeAgendaRow(row, selectedTab) {
+          return writeAgendaRow(row, selectedTab);
+        }
+      }
+    });
+
+    await app.initialize();
+    await app.handlePublishAll();
+
+    expect(writeAgendaRow).not.toHaveBeenCalled();
+    expect(document.getElementById("cms-agenda-page-status").textContent).toContain(
+      "No pending changes"
+    );
+  });
+
+  test("clicking a pending item loads that row into the editor", async () => {
+    const app = createApp({
+      getDraft: vi.fn().mockResolvedValue({
+        selectedTabTitle: "Sheet1",
+        selectedKey: "agendaGeneral",
+        dirtyMap: {
+          rowA: {
+            key: "agendaBusinessCallings",
+            agendaId: "call1",
+            sheetRow: 5,
+            values: [["Alice", "Primary President"]]
+          },
+          rowB: {
+            key: "agendaGeneral",
+            agendaId: "gen1",
+            sheetRow: 2,
+            values: [["General note"]]
+          }
+        }
+      }),
+      AgendaSheetServiceClass: class {
+        async getSheetModifiedTime() {
+          return "2026-06-27T08:00:00.000Z";
+        }
+
+        async listAgendaRows() {
+          return [];
+        }
+
+        async writeAgendaRow() {
+          return { conflict: false, action: "update" };
+        }
+      }
+    });
+
+    await app.initialize();
+
+    const pendingItems = Array.from(document.querySelectorAll(".cms-agenda__pending-item"));
+    const callingsItem = pendingItems.find(item => item.textContent.includes("agendaBusinessCallings"));
+
+    callingsItem?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(document.getElementById("cms-agenda-key-select").value).toBe("agendaBusinessCallings");
+    expect(document.getElementById("cms-agenda-editor-container").textContent).toContain(
+      "agendaBusinessCallings"
+    );
+    const activePending = document.querySelector('.cms-agenda__pending-item[data-active="true"]');
+    expect(activePending).toBeTruthy();
+  });
+
+  test("disables publish controls while a publish is in flight", async () => {
+    let resolveWrite;
+    const writePromise = new Promise(resolve => {
+      resolveWrite = resolve;
+    });
+
+    const app = createApp({
+      AgendaSheetServiceClass: class {
+        async getSheetModifiedTime() {
+          return "2026-06-27T08:00:00.000Z";
+        }
+
+        async listAgendaRows() {
+          return [
+            { key: "agendaGeneral", agendaId: "gen1", sheetRow: 2, values: [["General note"]] }
+          ];
+        }
+
+        async writeAgendaRow() {
+          await writePromise;
+          return {
+            conflict: false,
+            action: "update",
+            key: "agendaGeneral",
+            agendaId: "gen1",
+            sheetRow: 2,
+            tabTitle: "Sheet1",
+            range: "Sheet1!A2:C2",
+            rowValues: ["agendaGeneral", "gen1", "Updated note"]
+          };
+        }
+      }
+    });
+
+    await app.initialize();
+    editorInstance.values = [["Updated note"]];
+
+    const publishCurrent = app.handlePublishCurrent();
+    await Promise.resolve();
+
+    expect(document.getElementById("cms-agenda-publish-btn").disabled).toBe(true);
+    expect(document.getElementById("cms-agenda-publish-all-btn").disabled).toBe(true);
+
+    resolveWrite();
+    await publishCurrent;
+
+    expect(document.getElementById("cms-agenda-publish-btn").disabled).toBe(false);
+    expect(document.getElementById("cms-agenda-publish-all-btn").disabled).toBe(false);
+  });
+
   test("shows the configure prompt when Google settings are missing", async () => {
     const app = createApp({
       getMetadata: vi.fn().mockResolvedValue(null),
@@ -645,6 +1055,59 @@ describe("cms-agenda.js", () => {
     );
     expect(document.getElementById("cms-agenda-page-status").textContent).toContain("Sheet row 4");
     expect(document.getElementById("cms-agenda-key-change-hint").hidden).toBe(true);
+  });
+
+  test("rebinds to persisted row token after publishing a new row", async () => {
+    const writeAgendaRow = vi
+      .fn()
+      .mockResolvedValueOnce({
+        action: "append",
+        key: "agendaGeneral",
+        agendaId: "",
+        sheetRow: 9,
+        tabTitle: "Sheet1",
+        range: "Sheet1!A9:C9",
+        rowValues: ["agendaGeneral", "", "First note"]
+      })
+      .mockResolvedValueOnce({
+        action: "update",
+        key: "agendaGeneral",
+        agendaId: "",
+        sheetRow: 9,
+        tabTitle: "Sheet1",
+        range: "Sheet1!A9:C9",
+        rowValues: ["agendaGeneral", "", "Second note"]
+      });
+
+    const app = createApp({
+      AgendaSheetServiceClass: class {
+        async listAgendaRows() {
+          return [];
+        }
+
+        async writeAgendaRow(row, selectedTab) {
+          return writeAgendaRow(row, selectedTab);
+        }
+      }
+    });
+
+    await app.initialize();
+
+    editorInstance.values = [["First note"]];
+    await app.handlePublishCurrent();
+
+    editorInstance.values = [["Second note"]];
+    await app.handlePublishCurrent();
+
+    expect(writeAgendaRow).toHaveBeenCalledTimes(2);
+    expect(writeAgendaRow.mock.calls[1][0]).toEqual(
+      expect.objectContaining({
+        key: "agendaGeneral",
+        sheetRow: 9,
+        values: [["Second note"]]
+      })
+    );
+    expect(app.state.selectedRowToken).toBe(JSON.stringify(["", 9]));
   });
 
   test("translates the agenda CMS shell", async () => {
