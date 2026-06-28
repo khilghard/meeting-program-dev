@@ -1,10 +1,10 @@
 {
-  "version": "2.4.21",
-  "previousVersion": "2.4.20",
+  "version": "2.4.22",
+  "previousVersion": "2.4.21",
   "releaseDate": "2026-06-28",
   "compatibility": {
     "minimum": "2.1.1",
-    "current": "2.4.21"
+    "current": "2.4.22"
   },
   "features": {
     "enhancedPWA": true,

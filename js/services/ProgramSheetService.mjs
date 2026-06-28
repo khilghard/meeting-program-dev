@@ -24,11 +24,7 @@ import { DEFAULT_SHEET_TAB_NAME, toSheetRange } from "../utils/sheetRanges.js";
 const LOCALE_COLUMN_KEYS = new Set([
   "horizontalLine",
   "sacramentLine",
-  "generalStatement",
-  "lessonEQRS",
-  "lessonSundaySchool",
-  "lessonYouth",
-  "lessonPrimary"
+  "generalStatement"
 ]);
 
 /**
@@ -95,14 +91,18 @@ export class ProgramSheetService {
        toSheetRange(sheetName, `${keyColLetter}:${rangeEnd}`)
      );
 
+     const localeOffset = localeColIdx - keyColIdx;
+
      const rows = allRows
        .slice(1) // skip header
        .map((row) => {
          const key = row[0] ?? "";
          if (!key) return { key: "", value: "" };
 
-         const localeValues = localeColIndices.map((idx) => row[idx] ?? "");
-         const value = localeValues.join("|");
+         const normalizedKey = String(key).replace(/\d+$/, "");
+         const value = LOCALE_COLUMN_KEYS.has(normalizedKey)
+           ? localeColIndices.map((idx) => row[idx] ?? "").join("|")
+           : row[localeOffset] ?? "";
 
          return { key, value };
        })
