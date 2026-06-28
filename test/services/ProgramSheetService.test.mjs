@@ -49,8 +49,8 @@ describe("ProgramSheetService — readSheet", () => {
 
     expect(modifiedTime).toBe(MOD_TIME);
     expect(rows).toHaveLength(3);
-    expect(rows[0]).toEqual({ key: "presiding", value: "Bishop Jones|Obispo Jones|Évêque Jones|Askofu Jones" });
-    expect(rows[2]).toEqual({ key: "openingHymn", value: "How Firm a Foundation|||" });
+    expect(rows[0]).toEqual({ key: "presiding", value: "Bishop Jones" });
+    expect(rows[2]).toEqual({ key: "openingHymn", value: "How Firm a Foundation" });
   });
 
   test("returns es column values", async () => {
@@ -59,7 +59,7 @@ describe("ProgramSheetService — readSheet", () => {
     });
     const svc = new ProgramSheetService(client, EDIT_URL);
     const { rows } = await svc.readSheet("es");
-    expect(rows[0]).toEqual({ key: "presiding", value: "Bishop Jones|Obispo Jones|Évêque Jones|Askofu Jones" });
+    expect(rows[0]).toEqual({ key: "presiding", value: "Obispo Jones" });
   });
 
   test("filters out rows with empty key", async () => {
@@ -102,7 +102,7 @@ describe("ProgramSheetService — readSheet", () => {
     await svc.readSheet("en", "May 18, 2026");
 
     expect(client.getValues).toHaveBeenNthCalledWith(1, expect.any(String), "'May 18, 2026'!1:1");
-    expect(client.getValues).toHaveBeenNthCalledWith(2, expect.any(String), "'May 18, 2026'!A:E");
+    expect(client.getValues).toHaveBeenNthCalledWith(2, expect.any(String), "'May 18, 2026'!A:B");
   });
 
   test("accepts a selected-tab object from SheetTabService", async () => {
@@ -136,17 +136,17 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
     });
   }
 
-  test("calls batchUpdate with key plus all locale columns", async () => {
+  test("calls batchUpdate with key plus selected locale column", async () => {
     const client = makeWriteClient();
     const svc = new ProgramSheetService(client, EDIT_URL);
-    const edits = [{ key: "presiding", value: "New Bishop|||" }];
+    const edits = [{ key: "presiding", value: "New Bishop" }];
     const result = await svc.writeSheet(edits, "en", MOD_TIME);
 
     expect(result.conflict).toBe(false);
     expect(client.batchUpdate).toHaveBeenCalledTimes(1);
     const [, requests] = client.batchUpdate.mock.calls[0];
-    // 1 key column + 4 locale columns
-    expect(requests).toHaveLength(5);
+    // 1 key column + selected locale column
+    expect(requests).toHaveLength(2);
     expect(requests[0].range).toMatch(/^Sheet1!A/);
     expect(requests[1].range).toMatch(/^Sheet1!B/);
     expect(requests[1].values[0][0]).toBe("New Bishop");
@@ -156,8 +156,8 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
     const client = makeWriteClient();
     const svc = new ProgramSheetService(client, EDIT_URL);
     const edits = [
-      { key: "openingHymn", value: "How Firm a Foundation|||" },
-      { key: "presiding", value: "New Bishop|||" }
+      { key: "openingHymn", value: "How Firm a Foundation" },
+      { key: "presiding", value: "New Bishop" }
     ];
     await svc.writeSheet(edits, "en", MOD_TIME);
 
@@ -169,17 +169,14 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
   test("writes correct column letters for all locales", async () => {
     const client = makeWriteClient();
     const svc = new ProgramSheetService(client, EDIT_URL);
-    const edits = [{ key: "presiding", value: "New Bishop|||" }];
+    const edits = [{ key: "presiding", value: "New Bishop" }];
     await svc.writeSheet(edits, "en", MOD_TIME);
 
     const [, requests] = client.batchUpdate.mock.calls[0];
-    // key=A, en=B, es=C, fr=D, swa=E
+    // key=A, en=B
     expect(requests[0].range).toMatch(/^Sheet1!A/);
-    // en=B, es=C, fr=D, swa=E
     expect(requests[1].range).toMatch(/^Sheet1!B/);
-    expect(requests[2].range).toMatch(/^Sheet1!C/);
-    expect(requests[3].range).toMatch(/^Sheet1!D/);
-    expect(requests[4].range).toMatch(/^Sheet1!E/);
+    expect(requests).toHaveLength(2);
   });
 
   test("does not call batchUpdate if no data rows", async () => {
@@ -196,14 +193,14 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
     const svc = new ProgramSheetService(client, EDIT_URL);
 
     await svc.writeSheet(
-      [{ key: "presiding", value: "New Bishop|||" }],
+      [{ key: "presiding", value: "New Bishop" }],
       "en",
       MOD_TIME,
       "May 18, 2026"
     );
 
     expect(client.getValues).toHaveBeenNthCalledWith(1, expect.any(String), "'May 18, 2026'!1:1");
-    expect(client.getValues).toHaveBeenNthCalledWith(2, expect.any(String), "'May 18, 2026'!A:E");
+    expect(client.getValues).toHaveBeenNthCalledWith(2, expect.any(String), "'May 18, 2026'!A:B");
     const [, requests] = client.batchUpdate.mock.calls[0];
     expect(requests[0].range).toBe("'May 18, 2026'!A2:A4");
   });
@@ -212,7 +209,7 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
     const client = makeWriteClient();
     const svc = new ProgramSheetService(client, EDIT_URL);
 
-    await svc.writeSheet([{ key: "presiding", value: "New Bishop|||" }], "en", MOD_TIME, {
+    await svc.writeSheet([{ key: "presiding", value: "New Bishop" }], "en", MOD_TIME, {
       sheetId: 10,
       title: "May 18, 2026",
       index: 0,
@@ -229,8 +226,8 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
 
     await svc.writeSheet(
       [
-        { key: "presiding", value: "New Bishop|||" },
-        { key: "speaker1", value: "Sister Adams|||" }
+        { key: "presiding", value: "New Bishop" },
+        { key: "speaker1", value: "Sister Adams" }
       ],
       "en",
       MOD_TIME
@@ -254,9 +251,9 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
 
     await svc.writeSheet(
       [
-        { key: "speaker", value: "Alice|||" },
-        { key: "speaker", value: "Bob|||" },
-        { key: "closingPrayer", value: "Brother Lee|||" }
+        { key: "speaker", value: "Alice" },
+        { key: "speaker", value: "Bob" },
+        { key: "closingPrayer", value: "Brother Lee" }
       ],
       "en",
       MOD_TIME
@@ -265,6 +262,63 @@ describe("ProgramSheetService — writeSheet (no conflict)", () => {
     const [, requests] = client.batchUpdate.mock.calls[0];
     expect(requests[0].values).toEqual([["speaker"], ["speaker"], ["closingPrayer"]]);
     expect(requests[1].values).toEqual([["Alice"], ["Bob"], ["Brother Lee"]]);
+  });
+
+  test("keeps leader payload serialized in one locale cell", async () => {
+    const client = makeWriteClient();
+    const svc = new ProgramSheetService(client, EDIT_URL);
+    const leaderValue = "Jane Doe|555-1234|Relief Society President";
+
+    await svc.writeSheet([{ key: "leader", value: leaderValue }], "en", MOD_TIME);
+
+    const [, requests] = client.batchUpdate.mock.calls[0];
+    expect(requests).toHaveLength(2);
+    expect(requests[1].range).toBe("Sheet1!B2:B4");
+    expect(requests[1].values[0][0]).toBe(leaderValue);
+  });
+
+  test("keeps linkWithSpace payload serialized in one locale cell", async () => {
+    const client = makeWriteClient();
+    const svc = new ProgramSheetService(client, EDIT_URL);
+    const linkWithSpaceValue =
+      "<IMG> Gospel Library|https://example.com|https://example.com/img.png";
+
+    await svc.writeSheet([{ key: "linkWithSpace", value: linkWithSpaceValue }], "en", MOD_TIME);
+
+    const [, requests] = client.batchUpdate.mock.calls[0];
+    expect(requests).toHaveLength(2);
+    expect(requests[1].range).toBe("Sheet1!B2:B4");
+    expect(requests[1].values[0][0]).toBe(linkWithSpaceValue);
+  });
+
+  test("keeps generalStatementWithLink payload serialized in one locale cell", async () => {
+    const client = makeWriteClient();
+    const svc = new ProgramSheetService(client, EDIT_URL);
+    const statementWithLinkValue = "Lesson: January 1<LINK>|https://example.com";
+
+    await svc.writeSheet(
+      [{ key: "generalStatementWithLink", value: statementWithLinkValue }],
+      "en",
+      MOD_TIME
+    );
+
+    const [, requests] = client.batchUpdate.mock.calls[0];
+    expect(requests).toHaveLength(2);
+    expect(requests[1].range).toBe("Sheet1!B2:B4");
+    expect(requests[1].values[0][0]).toBe(statementWithLinkValue);
+  });
+
+  test("keeps lesson key locale bundle serialized in one locale cell", async () => {
+    const client = makeWriteClient();
+    const svc = new ProgramSheetService(client, EDIT_URL);
+    const lessonValue = "EQRS Topic|Tema EQRS|Sujet EQRSD|Somo la EQRS";
+
+    await svc.writeSheet([{ key: "lessonEQRS", value: lessonValue }], "en", MOD_TIME);
+
+    const [, requests] = client.batchUpdate.mock.calls[0];
+    expect(requests).toHaveLength(2);
+    expect(requests[1].range).toBe("Sheet1!B2:B4");
+    expect(requests[1].values[0][0]).toBe(lessonValue);
   });
 });
 
@@ -281,7 +335,7 @@ describe("ProgramSheetService — writeSheet (conflict detection)", () => {
       getValues: vi.fn().mockResolvedValue(HEADER)
     });
     const svc = new ProgramSheetService(client, EDIT_URL);
-    const result = await svc.writeSheet([{ key: "presiding", value: "x|||" }], "en", MOD_TIME);
+    const result = await svc.writeSheet([{ key: "presiding", value: "x" }], "en", MOD_TIME);
 
     expect(result.conflict).toBe(true);
     expect(result.modifiedTime).toBe(MOD_TIME_NEWER);
@@ -293,7 +347,7 @@ describe("ProgramSheetService — writeSheet (conflict detection)", () => {
       getValues: vi.fn().mockResolvedValueOnce(HEADER).mockResolvedValueOnce(FULL_SHEET)
     });
     const svc = new ProgramSheetService(client, EDIT_URL);
-    const result = await svc.writeSheet([{ key: "presiding", value: "x|||" }], "en", null);
+    const result = await svc.writeSheet([{ key: "presiding", value: "x" }], "en", null);
     expect(result.conflict).toBe(false);
     expect(client.batchUpdate).toHaveBeenCalledTimes(1);
   });
@@ -325,9 +379,9 @@ describe("ProgramSheetService — writeSheetWithDeletes", () => {
     const client = makeWriteClient();
     const svc = new ProgramSheetService(client, EDIT_URL);
     const edits = [
-      { key: "presiding", value: "New Bishop|||" },
-      { key: "conducting", value: "Should Not Appear|||" },
-      { key: "openingHymn", value: "How Firm a Foundation|||" }
+      { key: "presiding", value: "New Bishop" },
+      { key: "conducting", value: "Should Not Appear" },
+      { key: "openingHymn", value: "How Firm a Foundation" }
     ];
     const deletedKeys = ["conducting"];
     const result = await svc.writeSheetWithDeletes(edits, "en", MOD_TIME, "Sheet1", deletedKeys);
@@ -342,9 +396,9 @@ describe("ProgramSheetService — writeSheetWithDeletes", () => {
     const client = makeWriteClient();
     const svc = new ProgramSheetService(client, EDIT_URL);
     const edits = [
-      { key: "presiding", value: "New Bishop|||" },
-      { key: "conducting", value: "Should Not Appear|||" },
-      { key: "openingHymn", value: "Also Remove|||" }
+      { key: "presiding", value: "New Bishop" },
+      { key: "conducting", value: "Should Not Appear" },
+      { key: "openingHymn", value: "Also Remove" }
     ];
     const deletedKeys = ["conducting", "openingHymn"];
     await svc.writeSheetWithDeletes(edits, "en", MOD_TIME, "Sheet1", deletedKeys);
@@ -358,9 +412,9 @@ describe("ProgramSheetService — writeSheetWithDeletes", () => {
     const client = makeWriteClient();
     const svc = new ProgramSheetService(client, EDIT_URL);
     const edits = [
-      { key: "presiding", value: "New Bishop|||" },
-      { key: "speaker1", value: "Sister Adams|||" },
-      { key: "conducting", value: "Should Not Appear|||" }
+      { key: "presiding", value: "New Bishop" },
+      { key: "speaker1", value: "Sister Adams" },
+      { key: "conducting", value: "Should Not Appear" }
     ];
     const deletedKeys = ["conducting"];
     await svc.writeSheetWithDeletes(edits, "en", MOD_TIME, "Sheet1", deletedKeys);
@@ -373,7 +427,7 @@ describe("ProgramSheetService — writeSheetWithDeletes", () => {
   test("falls back to writeSheet when deletedKeys is empty", async () => {
     const client = makeWriteClient();
     const svc = new ProgramSheetService(client, EDIT_URL);
-    const edits = [{ key: "presiding", value: "New Bishop|||" }];
+    const edits = [{ key: "presiding", value: "New Bishop" }];
     await svc.writeSheetWithDeletes(edits, "en", MOD_TIME, "Sheet1", []);
 
     expect(client.batchUpdate).toHaveBeenCalledTimes(1);
@@ -383,7 +437,7 @@ describe("ProgramSheetService — writeSheetWithDeletes", () => {
   test("handles deletedKeys that do not match any existing row gracefully", async () => {
     const client = makeWriteClient();
     const svc = new ProgramSheetService(client, EDIT_URL);
-    const edits = [{ key: "presiding", value: "New Bishop|||" }];
+    const edits = [{ key: "presiding", value: "New Bishop" }];
     const deletedKeys = ["nonExistentKey"];
     const result = await svc.writeSheetWithDeletes(edits, "en", MOD_TIME, "Sheet1", deletedKeys);
 
@@ -401,7 +455,7 @@ describe("ProgramSheetService — writeSheetWithDeletes", () => {
     });
     const svc = new ProgramSheetService(client, EDIT_URL);
     const result = await svc.writeSheetWithDeletes(
-      [{ key: "presiding", value: "x|||" }],
+      [{ key: "presiding", value: "x" }],
       "en",
       MOD_TIME,
       "Sheet1",
@@ -418,8 +472,8 @@ describe("ProgramSheetService — writeSheetWithDeletes", () => {
     const client = makeWriteClient();
     const svc = new ProgramSheetService(client, EDIT_URL);
     const edits = [
-      { key: "presiding", value: "New Bishop|||" },
-      { key: "conducting", value: "Should Not Appear|||" }
+      { key: "presiding", value: "New Bishop" },
+      { key: "conducting", value: "Should Not Appear" }
     ];
     const deletedKeys = ["conducting"];
     await svc.writeSheetWithDeletes(edits, "en", MOD_TIME, "Sheet1", deletedKeys);

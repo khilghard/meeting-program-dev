@@ -66,18 +66,14 @@ export class ProgramSheetService {
      const colMap = this._buildColMap(headerRow);
      const { keyColIdx, localeColIdx } = this._resolveColumns(colMap, locale);
 
-     // Find all locale column indices to read multi-language values
-     const LOCALES = ["en", "es", "fr", "swa"];
-     const localeColIndices = LOCALES.map(loc => colMap[loc]).filter(idx => idx !== undefined);
-     const maxLocaleColIdx = localeColIndices.length > 0 ? Math.max(...localeColIndices) : localeColIdx;
-
      const keyColLetter = columnIndexToLetter(keyColIdx);
-     const rangeEnd = columnIndexToLetter(Math.max(maxLocaleColIdx, localeColIdx));
+     const localeColLetter = columnIndexToLetter(localeColIdx);
+     const localeOffset = localeColIdx - keyColIdx;
 
-     // Read from key column through the last locale column
+     // Read from key column through the selected locale column only.
      const allRows = await this._client.getValues(
        id,
-       toSheetRange(sheetName, `${keyColLetter}:${rangeEnd}`)
+       toSheetRange(sheetName, `${keyColLetter}:${localeColLetter}`)
      );
 
      const rows = allRows
@@ -86,9 +82,8 @@ export class ProgramSheetService {
          const key = row[0] ?? "";
          if (!key) return { key: "", value: "" };
 
-         // Combine all locale columns into pipe-delimited value
-         const localeValues = localeColIndices.map(idx => row[idx] ?? "");
-         const value = localeValues.join("|");
+         // Keep locale payload intact (e.g., leader "name|phone|calling").
+         const value = row[localeOffset] ?? "";
 
          return { key, value };
        })
@@ -158,13 +153,9 @@ export class ProgramSheetService {
 
     const headerRow = headerRows[0] ?? [];
     const colMap = this._buildColMap(headerRow);
-    const { keyColIdx } = this._resolveColumns(colMap, locale);
+    const { keyColIdx, localeColIdx } = this._resolveColumns(colMap, locale);
 
-    // Find all locale column indices
-    const LOCALES = ["en", "es", "fr", "swa"];
-    const localeColIndices = LOCALES.map((loc) => colMap[loc]).filter((idx) => idx !== undefined);
-    const maxLocaleColIdx = localeColIndices.length > 0 ? Math.max(...localeColIndices) : colMap[locale];
-    const rangeEnd = columnIndexToLetter(maxLocaleColIdx);
+    const rangeEnd = columnIndexToLetter(localeColIdx);
     const keyColLetter = columnIndexToLetter(keyColIdx);
 
     // Read current values (key column through the last locale column) so we can
@@ -182,13 +173,10 @@ export class ProgramSheetService {
         if (key === "split:program" || key === "split:general") return false;
         return !deletedKeys.includes(key);
       })
-      .map((row) => {
-        const localeParts = String(row.value ?? "").split("|");
-        return {
-          key: row.key,
-          localeValues: localeColIndices.map((_, idx) => localeParts[idx] ?? "")
-        };
-      });
+      .map((row) => ({
+        key: row.key,
+        localeValue: String(row.value ?? "")
+      }));
 
     const rowCountToWrite = Math.max(existingDataRowCount, editedRows.length);
     if (rowCountToWrite === 0) {
@@ -203,13 +191,11 @@ export class ProgramSheetService {
       }
     ];
 
-    for (let i = 0; i < localeColIndices.length; i++) {
-      const colLetter = columnIndexToLetter(localeColIndices[i]);
-      requests.push({
-        range: toSheetRange(sheetName, `${colLetter}2:${colLetter}${rowEnd}`),
-        values: Array.from({ length: rowCountToWrite }, (_, idx) => [editedRows[idx]?.localeValues[i] ?? ""])
-      });
-    }
+    const localeColLetter = columnIndexToLetter(localeColIdx);
+    requests.push({
+      range: toSheetRange(sheetName, `${localeColLetter}2:${localeColLetter}${rowEnd}`),
+      values: Array.from({ length: rowCountToWrite }, (_, idx) => [editedRows[idx]?.localeValue ?? ""])
+    });
 
     await this._client.batchUpdate(id, requests);
 
