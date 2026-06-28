@@ -467,21 +467,21 @@ describe("CmsEditor — oilLamp", () => {
     editor = new CmsEditor("cms-editor-container");
   };
 
-  test("shows checked checkbox when sheet has an oilLamp row", () => {
+  test("shows oilLamp optional caption input when sheet has an oilLamp row", () => {
     mount();
     editor.initialize([{ key: "oilLamp", value: "" }]);
 
-    const checkbox = container.querySelector('[data-key="oilLamp"][type="checkbox"]');
-    expect(checkbox).toBeTruthy();
-    expect(checkbox.checked).toBe(true);
+    const captionInput = container.querySelector('[data-key="oilLamp"][data-part="caption"]');
+    expect(captionInput).toBeTruthy();
+    expect(captionInput.getAttribute("type")).toBe("text");
   });
 
-  test("does not show oilLamp checkbox when sheet has no oilLamp row", () => {
+  test("does not show oilLamp optional caption input when sheet has no oilLamp row", () => {
     mount();
     editor.initialize([{ key: "unitName", value: "Millcreek 5th Ward" }]);
 
-    const checkbox = container.querySelector('[data-key="oilLamp"][type="checkbox"]');
-    expect(checkbox).toBeFalsy();
+    const captionInput = container.querySelector('[data-key="oilLamp"][data-part="caption"]');
+    expect(captionInput).toBeFalsy();
   });
 
   test("when oilLamp row exists, includes it in getAllRows", () => {

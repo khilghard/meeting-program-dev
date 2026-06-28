@@ -66,14 +66,18 @@ export class ProgramSheetService {
      const colMap = this._buildColMap(headerRow);
      const { keyColIdx, localeColIdx } = this._resolveColumns(colMap, locale);
 
-     const keyColLetter = columnIndexToLetter(keyColIdx);
-     const localeColLetter = columnIndexToLetter(localeColIdx);
-     const localeOffset = localeColIdx - keyColIdx;
+     // Read from key through all locale columns so CMS can edit EN/ES/FR/SWA
+     // values for user-translated keys in one row payload.
+     const LOCALES = ["en", "es", "fr", "swa"];
+     const localeColIndices = LOCALES.map((loc) => colMap[loc]).filter((idx) => idx !== undefined);
+     const maxLocaleColIdx = localeColIndices.length > 0 ? Math.max(...localeColIndices) : localeColIdx;
 
-     // Read from key column through the selected locale column only.
+     const keyColLetter = columnIndexToLetter(keyColIdx);
+     const rangeEnd = columnIndexToLetter(Math.max(maxLocaleColIdx, localeColIdx));
+
      const allRows = await this._client.getValues(
        id,
-       toSheetRange(sheetName, `${keyColLetter}:${localeColLetter}`)
+       toSheetRange(sheetName, `${keyColLetter}:${rangeEnd}`)
      );
 
      const rows = allRows
@@ -82,8 +86,8 @@ export class ProgramSheetService {
          const key = row[0] ?? "";
          if (!key) return { key: "", value: "" };
 
-         // Keep locale payload intact (e.g., leader "name|phone|calling").
-         const value = row[localeOffset] ?? "";
+         const localeValues = localeColIndices.map((idx) => row[idx] ?? "");
+         const value = localeValues.join("|");
 
          return { key, value };
        })
