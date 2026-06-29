@@ -90,6 +90,19 @@ describe('parseFieldValue and serializeFieldValue round-trip', () => {
     });
   });
 
+  it('handles photo locale pairs (url + optional caption per locale)', () => {
+    testRoundTrip('photo', {
+      url: 'https://example.com/photo-en.jpg',
+      caption: 'EN Caption',
+      url_es: 'https://example.com/photo-es.jpg',
+      caption_es: 'ES Caption',
+      url_fr: '',
+      caption_fr: '',
+      url_swa: 'https://example.com/photo-swa.jpg',
+      caption_swa: ''
+    });
+  });
+
     it('handles oilLamp with optional caption', () => {
       testRoundTrip('oilLamp', { enabled: true, caption: 'Let your light so shine' });
       expect(parseFieldValue('oilLamp', 'true')).toEqual({ enabled: true, caption: '' });

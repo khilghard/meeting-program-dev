@@ -26,7 +26,7 @@ console.log(`[SW] BASE_PATH detected: "${BASE_PATH}"`);
 // Legacy support - keep old MPPATH for existing users
 const MPPATH = BASE_PATH || "/meeting-program-dev";
 const APP_PREFIX = "smpwa";
-const VERSION = "2.4.24";
+const VERSION = "2.4.25";
 const CACHE_NAME = `${APP_PREFIX}-${VERSION}`;
 
 // All users now on 2.2.x - single unified cache scheme
@@ -155,13 +155,21 @@ async function handleStaticCache(req) {
   } catch (fetchErr) {
     // Network failed, fall back to cached version (offline support)
     try {
-      const cached = await caches.match(req);
-      if (cached) {
+      const cachedExact = await caches.match(req);
+      if (cachedExact) {
         const isMainJs = req.url.includes("main.js");
         console.log(
           `[SW] ${isMainJs ? "CRITICAL: Serving CACHED main.js (may be outdated)" : "Serving cached"}: ${req.url}`
         );
-        return cached;
+        return cachedExact;
+      }
+
+      // If versioned query params changed (e.g. ?v=2.4.23 -> ?v=2.4.24),
+      // still allow static fallback to the same path in cache.
+      const cachedIgnoreSearch = await caches.match(req, { ignoreSearch: true });
+      if (cachedIgnoreSearch) {
+        console.log(`[SW] Serving cached (ignoreSearch): ${req.url}`);
+        return cachedIgnoreSearch;
       }
     } catch (cacheErr) {
       console.warn(`[SW] Cache lookup failed:`, cacheErr);
@@ -169,7 +177,30 @@ async function handleStaticCache(req) {
 
     // Both network and cache failed
     console.error(`[SW] No cached or network response for:`, req.url);
-    throw fetchErr;
+
+    // Never reject respondWith() for static assets; return an explicit response
+    // so the fetch event does not surface as an unhandled promise rejection.
+    const fallbackHeaders = new Headers({
+      "X-SW-Fallback": "static-offline",
+      "Cache-Control": "no-store"
+    });
+    if (req.destination === "style") {
+      fallbackHeaders.set("Content-Type", "text/css; charset=utf-8");
+      return new Response("", { status: 503, statusText: "Offline", headers: fallbackHeaders });
+    }
+    if (req.destination === "script") {
+      fallbackHeaders.set("Content-Type", "application/javascript; charset=utf-8");
+      return new Response("", { status: 503, statusText: "Offline", headers: fallbackHeaders });
+    }
+    if (req.destination === "document") {
+      fallbackHeaders.set("Content-Type", "text/html; charset=utf-8");
+      return new Response(
+        "<!doctype html><html><body><h1>Offline</h1><p>Content unavailable offline.</p></body></html>",
+        { status: 503, statusText: "Offline", headers: fallbackHeaders }
+      );
+    }
+
+    return new Response("", { status: 503, statusText: "Offline", headers: fallbackHeaders });
   }
 }
 
