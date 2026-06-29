@@ -75,6 +75,37 @@ describe("CmsEditor helpers", () => {
       url: "https://example.com"
     });
   });
+
+  test("serializeFieldValue serializes lesson keys as locale name+link pairs", () => {
+    const value = serializeFieldValue("lessonEQRS", {
+      text: "February 8 - No One Sits Alone",
+      url: "https://example.com/en",
+      text_es: "8 de febrero - Nadie se sienta solo",
+      url_es: "https://example.com/es"
+    });
+
+    expect(value).toBe(
+      "February 8 - No One Sits Alone|https://example.com/en|8 de febrero - Nadie se sienta solo|https://example.com/es"
+    );
+  });
+
+  test("parseFieldValue parses lesson locale name+link pairs", () => {
+    expect(
+      parseFieldValue(
+        "lessonPrimary",
+        "I Am a Child of God|https://example.com/en|Soy un hijo de Dios|https://example.com/es"
+      )
+    ).toEqual({
+      text: "I Am a Child of God",
+      url: "https://example.com/en",
+      text_es: "Soy un hijo de Dios",
+      url_es: "https://example.com/es",
+      text_fr: "",
+      url_fr: "",
+      text_swa: "",
+      url_swa: ""
+    });
+  });
 });
 
 describe("CmsEditor component", () => {
@@ -421,6 +452,123 @@ describe("CmsEditor component", () => {
     expect(options).not.toContain("speaker");
     
     modal.querySelector('.cms-modal__cancel-btn').click();
+  });
+
+      test("general section insert modal includes all lesson keys", () => {
+        editor.initialize([
+          { key: "unitName", value: "Ward" },
+          { key: "presiding", value: "Bishop" },
+          { key: "closingPrayer", value: "Brother Smith" }
+        ]);
+
+        const addBtn = container.querySelector('.cms-insert-btn[data-insert-section="general"]');
+        expect(addBtn).toBeTruthy();
+        addBtn.click();
+
+        const modal = document.querySelector('.cms-modal');
+        expect(modal).toBeTruthy();
+        const select = modal.querySelector('#add-row-key-select');
+        const options = Array.from(select.options).map((opt) => opt.value);
+
+        expect(options).toContain("lessonEQRS");
+        expect(options).toContain("lessonSundaySchool");
+        expect(options).toContain("lessonYouth");
+        expect(options).toContain("lessonPrimary");
+
+        modal.querySelector('.cms-modal__cancel-btn').click();
+      });
+
+  test("general section row key dropdown includes all lesson keys", () => {
+    editor.initialize([
+      { key: "unitName", value: "Ward" },
+      { key: "presiding", value: "Bishop" },
+      { key: "closingPrayer", value: "Brother Smith" },
+      { key: "horizontalLine", value: "General" }
+    ]);
+
+    const generalSelect = container.querySelector(
+      '.cms-row[data-section="general"] .cms-row__key-select'
+    );
+    expect(generalSelect).toBeTruthy();
+
+    const options = Array.from(generalSelect.options).map((opt) => opt.value);
+    expect(options).toContain("lessonEQRS");
+    expect(options).toContain("lessonSundaySchool");
+    expect(options).toContain("lessonYouth");
+    expect(options).toContain("lessonPrimary");
+  });
+
+  test("general dropdown keeps EQRS and Sunday School available when already present", () => {
+    editor.initialize([
+      { key: "unitName", value: "Ward" },
+      { key: "presiding", value: "Bishop" },
+      { key: "closingPrayer", value: "Brother Smith" },
+      { key: "lessonEQRS", value: "EQRS topic|https://example.com/eqrs" },
+      {
+        key: "lessonSundaySchool",
+        value: "Sunday School topic|https://example.com/sunday"
+      },
+      { key: "horizontalLine", value: "General" }
+    ]);
+
+    const horizontalLineRowSelect = Array.from(
+      container.querySelectorAll('.cms-row[data-section="general"] .cms-row__key-select')
+    ).find((select) => select.value === "horizontalLine");
+
+    expect(horizontalLineRowSelect).toBeTruthy();
+
+    const options = Array.from(horizontalLineRowSelect.options).map((opt) => opt.value);
+    expect(options).toContain("lessonEQRS");
+    expect(options).toContain("lessonSundaySchool");
+    expect(options).toContain("lessonYouth");
+    expect(options).toContain("lessonPrimary");
+  });
+
+  test("lesson rows render locale name and link fields with EN required", () => {
+    editor.initialize([
+      { key: "unitName", value: "Ward" },
+      {
+        key: "lessonEQRS",
+        value:
+          "February 8 - No One Sits Alone|https://example.com/en|8 de febrero - Nadie se sienta solo|https://example.com/es"
+      }
+    ]);
+
+    const lessonRow = container.querySelector(
+      '.cms-row[data-section="general"] .cms-field__input[data-key="lessonEQRS"]'
+    )?.closest(".cms-row");
+    expect(lessonRow).toBeTruthy();
+
+    const textInputs = lessonRow.querySelectorAll('.cms-field__input[data-key="lessonEQRS"][data-part="text"]');
+    const urlInputs = lessonRow.querySelectorAll('.cms-field__input[data-key="lessonEQRS"][data-part="url"]');
+    const localeTitles = Array.from(lessonRow.querySelectorAll('.cms-locale-group__title')).map((el) =>
+      el.textContent.trim()
+    );
+    const lessonLabels = Array.from(lessonRow.querySelectorAll('.cms-field__label')).map((el) =>
+      el.textContent.trim()
+    );
+    const twoUpGroups = lessonRow.querySelectorAll('.cms-locale-group__fields--two-up');
+
+    expect(textInputs.length).toBe(4);
+    expect(urlInputs.length).toBe(4);
+    expect(localeTitles).toEqual(["EN", "ES", "FR", "SWA"]);
+    expect(lessonLabels).toContain("Name for Lesson");
+    expect(lessonLabels).toContain("Link to Lesson");
+    expect(twoUpGroups.length).toBe(4);
+    expect(textInputs[0].required).toBe(true);
+    expect(urlInputs[0].required).toBe(true);
+    expect(textInputs[1].required).toBe(false);
+    expect(urlInputs[1].required).toBe(false);
+  });
+
+  test("lesson rows require EN name and link on validate", () => {
+    editor.initialize([
+      { key: "unitName", value: "Ward" },
+      { key: "lessonYouth", value: "Youth Topic Only" }
+    ]);
+
+    const errors = editor.validate();
+    expect(errors.some((error) => error.message.includes("lessonYouth requires EN name and link."))).toBe(true);
   });
 
   test("date field uses date picker and round-trips correctly", () => {

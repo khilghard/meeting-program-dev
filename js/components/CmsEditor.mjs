@@ -100,6 +100,10 @@ const MAX_REPEATABLE_ITEMS = {
   speaker: 10,
   intermediateHymn: 5,
   leader: 20,
+  lessonEQRS: 100,
+  lessonSundaySchool: 100,
+  lessonYouth: 100,
+  lessonPrimary: 100,
   agendaAnnouncements: 20,
   agendaBusinessReleases: 20,
   agendaBusinessCallings: 20,
@@ -128,6 +132,15 @@ const USER_TRANSLATED_KEYS = new Set([
 const REQUIRED_ENGLISH_TEXT_KEYS = new Set(["generalStatement", "linkWithSpace"]);
 
 const LINK_WITH_SPACE_LOCALES = ["en", "es", "fr", "swa"];
+
+const LESSON_TRANSLATED_KEYS = new Set([
+  "lessonEQRS",
+  "lessonSundaySchool",
+  "lessonYouth",
+  "lessonPrimary"
+]);
+
+const REQUIRED_ENGLISH_TEXT_AND_URL_KEYS = new Set(LESSON_TRANSLATED_KEYS);
 
 function joinPartsPreserveGaps(parts) {
   const normalized = parts.map((part) => String(part ?? ""));
@@ -440,6 +453,46 @@ export function parseFieldValue(keyType, raw) {
         enabled: true,
         caption: /^(yes|true)$/i.test(parts[0] || "") ? "" : parts[0] || ""
       };
+    case "lessonEQRS":
+    case "lessonSundaySchool":
+    case "lessonYouth":
+    case "lessonPrimary": {
+      const parsed = { text: "", url: "" };
+      for (const locale of LINK_WITH_SPACE_LOCALES) {
+        const suffix = locale === "en" ? "" : `_${locale}`;
+        parsed[`text${suffix}`] = "";
+        parsed[`url${suffix}`] = "";
+      }
+
+      // Modern format: text|url pairs for en/es/fr/swa.
+      if (parts.length >= 3) {
+        LINK_WITH_SPACE_LOCALES.forEach((locale, idx) => {
+          const base = idx * 2;
+          const suffix = locale === "en" ? "" : `_${locale}`;
+          if (base < parts.length) {
+            parsed[`text${suffix}`] = parts[base] || "";
+          }
+          if (base + 1 < parts.length) {
+            parsed[`url${suffix}`] = parts[base + 1] || "";
+          }
+        });
+        return parsed;
+      }
+
+      // Legacy translated text-only format: en|es|fr|swa.
+      if (parts.length === 4 && !isSafeUrl(parts[1])) {
+        parsed.text = parts[0] || "";
+        parsed.text_es = parts[1] || "";
+        parsed.text_fr = parts[2] || "";
+        parsed.text_swa = parts[3] || "";
+        return parsed;
+      }
+
+      // Legacy EN-only format: either "text" or "text|url".
+      parsed.text = parts[0] || "";
+      parsed.url = parts[1] || "";
+      return parsed;
+    }
     default:
       // For user-translated keys, parse up to 4 locale parts: en|es|fr|swa
       if (USER_TRANSLATED_KEYS.has(normalizedKey)) {
@@ -502,6 +555,19 @@ export function serializeFieldValue(keyType, value) {
       return joinParts([sanitisePart(value.url), sanitisePart(value.caption)]);
     case "oilLamp":
       return sanitisePart(value.caption);
+    case "lessonEQRS":
+    case "lessonSundaySchool":
+    case "lessonYouth":
+    case "lessonPrimary":
+      return joinPartsPreserveGaps(
+        LINK_WITH_SPACE_LOCALES.flatMap((locale) => {
+          const suffix = locale === "en" ? "" : `_${locale}`;
+          return [
+            sanitisePart(value[`text${suffix}`] ?? ""),
+            sanitisePart(value[`url${suffix}`] ?? "")
+          ];
+        })
+      );
     default:
       // For user-translated keys, collect locale-specific fields
       const normalizedKey = normalizeCmsKeyType(keyType);
@@ -897,16 +963,28 @@ function getFieldDefinition(keyType) {
     },
     obsolete: { fields: [{ name: "text", type: "text", placeholder: "cms.input.obsolete" }] },
     lessonEQRS: {
-      fields: [{ name: "text", type: "text", placeholder: "cms.input.lessonTitleOrTopic" }]
+      fields: [
+        { name: "text", type: "text", placeholder: "cms.input.lessonTitleOrTopic" },
+        { name: "url", type: "text", placeholder: "cms.input.url" }
+      ]
     },
     lessonSundaySchool: {
-      fields: [{ name: "text", type: "text", placeholder: "cms.input.lessonTitleOrTopic" }]
+      fields: [
+        { name: "text", type: "text", placeholder: "cms.input.lessonTitleOrTopic" },
+        { name: "url", type: "text", placeholder: "cms.input.url" }
+      ]
     },
     lessonYouth: {
-      fields: [{ name: "text", type: "text", placeholder: "cms.input.lessonTitleOrTopic" }]
+      fields: [
+        { name: "text", type: "text", placeholder: "cms.input.lessonTitleOrTopic" },
+        { name: "url", type: "text", placeholder: "cms.input.url" }
+      ]
     },
     lessonPrimary: {
-      fields: [{ name: "text", type: "text", placeholder: "cms.input.lessonTitleOrTopic" }]
+      fields: [
+        { name: "text", type: "text", placeholder: "cms.input.lessonTitleOrTopic" },
+        { name: "url", type: "text", placeholder: "cms.input.url" }
+      ]
     },
     agendaGeneral: {
       fields: [{ name: "text", type: "text", placeholder: "cms.input.generalNotes" }]
@@ -1502,7 +1580,9 @@ class CmsEditor {
    * Render editable rows with inline insert buttons after each row.
    */
   renderRowsWithInsertButtons(rows, section, options) {
-    if (!rows || rows.length === 0) return "";
+    if (!rows || rows.length === 0) {
+      return this.renderInsertButton(0, section);
+    }
 
     const sectionMap = { unitInfo: "unitRows", program: "programRows", general: "generalRows" };
     const propertyName = sectionMap[section];
@@ -1753,6 +1833,48 @@ class CmsEditor {
       return html;
     }
 
+    if (LESSON_TRANSLATED_KEYS.has(normalizedKey)) {
+      const nameLabel = "Name for Lesson";
+      const linkLabel = "Link to Lesson";
+
+      for (const locale of LINK_WITH_SPACE_LOCALES) {
+        const suffix = locale === "en" ? "" : `_${locale}`;
+        const isEnglish = locale === "en";
+        const textValue = value[`text${suffix}`] || "";
+        const urlValue = value[`url${suffix}`] || "";
+
+        html += `
+          <div class="cms-locale-group cms-locale-group--lesson">
+            <div class="cms-locale-group__title">${locale.toUpperCase()}</div>
+            <div class="cms-locale-group__fields cms-locale-group__fields--two-up">
+              <div class="cms-field cms-field--text">
+                <label class="cms-field__label">${nameLabel}</label>
+                <input type="text" class="cms-field__input" maxlength="1000"
+                       data-key="${key}" data-part="text" data-locale="${locale}"
+                       value="${escapeHtml(textValue)}" ${isEnglish ? "required" : ""}>
+              </div>
+              <div class="cms-field cms-field--text">
+                <label class="cms-field__label">${linkLabel}</label>
+                <input type="text" class="cms-field__input" maxlength="1000"
+                       data-key="${key}" data-part="url" data-locale="${locale}"
+                       value="${escapeHtml(urlValue)}" ${isEnglish ? "required" : ""}>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      const helperKey = "cms.helper.enRequiredLocaleFallback";
+      const helperText = t(helperKey);
+      const resolvedHelperText =
+        helperText === helperKey
+          ? "EN required; ES/FR/SWA optional. Blank optional locales will use EN."
+          : helperText;
+
+      html += `<p class="cms-field__helper">${escapeHtml(resolvedHelperText)}</p>`;
+      return html;
+    }
+
     if (REQUIRED_ENGLISH_TEXT_KEYS.has(normalizedKey)) {
       const textField = definition.fields.find((field) => field.name === "text");
       const sharedFields = definition.fields.filter((field) => field.name !== "text");
@@ -1890,9 +2012,10 @@ class CmsEditor {
           const localeValue =
             locale === "en" ? value[field.name] || "" : value[`${field.name}_${locale}`] || "";
           const isRequiredEnglish =
-            field.name === "text" &&
             locale === "en" &&
-            REQUIRED_ENGLISH_TEXT_KEYS.has(normalizedKey);
+            ((field.name === "text" && REQUIRED_ENGLISH_TEXT_KEYS.has(normalizedKey)) ||
+              (REQUIRED_ENGLISH_TEXT_AND_URL_KEYS.has(normalizedKey) &&
+                ["text", "url"].includes(field.name)));
           html += `
             <div class="cms-field cms-field--text">
               <label class="cms-field__label">${locale.toUpperCase()}: ${fieldLabel}</label>
@@ -1918,7 +2041,11 @@ class CmsEditor {
       }
     }
 
-    if (isUserTranslated && REQUIRED_ENGLISH_TEXT_KEYS.has(normalizedKey)) {
+    if (
+      isUserTranslated &&
+      (REQUIRED_ENGLISH_TEXT_KEYS.has(normalizedKey) ||
+        REQUIRED_ENGLISH_TEXT_AND_URL_KEYS.has(normalizedKey))
+    ) {
       const helperKey = "cms.helper.enRequiredLocaleFallback";
       const helperText = t(helperKey);
       const resolvedHelperText =
@@ -2845,6 +2972,26 @@ class CmsEditor {
       }
     }
 
+    // Validate required EN locale pair for lesson keys.
+    for (const section of ["unitRows", "programRows", "generalRows"]) {
+      const rows = this[section];
+      for (const row of rows) {
+        const key = normalizeCmsKeyType(row.key);
+        if (!REQUIRED_ENGLISH_TEXT_AND_URL_KEYS.has(key)) {
+          continue;
+        }
+
+        const value = parseFieldValue(row.key, row.value);
+        const hasName = Boolean(sanitisePart(value.text));
+        const hasUrl = Boolean(sanitisePart(value.url));
+        if (!hasName || !hasUrl) {
+          errors.push({
+            message: `${key} requires EN name and link.`
+          });
+        }
+      }
+    }
+
     // Validate required Leader fields.
     for (const section of ["unitRows", "programRows", "generalRows"]) {
       const rows = this[section];
@@ -2942,11 +3089,7 @@ class CmsEditor {
     const SINGLE_FIELD_TRANSLATED_KEYS = new Set([
       "horizontalLine",
       "sacramentLine",
-      "generalStatement",
-      "lessonEQRS",
-      "lessonSundaySchool",
-      "lessonYouth",
-      "lessonPrimary"
+      "generalStatement"
     ]);
 
     const processRow = (row) => {
