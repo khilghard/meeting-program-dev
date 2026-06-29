@@ -571,6 +571,56 @@ describe("CmsEditor component", () => {
     expect(errors.some((error) => error.message.includes("lessonYouth requires EN name and link."))).toBe(true);
   });
 
+  test("photo rows render locale grouped link and optional caption fields with EN link required", () => {
+    editor.initialize([
+      { key: "unitName", value: "Ward" },
+      {
+        key: "photo",
+        value:
+          "https://example.com/en.jpg|English Caption|https://example.com/es.jpg|Titulo ES"
+      }
+    ]);
+
+    const photoRow = container
+      .querySelector('.cms-field__input[data-key="photo"]')
+      ?.closest(".cms-row");
+    expect(photoRow).toBeTruthy();
+
+    const urlInputs = photoRow.querySelectorAll('.cms-field__input[data-key="photo"][data-part="url"]');
+    const captionInputs = photoRow.querySelectorAll(
+      '.cms-field__input[data-key="photo"][data-part="caption"]'
+    );
+    const localeTitles = Array.from(photoRow.querySelectorAll('.cms-locale-group__title')).map((el) =>
+      el.textContent.trim()
+    );
+    const labels = Array.from(photoRow.querySelectorAll('.cms-field__label')).map((el) =>
+      el.textContent.trim()
+    );
+    const twoUpGroups = photoRow.querySelectorAll('.cms-locale-group__fields--two-up');
+
+    expect(urlInputs.length).toBe(4);
+    expect(captionInputs.length).toBe(4);
+    expect(localeTitles).toEqual(["EN", "ES", "FR", "SWA"]);
+    expect(labels).toContain("Photo with Link");
+    expect(labels).toContain("Optional Caption");
+    expect(twoUpGroups.length).toBe(4);
+    expect(urlInputs[0].required).toBe(true);
+    expect(urlInputs[1].required).toBe(false);
+    expect(captionInputs[0].required).toBe(false);
+  });
+
+  test("photo rows require EN link on validate", () => {
+    editor.initialize([
+      { key: "unitName", value: "Ward" },
+      { key: "photo", value: "|Optional Caption" }
+    ]);
+
+    const errors = editor.validate();
+    expect(errors.some((error) => error.message.includes("photo requires EN photo link."))).toBe(
+      true
+    );
+  });
+
   test("date field uses date picker and round-trips correctly", () => {
     editor.initialize([
       { key: "date", value: "May 20, 2026" }

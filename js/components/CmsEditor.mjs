@@ -141,6 +141,7 @@ const LESSON_TRANSLATED_KEYS = new Set([
 ]);
 
 const REQUIRED_ENGLISH_TEXT_AND_URL_KEYS = new Set(LESSON_TRANSLATED_KEYS);
+const REQUIRED_ENGLISH_URL_KEYS = new Set(["photo"]);
 
 function joinPartsPreserveGaps(parts) {
   const normalized = parts.map((part) => String(part ?? ""));
@@ -447,6 +448,28 @@ export function parseFieldValue(keyType, raw) {
         imageUrl: parts[2] || ""
       };
     case "photo":
+      if (parts.length >= 3) {
+        const parsed = { url: "", caption: "" };
+        for (const locale of LINK_WITH_SPACE_LOCALES) {
+          const suffix = locale === "en" ? "" : `_${locale}`;
+          parsed[`url${suffix}`] = "";
+          parsed[`caption${suffix}`] = "";
+        }
+
+        LINK_WITH_SPACE_LOCALES.forEach((locale, idx) => {
+          const base = idx * 2;
+          const suffix = locale === "en" ? "" : `_${locale}`;
+          if (base < parts.length) {
+            parsed[`url${suffix}`] = parts[base] || "";
+          }
+          if (base + 1 < parts.length) {
+            parsed[`caption${suffix}`] = parts[base + 1] || "";
+          }
+        });
+
+        return parsed;
+      }
+
       return { url: parts[0] || "", caption: parts[1] || "" };
     case "oilLamp":
       return {
@@ -552,7 +575,15 @@ export function serializeFieldValue(keyType, value) {
         })
       );
     case "photo":
-      return joinParts([sanitisePart(value.url), sanitisePart(value.caption)]);
+      return joinPartsPreserveGaps(
+        LINK_WITH_SPACE_LOCALES.flatMap((locale) => {
+          const suffix = locale === "en" ? "" : `_${locale}`;
+          return [
+            sanitisePart(value[`url${suffix}`] ?? ""),
+            sanitisePart(value[`caption${suffix}`] ?? "")
+          ];
+        })
+      );
     case "oilLamp":
       return sanitisePart(value.caption);
     case "lessonEQRS":
@@ -1875,6 +1906,48 @@ class CmsEditor {
       return html;
     }
 
+    if (normalizedKey === "photo") {
+      const linkLabel = "Photo with Link";
+      const captionLabel = "Optional Caption";
+
+      for (const locale of LINK_WITH_SPACE_LOCALES) {
+        const suffix = locale === "en" ? "" : `_${locale}`;
+        const isEnglish = locale === "en";
+        const urlValue = value[`url${suffix}`] || "";
+        const captionValue = value[`caption${suffix}`] || "";
+
+        html += `
+          <div class="cms-locale-group cms-locale-group--lesson">
+            <div class="cms-locale-group__title">${locale.toUpperCase()}</div>
+            <div class="cms-locale-group__fields cms-locale-group__fields--two-up">
+              <div class="cms-field cms-field--text">
+                <label class="cms-field__label">${linkLabel}</label>
+                <input type="text" class="cms-field__input" maxlength="1000"
+                       data-key="${key}" data-part="url" data-locale="${locale}"
+                       value="${escapeHtml(urlValue)}" ${isEnglish ? "required" : ""}>
+              </div>
+              <div class="cms-field cms-field--text">
+                <label class="cms-field__label">${captionLabel}</label>
+                <input type="text" class="cms-field__input" maxlength="1000"
+                       data-key="${key}" data-part="caption" data-locale="${locale}"
+                       value="${escapeHtml(captionValue)}">
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      const helperKey = "cms.helper.enRequiredLocaleFallback";
+      const helperText = t(helperKey);
+      const resolvedHelperText =
+        helperText === helperKey
+          ? "EN required; ES/FR/SWA optional. Blank optional locales will use EN."
+          : helperText;
+
+      html += `<p class="cms-field__helper">${escapeHtml(resolvedHelperText)}</p>`;
+      return html;
+    }
+
     if (REQUIRED_ENGLISH_TEXT_KEYS.has(normalizedKey)) {
       const textField = definition.fields.find((field) => field.name === "text");
       const sharedFields = definition.fields.filter((field) => field.name !== "text");
@@ -2987,6 +3060,25 @@ class CmsEditor {
         if (!hasName || !hasUrl) {
           errors.push({
             message: `${key} requires EN name and link.`
+          });
+        }
+      }
+    }
+
+    // Validate required EN link for photo key.
+    for (const section of ["unitRows", "programRows", "generalRows"]) {
+      const rows = this[section];
+      for (const row of rows) {
+        const key = normalizeCmsKeyType(row.key);
+        if (!REQUIRED_ENGLISH_URL_KEYS.has(key)) {
+          continue;
+        }
+
+        const value = parseFieldValue(row.key, row.value);
+        const hasUrl = Boolean(sanitisePart(value.url));
+        if (!hasUrl) {
+          errors.push({
+            message: `${key} requires EN photo link.`
           });
         }
       }
