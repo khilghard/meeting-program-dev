@@ -1027,22 +1027,23 @@ describe("Network Status Monitoring", () => {
     expect(statusEl.querySelector(".status-text").textContent).toBe("Online");
   });
 
-  test("shows online status only after returning from offline", async () => {
+  test("shows online status only after a confirmed offline event", async () => {
     Object.defineProperty(navigator, "onLine", {
       configurable: true,
       writable: true,
-      value: false
-    });
-
-    global.fetch.mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ version: "2.4.1" })
+      value: true
     });
 
     initNetworkStatus();
     await vi.runAllTimersAsync();
 
     const statusEl = document.getElementById("network-status");
+    expect(statusEl.classList.contains("hidden")).toBe(true);
+
+    navigator.onLine = false;
+    window.dispatchEvent(new Event("offline"));
+    await vi.runAllTimersAsync();
+
     expect(statusEl.classList.contains("hidden")).toBe(false);
     expect(statusEl.querySelector(".status-text").textContent).toBe("Working offline");
 
@@ -1051,6 +1052,36 @@ describe("Network Status Monitoring", () => {
     await vi.runAllTimersAsync();
 
     expect(statusEl.querySelector(".status-text").textContent).toBe("Online");
+    expect(statusEl.classList.contains("hidden")).toBe(true);
+  });
+
+  test("treats successful fetches as online even when navigator reports offline", async () => {
+    Object.defineProperty(navigator, "onLine", {
+      configurable: true,
+      writable: true,
+      value: false
+    });
+
+    global.fetch.mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve("key,value")
+    });
+
+    initNetworkStatus();
+    await vi.runAllTimersAsync();
+
+    const statusEl = document.getElementById("network-status");
+    expect(statusEl.querySelector(".status-text").textContent).toBe("Working offline");
+
+    const fetchPromise = Main.fetchWithTimeout("https://example.com", 1000);
+    await Promise.resolve();
+
+    expect(statusEl.querySelector(".status-text").textContent).toBe("Online");
+    expect(statusEl.classList.contains("hidden")).toBe(true);
+
+    await fetchPromise;
+    await vi.runAllTimersAsync();
+
     expect(statusEl.classList.contains("hidden")).toBe(true);
   });
 });

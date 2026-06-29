@@ -112,13 +112,76 @@ function showOfflineBanner() {
   };
 }
 
+let networkReachableOverride = false;
+let networkStatusUpdater = null;
+let hasConfirmedOffline = false;
+let networkStatusHideTimer = null;
+let networkOnlineListener = null;
+let networkOfflineListener = null;
+let networkStatusSessionId = 0;
+
+function logNetworkStatus(message, details = {}) {
+  const navigatorOnline = typeof navigator !== "undefined" ? navigator.onLine : "[unavailable]";
+  console.log("[NetworkStatus]", message, {
+    navigatorOnline,
+    networkReachableOverride,
+    hasConfirmedOffline,
+    ...details
+  });
+}
+
+function syncNetworkReachability({
+  reachable,
+  showOnlineNotice = false,
+  confirmOffline = false,
+  source = "unknown"
+} = {}) {
+  if (typeof reachable === "boolean") {
+    networkReachableOverride = reachable;
+  }
+
+  if (confirmOffline) {
+    hasConfirmedOffline = true;
+  }
+
+  if (typeof reachable === "boolean") {
+    logNetworkStatus(reachable ? "Reachability confirmed" : "Reachability lost", {
+      source,
+      showOnlineNotice,
+      confirmOffline
+    });
+
+    if (reachable && typeof navigator !== "undefined" && navigator.onLine === false) {
+      logNetworkStatus("Successful network activity despite navigator.onLine=false", { source });
+    }
+  }
+
+  if (typeof networkStatusUpdater === "function") {
+    void networkStatusUpdater({ showOnlineNotice });
+  }
+}
+
 function initNetworkStatus() {
   const statusEl = document.getElementById("network-status");
   if (!statusEl) return;
 
-  // Timer storage for cleanup
-  let statusHideTimer = null;
-  let hasBeenOffline = typeof navigator !== "undefined" ? !navigator.onLine : false;
+  if (networkOnlineListener) {
+    globalThis.window.removeEventListener("online", networkOnlineListener);
+  }
+
+  if (networkOfflineListener) {
+    globalThis.window.removeEventListener("offline", networkOfflineListener);
+  }
+
+  if (networkStatusHideTimer) {
+    clearTimeout(networkStatusHideTimer);
+    networkStatusHideTimer = null;
+  }
+
+  networkReachableOverride = typeof navigator !== "undefined" ? navigator.onLine : false;
+  hasConfirmedOffline = false;
+  networkStatusSessionId += 1;
+  const sessionId = networkStatusSessionId;
 
   const updateStatus = async ({ showOnlineNotice = false } = {}) => {
     const statusEl = document.getElementById("network-status");
@@ -129,7 +192,8 @@ function initNetworkStatus() {
     const lastSyncEl = statusEl.querySelector(".last-sync");
 
     // Guard against navigator not being available
-    const isOnline = typeof navigator !== "undefined" ? navigator.onLine : true;
+    const isOnline =
+      typeof navigator !== "undefined" ? navigator.onLine || networkReachableOverride : true;
 
     if (isOnline) {
       iconEl.textContent = "🌐";
@@ -137,35 +201,36 @@ function initNetworkStatus() {
       statusEl.classList.remove("offline");
       statusEl.classList.add("online");
 
-      const lastUpdated = await getMetadata("programLastUpdatedDate");
-      if (lastUpdated) {
-        lastSyncEl.textContent = `Last sync: ${lastUpdated}`;
-      } else {
-        lastSyncEl.textContent = "";
-      }
+      if (networkStatusHideTimer) clearTimeout(networkStatusHideTimer);
 
-      if (statusHideTimer) clearTimeout(statusHideTimer);
-
-      if (showOnlineNotice && hasBeenOffline) {
+      if (showOnlineNotice && hasConfirmedOffline) {
         statusEl.classList.remove("hidden");
-        hasBeenOffline = false;
-        statusHideTimer = setTimeout(() => {
+        hasConfirmedOffline = false;
+        networkStatusHideTimer = setTimeout(() => {
           statusEl.classList.add("hidden");
         }, 3000);
       } else {
         statusEl.classList.add("hidden");
       }
+
+      const lastUpdated = await getMetadata("programLastUpdatedDate");
+      if (sessionId !== networkStatusSessionId) return;
+      if (lastUpdated) {
+        lastSyncEl.textContent = `Last sync: ${lastUpdated}`;
+      } else {
+        lastSyncEl.textContent = "";
+      }
     } else {
-      hasBeenOffline = true;
       iconEl.textContent = "📱";
       textEl.textContent = "Working offline";
       statusEl.classList.remove("online");
       statusEl.classList.add("offline");
       statusEl.classList.remove("hidden");
 
-      if (statusHideTimer) clearTimeout(statusHideTimer);
+      if (networkStatusHideTimer) clearTimeout(networkStatusHideTimer);
 
       const lastUpdated = await getMetadata("programLastUpdatedDate");
+      if (sessionId !== networkStatusSessionId) return;
       if (lastUpdated) {
         lastSyncEl.textContent = `Last updated: ${lastUpdated}`;
       } else {
@@ -174,13 +239,26 @@ function initNetworkStatus() {
     }
   };
 
-  globalThis.window.addEventListener("online", () => {
-    updateStatus({ showOnlineNotice: true });
-  });
+  networkStatusUpdater = updateStatus;
 
-  globalThis.window.addEventListener("offline", () => {
-    updateStatus();
-  });
+  networkOnlineListener = () => {
+    syncNetworkReachability({
+      reachable: true,
+      showOnlineNotice: true,
+      source: "browser-online-event"
+    });
+  };
+
+  networkOfflineListener = () => {
+    syncNetworkReachability({
+      reachable: false,
+      confirmOffline: true,
+      source: "browser-offline-event"
+    });
+  };
+
+  globalThis.window.addEventListener("online", networkOnlineListener);
+  globalThis.window.addEventListener("offline", networkOfflineListener);
 
   updateStatus();
 }
@@ -271,9 +349,19 @@ async function fetchWithTimeout(url, timeout) {
   try {
     const response = await fetch(requestUrl, { signal: controller.signal });
     clearTimeout(timeoutId);
+    syncNetworkReachability({
+      reachable: true,
+      showOnlineNotice: true,
+      source: `fetchWithTimeout:${requestUrl}`
+    });
     return response.text();
   } catch (error) {
     clearTimeout(timeoutId);
+    syncNetworkReachability({
+      reachable: false,
+      confirmOffline: true,
+      source: `fetchWithTimeout:${requestUrl}`
+    });
     throw error;
   }
 }
@@ -456,6 +544,7 @@ async function handleZeroState() {
   } = ui;
 
   console.log("[INIT] No sheetUrl found, entering zero state.");
+      if (sessionId !== networkStatusSessionId) return;
   actionBtn.textContent = t("scanProgramQR");
   actionBtn.onclick = () => showScanner();
 
@@ -643,6 +732,10 @@ async function loadAndRenderProgram(sheetUrl) {
     await processAndRenderProgram(rows, sheetUrl);
   } catch (err) {
     console.warn("Failed to fetch sheet:", err);
+    logNetworkStatus("Falling back to cached program after sheet fetch failure", {
+      source: "loadAndRenderProgram",
+      sheetUrl
+    });
     await tryLoadCachedProgram();
   }
 }
@@ -839,6 +932,11 @@ async function loadAgendaForCurrentProfile(profile) {
     await Profiles.updateProfile(profile);
   } catch (err) {
     console.warn("[Leadership] Agenda fetch failed, trying cache:", err);
+    logNetworkStatus("Falling back to cached agenda after fetch failure", {
+      source: "loadAgendaForCurrentProfile",
+      profileId: profile?.id,
+      agendaUrl: profile?.agendaUrl
+    });
     csv = await getMetadata(`agendaCache_${profile.id}`);
     if (csv) {
       profile.agendaValid = true;
@@ -1465,6 +1563,11 @@ async function renderCachedProgram(cachedRows, cachedProfile) {
   main.textContent = "";
   renderProgram(cachedRows);
 
+  logNetworkStatus("Rendering cached program", {
+    source: "renderCachedProgram",
+    profileId: cachedProfile?.id || "[none]"
+  });
+
   if (cachedProfile?.archived) {
     document.body.classList.add("archive-view");
   } else {
@@ -1539,6 +1642,11 @@ async function init() {
   try {
     // Load and log version
     const versionResponse = await fetch("./version.json");
+    syncNetworkReachability({
+      reachable: true,
+      showOnlineNotice: true,
+      source: "init-version-fetch"
+    });
     const versionData = await versionResponse.json();
     console.log(`[VERSION] App running version: ${versionData.version}`);
 
