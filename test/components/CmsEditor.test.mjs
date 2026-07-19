@@ -653,6 +653,20 @@ describe("CmsEditor component", () => {
     
     expect(hymnSelect.value).toBe("62");
   });
+
+      test("hymn field renders optional caption and serializes with pipe delimiter", () => {
+        editor.initialize([{ key: "openingHymn", value: "62|Ward Choir" }]);
+
+        const captionInput = container.querySelector(
+          '.cms-field__input[data-key="openingHymn"][data-part="titleOverride"]'
+        );
+        expect(captionInput).toBeTruthy();
+        expect(captionInput.value).toBe("Ward Choir");
+
+        const rows = editor.getAllRows();
+        const openingHymnRow = rows.find((row) => row.key === "openingHymn");
+        expect(openingHymnRow?.value).toBe("62|Ward Choir");
+      });
 });
 
 describe("CmsEditor — oilLamp", () => {
