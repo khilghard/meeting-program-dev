@@ -112,6 +112,10 @@ const MAX_REPEATABLE_ITEMS = {
   generalStatementWithLink: 100
 };
 
+const SECTION_REPEATABLE_KEYS = {
+  program: new Set(["horizontalLine"])
+};
+
 /** Required keys in Program section */
 const REQUIRED_PROGRAM_KEYS = ["presiding", "closingPrayer"];
 
@@ -649,6 +653,12 @@ function isValueEmpty(keyType, value) {
 function isRepeatableKeyType(keyType) {
   const normalizedKey = normalizeCmsKeyType(keyType);
   return MAX_REPEATABLE_ITEMS[normalizedKey] !== undefined;
+}
+
+function isRepeatableKeyInSection(keyType, section) {
+  const normalizedKey = normalizeCmsKeyType(keyType);
+  if (isRepeatableKeyType(normalizedKey)) return true;
+  return Boolean(SECTION_REPEATABLE_KEYS[section]?.has(normalizedKey));
 }
 
 /**
@@ -1346,12 +1356,15 @@ class CmsEditor {
       const rowId = select.dataset.rowId;
       const row = rows.find((r) => r._id === rowId);
       if (!row) return;
-      const allowedKeys = this.getAvailableKeysForSection(section, allowedKeysSet, row, rows);
+      const keyOptions = this.getKeyOptionsForSection(section, allowedKeysSet, row, rows);
       const current = select.value;
-      select.innerHTML = allowedKeys
-        .map((k) => `<option value='${k}'>${this.getFieldLabel(k)}</option>`)
+      select.innerHTML = keyOptions
+        .map((option) => {
+          const reasonSuffix = option.reason ? ` (${option.reason})` : "";
+          return `<option value='${option.key}' ${option.disabled ? "disabled" : ""}>${this.getFieldLabel(option.key)}${reasonSuffix}</option>`;
+        })
         .join("");
-      if (allowedKeys.includes(current)) {
+      if (keyOptions.some((option) => option.key === current)) {
         select.value = current;
       }
     });
@@ -1742,7 +1755,7 @@ class CmsEditor {
       keySelector = `<span class="cms-row__key-label">${this.getFieldLabel(normalizedKey)}</span>`;
     } else {
       // Editable section - show dropdown
-      const allowedKeys = this.getAvailableKeysForSection(
+      const keyOptions = this.getKeyOptionsForSection(
         section,
         options.allowedKeys,
         row,
@@ -1750,11 +1763,12 @@ class CmsEditor {
       );
       keySelector = `
         <select class="cms-row__key-select" data-row-id="${row._id}" data-section="${section}">
-          ${allowedKeys
-            .map((k) => {
-              const label = this.getFieldLabel(k);
-              const isAgenda = k.startsWith("agenda");
-              return `<option value="${k}" ${k === normalizedKey ? "selected" : ""}>${isAgenda ? "🔒 " : ""}${label}</option>`;
+          ${keyOptions
+            .map((option) => {
+              const label = this.getFieldLabel(option.key);
+              const isAgenda = option.key.startsWith("agenda");
+              const reasonSuffix = option.reason ? ` (${option.reason})` : "";
+              return `<option value="${option.key}" ${option.key === normalizedKey ? "selected" : ""} ${option.disabled ? "disabled" : ""}>${isAgenda ? "🔒 " : ""}${label}${reasonSuffix}</option>`;
             })
             .join("")}
         </select>
@@ -2176,34 +2190,43 @@ class CmsEditor {
    * Get available keys for a section
    */
   getAvailableKeysForSection(section, allowedKeys, currentRow, sectionRows) {
-    const normalizedKey = normalizeCmsKeyType(currentRow.key);
-    const existingKeys = sectionRows.map((row) => normalizeCmsKeyType(row.key));
+    return this.getKeyOptionsForSection(section, allowedKeys, currentRow, sectionRows).map(
+      (option) => option.key
+    );
+  }
 
-    // Include universal keys in all sections
+  /**
+   * Build key options for a section with full visibility and disabled invalid choices.
+   */
+  getKeyOptionsForSection(section, allowedKeys, currentRow, sectionRows) {
+    const normalizedCurrentKey = currentRow ? normalizeCmsKeyType(currentRow.key) : "";
+    const existingCounts = sectionRows.reduce((acc, row) => {
+      const key = normalizeCmsKeyType(row.key);
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+
     const allAllowed = new Set([...allowedKeys, ...UNIVERSAL_KEYS]);
+    const optionKeys = Array.from(allAllowed);
 
-    // Filter allowed keys
-    const available = Array.from(allAllowed).filter((key) => {
-      // Skip current key
-      if (key === normalizedKey) return true;
+    return optionKeys.map((key) => {
+      const count = existingCounts[key] || 0;
+      const isCurrent = key === normalizedCurrentKey;
+      const repeatable = isRepeatableKeyInSection(key, section);
+      const explicitMax = MAX_REPEATABLE_ITEMS[key];
+      const atMax = repeatable && explicitMax !== undefined && count >= explicitMax;
+      const duplicateNonRepeatable = !repeatable && count > 0;
+      const disabled = !isCurrent && (atMax || duplicateNonRepeatable);
 
-      // Skip non-repeatable keys that already exist
-      if (!isRepeatableKeyType(key) && existingKeys.includes(key)) {
-        return false;
+      let reason = "";
+      if (!isCurrent && duplicateNonRepeatable) {
+        reason = "Already used";
+      } else if (!isCurrent && atMax) {
+        reason = "Max reached";
       }
 
-      // Skip if at max repeatable limit
-      if (
-        isRepeatableKeyType(key) &&
-        existingKeys.filter((k) => k === key).length >= getMaxRepeatableItems(key)
-      ) {
-        return false;
-      }
-
-      return true;
+      return { key, disabled, reason };
     });
-
-    return available;
   }
 
   /**
@@ -2617,7 +2640,7 @@ class CmsEditor {
     }
 
     // Check for duplicate non-repeatable keys
-    if (!isRepeatableKeyType(newKey)) {
+    if (!isRepeatableKeyInSection(newKey, section)) {
       const duplicateRows = rows.filter(
         (r) => r._id !== newRowId && normalizeCmsKeyType(r.key) === newKey
       );
@@ -2746,28 +2769,22 @@ class CmsEditor {
     } else {
       allowedKeys = GENERAL_ALLOWED_KEYS;
     }
-    const existingKeys = sectionRows.map((row) => normalizeCmsKeyType(row.key));
+    const keyOptions = this.getKeyOptionsForSection(section, allowedKeys, null, sectionRows);
 
-    for (const key of allowedKeys) {
-      // Skip non‑repeatable keys that already exist
-      if (existingKeys.includes(key) && !isRepeatableKeyType(key)) continue;
-
-      // Enforce max repeatable limits
-      if (isRepeatableKeyType(key)) {
-        const count = existingKeys.filter((k) => k === key).length;
-        const max = MAX_REPEATABLE_ITEMS[key];
-        if (max !== undefined && count >= max) continue;
-      }
-
+    for (const optionData of keyOptions) {
       const option = document.createElement("option");
-      option.value = key;
-      option.textContent = this.getFieldLabel(key);
+      option.value = optionData.key;
+      option.textContent = optionData.reason
+        ? `${this.getFieldLabel(optionData.key)} (${optionData.reason})`
+        : this.getFieldLabel(optionData.key);
+      option.disabled = optionData.disabled;
       select.appendChild(option);
     }
 
     // Enable confirm when key is selected
     select.addEventListener("change", () => {
-      confirmBtn.disabled = !select.value;
+      const selectedOption = select.options[select.selectedIndex];
+      confirmBtn.disabled = !select.value || Boolean(selectedOption?.disabled);
     });
 
     // Cancel handler
@@ -2784,6 +2801,9 @@ class CmsEditor {
     confirmBtn.addEventListener("click", () => {
       const newKey = select.value;
       if (!newKey) return;
+
+      const selectedOption = select.options[select.selectedIndex];
+      if (selectedOption?.disabled) return;
 
       const newRow = {
         key: newKey,
@@ -3011,8 +3031,13 @@ class CmsEditor {
     }
 
     // Check for duplicate non-repeatable keys
-    for (const section of ["unitRows", "programRows", "generalRows"]) {
-      const rows = this[section];
+    const sectionsWithNames = [
+      { rowsKey: "unitRows", sectionName: "unitInfo" },
+      { rowsKey: "programRows", sectionName: "program" },
+      { rowsKey: "generalRows", sectionName: "general" }
+    ];
+    for (const { rowsKey, sectionName } of sectionsWithNames) {
+      const rows = this[rowsKey];
       const keyCounts = {};
 
       for (const row of rows) {
@@ -3021,7 +3046,7 @@ class CmsEditor {
       }
 
       for (const [key, count] of Object.entries(keyCounts)) {
-        if (count > 1 && !isRepeatableKeyType(key)) {
+        if (count > 1 && !isRepeatableKeyInSection(key, sectionName)) {
           errors.push({ message: `Duplicate non-repeatable key: ${key}` });
         }
       }

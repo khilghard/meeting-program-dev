@@ -408,7 +408,7 @@ describe("CmsEditor component", () => {
     expect(rows.some(r => r.key === "closingPrayer")).toBe(false);
   });
 
-  test("add row modal excludes non-repeatable keys that already exist", () => {
+  test("add row modal shows non-repeatable existing keys as disabled", () => {
     // Initialize with some keys that are already present (conducting and openingHymn).
     // Auto-correction will also add presiding and closingPrayer.
     editor.initialize([
@@ -425,10 +425,14 @@ describe("CmsEditor component", () => {
     expect(modal).toBeTruthy();
     const select = modal.querySelector('#add-row-key-select');
     const options = Array.from(select.options).map(opt => opt.value);
+    const conductingOption = Array.from(select.options).find((opt) => opt.value === "conducting");
+    const openingHymnOption = Array.from(select.options).find((opt) => opt.value === "openingHymn");
     
-    // Keys that are already present (conducting, openingHymn, and auto-added presiding) should be excluded
-    expect(options).not.toContain("conducting");
-    expect(options).not.toContain("openingHymn");
+    // Keys already present should remain visible but disabled.
+    expect(options).toContain("conducting");
+    expect(options).toContain("openingHymn");
+    expect(conductingOption?.disabled).toBe(true);
+    expect(openingHymnOption?.disabled).toBe(true);
     // A key that is allowed and not present (e.g., musicDirector) should be available
     expect(options).toContain("musicDirector");
     
@@ -436,7 +440,7 @@ describe("CmsEditor component", () => {
     expect(document.querySelector('.cms-modal')).toBeFalsy();
   });
 
-  test("add row modal enforces max repeatable items", () => {
+  test("add row modal keeps repeatable key visible and disabled at max", () => {
     editor.initialize([]);
     for (let i = 0; i < 10; i++) {
       editor.addRepeatableItem("speaker");
@@ -448,10 +452,54 @@ describe("CmsEditor component", () => {
     const modal = document.querySelector('.cms-modal');
     const select = modal.querySelector('#add-row-key-select');
     const options = Array.from(select.options).map(opt => opt.value);
+    const speakerOption = Array.from(select.options).find((opt) => opt.value === "speaker");
     
-    expect(options).not.toContain("speaker");
+    expect(options).toContain("speaker");
+    expect(speakerOption?.disabled).toBe(true);
     
     modal.querySelector('.cms-modal__cancel-btn').click();
+  });
+
+  test("program add row modal includes horizontalLine key", () => {
+    editor.initialize([
+      { key: "unitName", value: "Ward" },
+      { key: "presiding", value: "Bishop" },
+      { key: "closingPrayer", value: "Brother Smith" }
+    ]);
+
+    const addBtn = container.querySelector('.cms-insert-btn[data-insert-section="program"]');
+    expect(addBtn).toBeTruthy();
+    addBtn.click();
+
+    const modal = document.querySelector('.cms-modal');
+    expect(modal).toBeTruthy();
+    const select = modal.querySelector('#add-row-key-select');
+    const options = Array.from(select.options).map((opt) => opt.value);
+
+    expect(options).toContain("horizontalLine");
+
+    modal.querySelector('.cms-modal__cancel-btn').click();
+  });
+
+  test("program row key dropdown keeps horizontalLine selectable when already used", () => {
+    editor.initialize([
+      { key: "unitName", value: "Ward" },
+      { key: "presiding", value: "Bishop" },
+      { key: "conducting", value: "Brother Smith" },
+      { key: "horizontalLine", value: "Section" },
+      { key: "closingPrayer", value: "Brother Jones" }
+    ]);
+
+    const conductingSelect = Array.from(container.querySelectorAll('.cms-row__key-select')).find(
+      (select) => select.value === "conducting"
+    );
+    expect(conductingSelect).toBeTruthy();
+
+    const horizontalLineOption = Array.from(conductingSelect.options).find(
+      (option) => option.value === "horizontalLine"
+    );
+    expect(horizontalLineOption).toBeTruthy();
+    expect(horizontalLineOption?.disabled).toBe(false);
   });
 
       test("general section insert modal includes all lesson keys", () => {

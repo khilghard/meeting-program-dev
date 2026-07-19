@@ -124,6 +124,23 @@ function getModalOptionValuesForSection(activeEditor, section) {
   return values;
 }
 
+function getModalOptionsForSection(activeEditor, section) {
+  activeEditor.showAddRowModal(section);
+  const modal = document.querySelector(".cms-modal");
+  expect(modal).toBeTruthy();
+  const select = modal.querySelector(".cms-modal__key-select");
+  expect(select).toBeTruthy();
+
+  const options = Array.from(select.options)
+    .filter((opt) => Boolean(opt.value))
+    .map((opt) => ({ value: opt.value, disabled: opt.disabled }));
+
+  const cancelButton = modal.querySelector(".cms-modal__cancel-btn");
+  expect(cancelButton).toBeTruthy();
+  cancelButton.click();
+  return options;
+}
+
 async function createEditorWithRows(containerId, rows, includeAgenda = true) {
   document.body.innerHTML = `<div id='${containerId}'></div>`;
   await loadTranslations("en");
@@ -717,6 +734,7 @@ describe("Murat CSV roundtrip suite", () => {
 
     const options = getModalOptionValuesForSection(restrictionEditor, "program");
     expect(options).toEqual([
+      "presiding",
       "conducting",
       "musicDirector",
       "musicOrganist",
@@ -736,7 +754,11 @@ describe("Murat CSV roundtrip suite", () => {
       "sacramentLine",
       "speaker",
       "intermediateHymn",
-      "closingHymn"
+      "closingHymn",
+      "closingPrayer",
+      "horizontalLine",
+      "photo",
+      "oilLamp"
     ]);
   });
 
@@ -789,9 +811,11 @@ describe("Murat CSV roundtrip suite", () => {
       true
     );
 
-    const options = getModalOptionValuesForSection(restrictionEditor, "program");
-    expect(options).not.toContain("speaker");
-    expect(options).toContain("intermediateHymn");
+    const options = getModalOptionsForSection(restrictionEditor, "program");
+    const speakerOption = options.find((option) => option.value === "speaker");
+    expect(speakerOption).toBeTruthy();
+    expect(speakerOption?.disabled).toBe(true);
+    expect(options.some((option) => option.value === "intermediateHymn")).toBe(true);
   });
 
   test("general add modal suppresses leader once max repeatable count is reached", async () => {
@@ -807,9 +831,11 @@ describe("Murat CSV roundtrip suite", () => {
       true
     );
 
-    const options = getModalOptionValuesForSection(restrictionEditor, "general");
-    expect(options).not.toContain("leader");
-    expect(options).toContain("generalStatement");
+    const options = getModalOptionsForSection(restrictionEditor, "general");
+    const leaderOption = options.find((option) => option.value === "leader");
+    expect(leaderOption).toBeTruthy();
+    expect(leaderOption?.disabled).toBe(true);
+    expect(options.some((option) => option.value === "generalStatement")).toBe(true);
   });
 });
 
