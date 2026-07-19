@@ -52,9 +52,9 @@ describe('parseFieldValue and serializeFieldValue round-trip', () => {
     });
   });
 
-  it('handles hymn fields (hymnNumber only)', () => {
-    testRoundTrip('openingHymn', { hymnNumber: '62' });
-    testRoundTrip('sacramentHymn', { hymnNumber: 'CS 2' });
+  it('handles hymn fields (hymnNumber + optional titleOverride)', () => {
+    testRoundTrip('openingHymn', { hymnNumber: '62', titleOverride: '' });
+    testRoundTrip('sacramentHymn', { hymnNumber: 'CS 2', titleOverride: 'Children Singing' });
   });
 
   it('handles generalStatementWithLink (text + url, <LINK> auto-added on save)', () => {
@@ -161,5 +161,10 @@ describe('getFieldsForKeyType', () => {
     const oilFields = getFieldsForKeyType('oilLamp');
     expect(oilFields[0].type).toBe('text');
     expect(oilFields[0].name).toBe('caption');
+  });
+
+  it('includes optional titleOverride text field for hymn keys', () => {
+    const hymnFields = getFieldsForKeyType('openingHymn');
+    expect(hymnFields.map((field) => field.name)).toEqual(['hymnNumber', 'titleOverride']);
   });
 });

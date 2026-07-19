@@ -400,7 +400,7 @@ export function parseFieldValue(keyType, raw) {
     case "intermediateHymn":
     case "closingHymn":
     case "hymn":
-      return { hymnNumber: parts[0] || "" };
+      return { hymnNumber: parts[0] || "", titleOverride: parts[1] || "" };
     case "speaker":
       return { name: parts[0] || "", caption: parts[1] || "" };
     case "leader":
@@ -541,7 +541,7 @@ export function serializeFieldValue(keyType, value) {
     case "intermediateHymn":
     case "closingHymn":
     case "hymn":
-      return sanitisePart(value.hymnNumber);
+      return joinParts([sanitisePart(value.hymnNumber), sanitisePart(value.titleOverride)]);
     case "speaker":
       return joinParts([sanitisePart(value.name), sanitisePart(value.caption)]);
     case "leader":
@@ -903,19 +903,59 @@ function getFieldDefinition(keyType) {
     musicDirector: { fields: [{ name: "text", type: "text", placeholder: "cms.input.fullName" }] },
     musicOrganist: { fields: [{ name: "text", type: "text", placeholder: "cms.input.fullName" }] },
     openingHymn: {
-      fields: [{ name: "hymnNumber", type: "hymn", placeholder: "cms.input.exampleHymnNumber" }]
+      fields: [
+        { name: "hymnNumber", type: "hymn", placeholder: "cms.input.exampleHymnNumber" },
+        {
+          name: "titleOverride",
+          type: "text",
+          label: "cms.input.optionalCaption",
+          placeholder: "cms.input.optionalCaptionTopic"
+        }
+      ]
     },
     sacramentHymn: {
-      fields: [{ name: "hymnNumber", type: "hymn", placeholder: "cms.input.exampleHymnNumber" }]
+      fields: [
+        { name: "hymnNumber", type: "hymn", placeholder: "cms.input.exampleHymnNumber" },
+        {
+          name: "titleOverride",
+          type: "text",
+          label: "cms.input.optionalCaption",
+          placeholder: "cms.input.optionalCaptionTopic"
+        }
+      ]
     },
     intermediateHymn: {
-      fields: [{ name: "hymnNumber", type: "hymn", placeholder: "cms.input.exampleHymnNumber" }]
+      fields: [
+        { name: "hymnNumber", type: "hymn", placeholder: "cms.input.exampleHymnNumber" },
+        {
+          name: "titleOverride",
+          type: "text",
+          label: "cms.input.optionalCaption",
+          placeholder: "cms.input.optionalCaptionTopic"
+        }
+      ]
     },
     closingHymn: {
-      fields: [{ name: "hymnNumber", type: "hymn", placeholder: "cms.input.exampleHymnNumber" }]
+      fields: [
+        { name: "hymnNumber", type: "hymn", placeholder: "cms.input.exampleHymnNumber" },
+        {
+          name: "titleOverride",
+          type: "text",
+          label: "cms.input.optionalCaption",
+          placeholder: "cms.input.optionalCaptionTopic"
+        }
+      ]
     },
     hymn: {
-      fields: [{ name: "hymnNumber", type: "hymn", placeholder: "cms.input.exampleHymnNumber" }]
+      fields: [
+        { name: "hymnNumber", type: "hymn", placeholder: "cms.input.exampleHymnNumber" },
+        {
+          name: "titleOverride",
+          type: "text",
+          label: "cms.input.optionalCaption",
+          placeholder: "cms.input.optionalCaptionTopic"
+        }
+      ]
     },
     openingPrayer: { fields: [{ name: "text", type: "text", placeholder: "cms.input.fullName" }] },
     closingPrayer: { fields: [{ name: "text", type: "text", placeholder: "cms.input.fullName" }] },
