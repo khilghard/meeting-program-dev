@@ -83,8 +83,10 @@ describe("CMS Editor — E2E Scenarios", () => {
       const modal = document.querySelector('.cms-modal');
       const select = modal.querySelector('#add-row-key-select');
       const options = Array.from(select.options).map(opt => opt.value);
+      const speakerOption = Array.from(select.options).find(opt => opt.value === "speaker");
 
-      expect(options).not.toContain("speaker");
+      expect(options).toContain("speaker");
+      expect(speakerOption?.disabled).toBe(true);
       expect(options).toContain("openingHymn"); // other keys still available
 
       modal.querySelector('.cms-modal__cancel-btn').click();
@@ -135,7 +137,11 @@ describe("CMS Editor — E2E Scenarios", () => {
       addBtn.click();
       const modal = document.querySelector('.cms-modal');
       const options = Array.from(modal.querySelectorAll('#add-row-key-select option')).map(opt => opt.value);
-      expect(options).not.toContain("openingHymn");
+      const openingHymnOption = Array.from(modal.querySelectorAll('#add-row-key-select option')).find(
+        (opt) => opt.value === "openingHymn"
+      );
+      expect(options).toContain("openingHymn");
+      expect(openingHymnOption?.disabled).toBe(true);
       modal.querySelector('.cms-modal__cancel-btn').click();
     });
 

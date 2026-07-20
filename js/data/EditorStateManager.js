@@ -431,9 +431,9 @@ const EditorStateManager = (() => {
           const quotedRow = row.map((field) => {
             if (
               typeof field === "string" &&
-              (field.includes(",") || field.includes("\n") || field.includes('"'))
+              (field.includes(",") || field.includes("\n") || field.includes("\""))
             ) {
-              return `"${field.replace(/"/g, '""')}"`;
+              return `"${field.replace(/"/g, "\"\"")}"`;
             }
             return field;
           });
@@ -476,9 +476,9 @@ const EditorStateManager = (() => {
         const quotedRow = row.map((field) => {
           if (
             typeof field === "string" &&
-            (field.includes(",") || field.includes("\n") || field.includes('"'))
+            (field.includes(",") || field.includes("\n") || field.includes("\""))
           ) {
-            return `"${field.replace(/"/g, '""')}"`;
+            return `"${field.replace(/"/g, "\"\"")}"`;
           }
           return field;
         });

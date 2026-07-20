@@ -5,9 +5,9 @@ const LANGUAGE_HEADERS = ["en", "es", "fr", "swa"];
 
 // Helper: Process a single character in CSV parsing
 function processChar(char, nextChar, currentField, inQuotes) {
-  if (char === '"') {
-    if (inQuotes && nextChar === '"') {
-      return { field: currentField + '"', quotes: true, skip: true };
+  if (char === "\"") {
+    if (inQuotes && nextChar === "\"") {
+      return { field: currentField + "\"", quotes: true, skip: true };
     }
     return { field: currentField, quotes: !inQuotes, skip: false };
   }

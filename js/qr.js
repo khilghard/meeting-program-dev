@@ -1,7 +1,7 @@
 // ------------------------------------------------------------
 // QR Scanner Module
 // ------------------------------------------------------------
-/* eslint-disable no-undef */
+ 
 
 import { t } from "./i18n/index.js";
 
@@ -135,17 +135,17 @@ export function showManualUrlEntry() {
 
   if (!manualBtn || !manualContainer) return;
 
-   manualContainer.hidden = true;
-   manualContainer.classList.add("hidden");
+  manualContainer.hidden = true;
+  manualContainer.classList.add("hidden");
 
-   if (manualInput) {
+  if (manualInput) {
     manualInput.value = "";
     manualInput.placeholder = t("enterSheetUrl");
-   }
+  }
 
-   if (manualSubmit) {
+  if (manualSubmit) {
     manualSubmit.textContent = t("add");
-   }
+  }
 
   if (manualBtn) {
     manualBtn.hidden = false;

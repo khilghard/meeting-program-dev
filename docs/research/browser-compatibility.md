@@ -3,9 +3,16 @@
 **Date:** 2026-05-16
 **Trigger:** User on iOS Safari 15.6 sees rendered text content but no interactive buttons (QR scanner, share, etc.)
 
+**Policy Status (Updated 2026-07-19):**
+- Absolute minimum supported Safari version is **15.6**.
+- Older iPhone/iPad cohorts are **supported with limitations**.
+- Operational support policy is maintained in `AGENTS.md` and mirrored in `docs/SPEC.md`.
+
 ---
 
 ## Root Cause: Import Maps
+
+> Historical context: this section describes the original issue observed at the time of analysis. The runtime has since moved away from import-map dependency for Dexie module resolution.
 
 **The app uses `<script type="importmap">` to resolve bare `"dexie"` imports. Safari on iOS did not support import maps until Safari 16.4.**
 

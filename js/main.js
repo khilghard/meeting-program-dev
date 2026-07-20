@@ -544,7 +544,6 @@ async function handleZeroState() {
   } = ui;
 
   console.log("[INIT] No sheetUrl found, entering zero state.");
-      if (sessionId !== networkStatusSessionId) return;
   actionBtn.textContent = t("scanProgramQR");
   actionBtn.onclick = () => showScanner();
 
@@ -1294,7 +1293,7 @@ function createAgendaAccordionPanel(key, items, agendaId, isLocked = true) {
   const chevron = document.createElement("span");
   chevron.className = "chevron-icon";
   chevron.setAttribute("aria-hidden", "true");
-  chevron.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M5.41 7.59L4 9l8 8 8-8-1.41-1.41L12 14.17z"/></svg>`;
+  chevron.innerHTML = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M5.41 7.59L4 9l8 8 8-8-1.41-1.41L12 14.17z\"/></svg>";
 
   if (lockIcon) header.appendChild(lockIcon);
 
@@ -1641,13 +1640,22 @@ async function init() {
   initTheme();
   try {
     // Load and log version
-    const versionResponse = await fetch("./version.json");
-    syncNetworkReachability({
-      reachable: true,
-      showOnlineNotice: true,
-      source: "init-version-fetch"
-    });
-    const versionData = await versionResponse.json();
+    let versionData = { version: "unknown" };
+    try {
+      const versionResponse = await fetch("./version.json");
+      if (versionResponse && typeof versionResponse.json === "function") {
+        syncNetworkReachability({
+          reachable: true,
+          showOnlineNotice: true,
+          source: "init-version-fetch"
+        });
+        versionData = await versionResponse.json();
+      } else {
+        console.warn("[VERSION] version.json response missing json() method; using fallback version.");
+      }
+    } catch (versionErr) {
+      console.warn("[VERSION] Unable to load version.json; continuing with fallback version.", versionErr);
+    }
     console.log(`[VERSION] App running version: ${versionData.version}`);
 
     console.log("[INIT] Starting initialization...");
@@ -1672,15 +1680,16 @@ async function init() {
     const isStandalone =
       globalThis.window.matchMedia("(display-mode: standalone)").matches ||
       ("standalone" in globalThis.navigator && globalThis.navigator.standalone);
+    const channel = urlParam
+      ? "url-params"
+      : currentProfile?.url
+        ? "profile"
+        : localStorageUrl
+          ? "localStorage"
+          : "none";
 
     console.log("[INIT] URL Resolution:", {
-      channel: urlParam
-        ? "url-params"
-        : currentProfile?.url
-            ? "profile"
-            : localStorageUrl
-              ? "localStorage"
-            : "none",
+      channel,
       urlParamPresent: !!urlParam,
       localStorageUrlPresent: !!localStorageUrl,
       profileUrlPresent: !!currentProfile?.url,
@@ -2384,7 +2393,7 @@ function updateUpdateNotification() {
 
     const updateBtn = document.createElement("button");
     updateBtn.textContent = t("update");
-    updateBtn.onclick = () => refreshPage();
+    updateBtn.onclick = () => window.location.reload();
     updateNotification.appendChild(updateBtn);
   }
 }

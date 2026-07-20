@@ -8,7 +8,7 @@ export default [
   // ------------------------------------------------------------
   {
     files: ["js/**/*.js"],
-    ignores: ["server.js", "../service-worker.js", "js/workers/*.js"],
+    ignores: ["server.js", "../service-worker.js", "js/workers/*.js", "js/vendor/**"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
@@ -26,6 +26,8 @@ export default [
         requestAnimationFrame: "readonly",
         setTimeout: "readonly",
         clearTimeout: "readonly",
+        setInterval: "readonly",
+        clearInterval: "readonly",
         jsQR: "readonly",
         AbortController: "readonly",
         confirm: "readonly",
@@ -33,7 +35,13 @@ export default [
         globalThis: "readonly",
         crypto: "readonly",
         TextEncoder: "readonly",
-        Blob: "readonly"
+        Blob: "readonly",
+        sessionStorage: "readonly",
+        caches: "readonly",
+        performance: "readonly",
+        CustomEvent: "readonly",
+        DOMException: "readonly",
+        google: "readonly"
       }
     },
     plugins: {

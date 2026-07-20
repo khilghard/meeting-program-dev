@@ -33,8 +33,17 @@ function detectPwaContext() {
     ("standalone" in globalThis.navigator && globalThis.navigator.standalone) ||
     globalThis.window.location.search.includes("standalone=true");
 
-  const manifestEl = document.querySelector('link[rel="manifest"]');
+  const manifestEl = document.querySelector("link[rel=\"manifest\"]");
   const startUrl = manifestEl ? manifestEl.getAttribute("href") : null;
+  let displayMode = "unknown";
+
+  if (globalThis.window.matchMedia("(display-mode: standalone)").matches) {
+    displayMode = "standalone";
+  } else if (globalThis.window.matchMedia("(display-mode: minimal-ui)").matches) {
+    displayMode = "minimal-ui";
+  } else if (globalThis.window.matchMedia("(display-mode: browser)").matches) {
+    displayMode = "browser";
+  }
 
   return {
     isStandalone: isStandalone,
@@ -43,13 +52,7 @@ function detectPwaContext() {
       (globalThis.window.innerWidth <= globalThis.window.screen.width &&
         globalThis.window.innerHeight <= globalThis.window.screen.height),
     startUrl: startUrl,
-    displayMode: globalThis.window.matchMedia("(display-mode: standalone)").matches
-      ? "standalone"
-      : globalThis.window.matchMedia("(display-mode: minimal-ui)").matches
-        ? "minimal-ui"
-        : globalThis.window.matchMedia("(display-mode: browser)").matches
-          ? "browser"
-          : "unknown",
+    displayMode,
     fullLaunchUrl: globalThis.window.location.href,
     hasQueryParams: globalThis.window.location.search.length > 0,
     queryParamKeys:
@@ -118,6 +121,15 @@ export async function collectDiagnosticData() {
   }
 
   // Build diagnostic data object
+  const profileSummary = profile
+    ? {
+      id: profile.id,
+      unitName: profile.unitName,
+      stakeName: profile.stakeName,
+      lastUsed: new Date(profile.lastUsed).toISOString()
+    }
+    : null;
+
   const diagnosticData = {
     timestamp: new Date().toISOString(),
     userAgent: navigator.userAgent,
@@ -131,14 +143,7 @@ export async function collectDiagnosticData() {
       screenHeight: window.innerHeight,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
     },
-    profile: profile
-      ? {
-          id: profile.id,
-          unitName: profile.unitName,
-          stakeName: profile.stakeName,
-          lastUsed: new Date(profile.lastUsed).toISOString()
-        }
-      : null,
+    profile: profileSummary,
     localStorage: localStorageData,
     consoleLogs,
     pwaInfo,

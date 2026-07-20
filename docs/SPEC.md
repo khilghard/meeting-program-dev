@@ -305,10 +305,16 @@ extractSheetUrl(url: string): string | null
 ### Tested On
 
 - Chrome/Edge (latest)
-- Safari (latest)
+- Safari 15.6+
 - Firefox (latest)
-- iOS Safari (latest)
+- iOS Safari 15.6+
 - Android Chrome (latest)
+
+### Policy
+
+- Absolute minimum Safari support baseline is 15.6.
+- Older iPhone/iPad devices are supported with limitations (for example, camera permissions/hardware constraints and platform-specific share behavior).
+- Devices that cannot run modern ES-module-capable Safari are out of scope.
 
 ---
 

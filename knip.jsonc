@@ -1,0 +1,27 @@
+{
+  "$schema": "https://unpkg.com/knip@latest/schema.json",
+  "entry": [
+    "index.html",
+    "archive.html",
+    "offline.html",
+    "js/main.js",
+    "js/cms.js",
+    "js/cms-agenda.js",
+    "service-worker.js",
+    "server.cjs"
+  ],
+  "project": [
+    "js/**/*.js",
+    "src/**/*.js",
+    "scripts/**/*.{js,cjs,mjs}",
+    "*.{js,cjs,mjs}"
+  ],
+  "ignoreFiles": [
+    "js/vendor/**",
+    "coverage/**",
+    "playwright-report/**",
+    "test-results/**",
+    "graphify-out/**",
+    "node_modules/**"
+  ]
+}

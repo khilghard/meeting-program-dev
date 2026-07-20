@@ -7,23 +7,23 @@ globalThis.onmessage = function (e) {
     let result = null;
 
     switch (type) {
-      case "parseCSV":
-        result = parseCSV(payload, options);
-        break;
-      case "calculateChecksum":
-        result = calculateChecksum(payload);
-        break;
-      case "compareData":
-        result = compareData(payload.old, payload.new);
-        break;
-      case "sortData":
-        result = sortData(payload.data, payload.sortKey);
-        break;
-      case "cleanupArchives":
-        result = cleanupOldArchives(payload.archives, payload.daysOld, payload.maxArchives);
-        break;
-      default:
-        throw new Error(`Unknown worker type: ${type}`);
+    case "parseCSV":
+      result = parseCSV(payload, options);
+      break;
+    case "calculateChecksum":
+      result = calculateChecksum(payload);
+      break;
+    case "compareData":
+      result = compareData(payload.old, payload.new);
+      break;
+    case "sortData":
+      result = sortData(payload.data, payload.sortKey);
+      break;
+    case "cleanupArchives":
+      result = cleanupOldArchives(payload.archives, payload.daysOld, payload.maxArchives);
+      break;
+    default:
+      throw new Error(`Unknown worker type: ${type}`);
     }
 
     self.postMessage({ type, id, result });
@@ -34,9 +34,9 @@ globalThis.onmessage = function (e) {
 };
 
 function processCharInWorker(char, nextChar, currentField, inQuotes) {
-  if (char === '"') {
-    if (inQuotes && nextChar === '"') {
-      return { field: currentField + '"', quotes: true, skip: true };
+  if (char === "\"") {
+    if (inQuotes && nextChar === "\"") {
+      return { field: currentField + "\"", quotes: true, skip: true };
     }
     return { field: currentField, quotes: !inQuotes, skip: false };
   }
