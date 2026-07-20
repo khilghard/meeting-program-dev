@@ -116,7 +116,14 @@ async function handleDiagnosticClick() {
 
     // Small delay to show state change
     setTimeout(() => {
-      window.location.href = mailto;
+      // Use an anchor click instead of window.location.href —
+      // window.location.href = mailto: is unreliable on iOS Safari/WKWebView.
+      const anchor = document.createElement("a");
+      anchor.href = mailto;
+      anchor.style.display = "none";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
 
       // Reset after a delay (user may return from email app)
       setTimeout(() => {

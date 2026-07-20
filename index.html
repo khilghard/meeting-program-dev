@@ -222,10 +222,12 @@
 
       localStorage.setItem("app_version", VERSION);
 
+      const vendorBase = new URL("js/vendor/", document.baseURI).href;
+
       const loadClassicScript = (src) =>
         new Promise((resolve, reject) => {
           const script = document.createElement("script");
-          script.src = src;
+          script.src = new URL(src, vendorBase).href;
           script.async = false;
           script.onload = () => resolve();
           script.onerror = () => reject(new Error(`Failed to load ${src}`));
@@ -233,12 +235,15 @@
         });
 
       (async () => {
-        try {
-          await loadClassicScript(`js/vendor/jsQR.js?v=${VERSION}`);
-          await loadClassicScript(`js/vendor/qrcode.js?v=${VERSION}`);
-        } catch (error) {
-          console.error("[Init] Failed to load local vendor libraries", error);
-        }
+        const vendorResults = await Promise.allSettled([
+          loadClassicScript(`jsQR.js?v=${VERSION}`),
+          loadClassicScript(`qrcode.js?v=${VERSION}`)
+        ]);
+        vendorResults.forEach((result, i) => {
+          if (result.status === "rejected") {
+            console.warn("[Init] Vendor library load failed:", result.reason?.message);
+          }
+        });
 
         const mainScript = document.createElement("script");
         mainScript.type = "module";
@@ -281,11 +286,9 @@
             };
           } catch (error) {
             console.error("[SW] Registration failed:", error);
-            captureError(error, "sw-registration");
           }
         } catch (error) {
           console.error("[SW] Service worker setup failed:", error);
-          captureError(error, "sw-setup");
         }
       })();
 
