@@ -298,36 +298,44 @@
         document.head.appendChild(mainScript);
       })();
 
-      // Register service worker after version is loaded
-      (async () => {
-        try {
-          if (typeof navigator === "undefined") {
-            console.warn("[SW] Navigator not available, skipping service worker registration");
-            return;
+      // Register service worker after page is fully loaded.
+      // Delayed registration + retry with backoff fixes iOS Home Screen PWA
+      // "TypeError: Script load failed" where the browser's internal SW
+      // script fetch fails on first attempt in standalone webview context.
+      function registerServiceWorker() {
+        if (typeof navigator === "undefined") {
+          console.warn("[SW] Navigator not available, skipping service worker registration");
+          return;
+        }
+
+        if (!("serviceWorker" in navigator)) {
+          if (!window.isSecureContext) {
+            console.warn(
+              "[SW] Service workers unavailable in this context (requires HTTPS or localhost)."
+            );
+          } else {
+            console.warn("[SW] Service workers not supported by this browser context");
           }
+          return;
+        }
 
-          if (!("serviceWorker" in navigator)) {
-            if (!window.isSecureContext) {
-              console.warn(
-                "[SW] Service workers unavailable in this context (requires HTTPS or localhost)."
-              );
-            } else {
-              console.warn("[SW] Service workers not supported by this browser context");
-            }
-            return;
-          }
+        // No query parameter — the browser does byte-for-byte comparison
+        // for SW updates; a ?v= cache-buster can confuse iOS standalone mode.
+        const swUrl = toAppUrl("service-worker.js");
 
-          const swUrl = toAppUrl(`service-worker.js?v=${VERSION}`);
+        const MAX_ATTEMPTS = 3;
+        const BASE_DELAY_MS = 1000;
 
+        async function attemptRegistration(attempt) {
           try {
             const registration = await navigator.serviceWorker.register(swUrl);
-            console.log("[SW] Registered successfully");
+            console.log("[SW] Registered successfully (attempt " + attempt + ")");
             registration.onupdatefound = () => {
               const installingWorker = registration.installing;
+              if (!installingWorker) return;
               installingWorker.onstatechange = () => {
                 if (installingWorker.state === "installed") {
                   if (navigator.serviceWorker.controller) {
-                    // Show update notification
                     const el = document.getElementById("update-notification");
                     if (el) el.hidden = false;
                   }
@@ -335,12 +343,25 @@
               };
             };
           } catch (error) {
-            console.error("[SW] Registration failed:", error);
+            console.warn("[SW] Registration attempt " + attempt + " failed:", error.message || error);
+            if (attempt < MAX_ATTEMPTS) {
+              const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
+              console.log("[SW] Retrying in " + delay + "ms...");
+              setTimeout(() => attemptRegistration(attempt + 1), delay);
+            } else {
+              console.error("[SW] All " + MAX_ATTEMPTS + " registration attempts failed");
+            }
           }
-        } catch (error) {
-          console.error("[SW] Service worker setup failed:", error);
         }
-      })();
+
+        attemptRegistration(1);
+      }
+
+      if (document.readyState === "complete") {
+        registerServiceWorker();
+      } else {
+        window.addEventListener("load", registerServiceWorker);
+      }
 
       function refreshPage() {
         if (navigator.serviceWorker.controller) {
