@@ -24,9 +24,13 @@ describe("HTML Syntax Validation", () => {
     const htmlPath = path.resolve(__dirname, "../index.html");
     const content = fs.readFileSync(htmlPath, "utf-8");
 
-    // Check that navigator.serviceWorker.register is called with error handling
-    const callPattern = /navigator\.serviceWorker\.register\s*\(\s*swUrl\s*\)\s*(\.catch|await)/;
-    expect(content).toMatch(callPattern);
+    // Check that navigator.serviceWorker.register is called with error handling:
+    // either register(...).catch(...), await register(...), or try { await register(...) } catch
+    const hasAwaitBefore =
+      /await\s+navigator\.serviceWorker\.register\s*\(\s*swUrl\s*\)/.test(content);
+    const hasCatchAfter =
+      /navigator\.serviceWorker\.register\s*\(\s*swUrl\s*\)\s*\.catch/.test(content);
+    expect(hasAwaitBefore || hasCatchAfter).toBe(true);
   });
 
   test("All async functions should have error handling", () => {
@@ -34,10 +38,11 @@ describe("HTML Syntax Validation", () => {
     const content = fs.readFileSync(htmlPath, "utf-8");
 
     // Check that navigator.serviceWorker.register is called with error handling
-    // Pattern: navigator.serviceWorker.register() should be followed by .catch() or wrapped in try-catch
-    const callPattern =
-      /navigator\.serviceWorker\.register\s*\(\s*swUrl\s*\)(\s*\.catch\s*\(|\s*await)/;
-    expect(content).toMatch(callPattern);
+    const hasAwaitBefore =
+      /await\s+navigator\.serviceWorker\.register\s*\(\s*swUrl\s*\)/.test(content);
+    const hasCatchAfter =
+      /navigator\.serviceWorker\.register\s*\(\s*swUrl\s*\)\s*\.catch/.test(content);
+    expect(hasAwaitBefore || hasCatchAfter).toBe(true);
 
     // Check that there's no bare await at top level
     const bareAwaitPattern = /}\s*\n\s*await\s+\w+\s*\(\s*\)\s*;/;
