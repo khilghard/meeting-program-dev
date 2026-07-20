@@ -219,12 +219,13 @@ export function createCmsApp(dependencies = {}) {
   function setAuthPanelState() {
     const { authMessage, signInButton, setupButton } = getElements();
     if (authMessage) {
-      authMessage.textContent = state.hasConfiguredClientId
+      const authPrompt = state.hasConfiguredClientId
         ? text("cms.signInPrompt", "Sign in with Google to edit the selected program sheet.")
         : text(
-            "cms.configurePrompt",
-            "Configure Google settings before signing in to edit this program sheet."
-          );
+          "cms.configurePrompt",
+          "Configure Google settings before signing in to edit this program sheet."
+        );
+      authMessage.textContent = authPrompt;
     }
     if (signInButton) {
       signInButton.hidden = !state.hasConfiguredClientId;
@@ -255,7 +256,7 @@ export function createCmsApp(dependencies = {}) {
 
   function translateShell() {
     deps.documentRef.title = text("cms.pageTitle", "Sacrament Meeting Program CMS");
-    const appleTitle = deps.documentRef.querySelector('meta[name="apple-mobile-web-app-title"]');
+    const appleTitle = deps.documentRef.querySelector("meta[name=\"apple-mobile-web-app-title\"]");
     if (appleTitle) {
       appleTitle.setAttribute("content", text("cms.pageTitle", "Sacrament Meeting Program CMS"));
     }

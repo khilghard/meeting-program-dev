@@ -74,21 +74,21 @@ export function logError(error, options = {}) {
   };
 
   switch (level) {
-    case ErrorLevel.DEBUG:
-      logger.debug("[ERROR]", errorInfo);
-      break;
-    case ErrorLevel.INFO:
-      logger.info("[ERROR]", errorInfo);
-      break;
-    case ErrorLevel.WARN:
-      logger.warn("[ERROR]", errorInfo);
-      break;
-    case ErrorLevel.CRITICAL:
-      logger.error("[CRITICAL]", errorInfo);
-      storeCriticalError(errorInfo);
-      break;
-    default:
-      logger.error("[ERROR]", errorInfo);
+  case ErrorLevel.DEBUG:
+    logger.debug("[ERROR]", errorInfo);
+    break;
+  case ErrorLevel.INFO:
+    logger.info("[ERROR]", errorInfo);
+    break;
+  case ErrorLevel.WARN:
+    logger.warn("[ERROR]", errorInfo);
+    break;
+  case ErrorLevel.CRITICAL:
+    logger.error("[CRITICAL]", errorInfo);
+    storeCriticalError(errorInfo);
+    break;
+  default:
+    logger.error("[ERROR]", errorInfo);
   }
 
   return errorInfo;

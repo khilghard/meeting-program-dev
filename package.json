@@ -5,6 +5,10 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "analyze:unused": "knip --config knip.jsonc --no-progress --no-exit-code",
+    "analyze:architecture": "depcruise --config .dependency-cruiser.cjs js src service-worker.js server.cjs scripts",
+    "analyze:security": "bash scripts/precommit-semgrep.sh",
+    "precommit:quality": "npm run analyze:unused && npm run analyze:architecture && npm run analyze:security",
     "husky": "husky install",
     "vendor:sync": "node scripts/sync-vendor-libs.mjs",
     "vendor:update": "npm update dexie qrcode jsqr uuid && npm run vendor:sync",
@@ -15,7 +19,8 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
-    "test:e2e:debug": "playwright test --debug"
+    "test:e2e:debug": "playwright test --debug",
+    "prepare": "husky"
   },
   "lint-staged": {
     "*.js": "eslint --fix"
@@ -44,8 +49,10 @@
     "@rigour-labs/core": "^2.22.0",
     "@rigour-labs/mcp": "^2.22.0",
     "@vitest/coverage-v8": "^4.0.18",
+    "dependency-cruiser": "^18.1.0",
     "esbuild": "^0.28.0",
     "fake-indexeddb": "^6.2.5",
-    "jsqr": "^1.4.0"
+    "jsqr": "^1.4.0",
+    "knip": "^6.27.0"
   }
 }

@@ -321,8 +321,7 @@ const translationsData = {
     "cms.input.priesthoodBusiness": "Priesthood business",
     "cms.action.addMoveIn": "Add Move-In",
     "cms.action.addConvert": "Add Convert",
-    "cms.input.otherBusiness": "Other business",
-    "cms.action.addRow": "Add Row"
+    "cms.input.otherBusiness": "Other business"
   },
   es: {
     churchName: "La Iglesia de Jesucristo de los Santos de los Últimos Días",

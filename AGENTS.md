@@ -164,3 +164,26 @@ Target incremental rendering: update only changed row DOM elements.
 - Limit field lengths (text ≤1000, textarea ≤5000).
 - Treat `<LINK>` and `<IMG>` as plain text.
 
+## Browser & Device Support Policy
+
+### Minimum Browser Baseline
+- Absolute minimum supported Safari version is **15.6**.
+- For iPhone/iPad, support policy is **supported with limitations** on older devices and OS versions.
+
+### Current Compatibility Notes
+- Current runtime does **not** rely on import maps for Dexie resolution.
+- This enables Safari 15.6+ compatibility for the core app/module boot path.
+- Some features can still vary by device capability or platform policy:
+	- Camera/QR scan depends on hardware, permissions, and browser camera behavior.
+	- Native share behavior differs by platform and may require fallback UX.
+
+### Legacy Device Guidance
+- Older devices such as iPhone 6s/SE (1st gen), iPad Air 2, iPad 5th/6th gen, and iPad mini 4/5 are in-scope under "supported with limitations" when on Safari 15.6+.
+- Very old tablets/phones that cannot run modern ES module-capable Safari are out of scope.
+
+### Maintenance Rule
+- When browser baseline policy changes, update all three files together:
+	- `AGENTS.md`
+	- `docs/SPEC.md`
+	- `docs/research/browser-compatibility.md`
+

@@ -36,7 +36,7 @@ export function parseMarkdown(text) {
   // Links: [text](url)
   html = html.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener">$1</a>'
+    "<a href=\"$2\" target=\"_blank\" rel=\"noopener\">$1</a>"
   );
 
   // Numbered lists: lines starting with "1. ", "2. " etc.
@@ -100,7 +100,7 @@ export function createAgendaAccordionPanel(key, value) {
   const chevron = document.createElement("span");
   chevron.className = "chevron-icon";
   chevron.setAttribute("aria-hidden", "true");
-  chevron.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M5.41 7.59L4 9l8 8 8-8-1.41-1.41L12 14.17z"/></svg>`;
+  chevron.innerHTML = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M5.41 7.59L4 9l8 8 8-8-1.41-1.41L12 14.17z\"/></svg>";
 
   header.appendChild(lockIcon);
   header.appendChild(title);

@@ -8,8 +8,7 @@ import {
 } from "./data/IndexedDBManager.js";
 import GoogleAuth from "./auth/googleAuth.js";
 import { AGENDA_KEYS } from "./agenda/constants.js";
-import AgendaKeyEditor from "./components/AgendaKeyEditor.mjs";
-import { validateAgendaValues } from "./components/AgendaKeyEditor.mjs";
+import AgendaKeyEditor, { validateAgendaValues } from "./components/AgendaKeyEditor.mjs";
 import { initI18n, t } from "./i18n/index.js";
 import { AgendaSheetService } from "./services/AgendaSheetService.mjs";
 import { SheetTabService } from "./services/SheetTabService.mjs";
@@ -252,7 +251,7 @@ export function createCmsAgendaApp(dependencies = {}) {
 
   function translateShell() {
     deps.documentRef.title = text("cmsAgenda.pageTitle", "Ward Agenda CMS");
-    const appleTitle = deps.documentRef.querySelector('meta[name="apple-mobile-web-app-title"]');
+    const appleTitle = deps.documentRef.querySelector("meta[name=\"apple-mobile-web-app-title\"]");
     if (appleTitle) {
       appleTitle.setAttribute("content", text("cmsAgenda.pageTitle", "Ward Agenda CMS"));
     }
@@ -324,12 +323,13 @@ export function createCmsAgendaApp(dependencies = {}) {
       authPanel.hidden = false;
     }
     if (authMessage) {
-      authMessage.textContent = state.hasConfiguredClientId
+      const authPrompt = state.hasConfiguredClientId
         ? text("cmsAgenda.signInAgainPrompt", "Tap to sign in again to publish agenda changes.")
         : text(
-            "cmsAgenda.configurePrompt",
-            "Configure Google settings before signing in to edit the agenda."
-          );
+          "cmsAgenda.configurePrompt",
+          "Configure Google settings before signing in to edit the agenda."
+        );
+      authMessage.textContent = authPrompt;
     }
     if (signInButton) {
       signInButton.hidden = !state.hasConfiguredClientId;

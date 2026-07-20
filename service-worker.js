@@ -26,7 +26,7 @@ console.log(`[SW] BASE_PATH detected: "${BASE_PATH}"`);
 // Legacy support - keep old MPPATH for existing users
 const MPPATH = BASE_PATH || "/meeting-program-dev";
 const APP_PREFIX = "smpwa";
-const VERSION = "2.4.27";
+const VERSION = "2.4.28";
 const CACHE_NAME = `${APP_PREFIX}-${VERSION}`;
 
 // All users now on 2.2.x - single unified cache scheme
@@ -172,11 +172,11 @@ async function handleStaticCache(req) {
         return cachedIgnoreSearch;
       }
     } catch (cacheErr) {
-      console.warn(`[SW] Cache lookup failed:`, cacheErr);
+      console.warn("[SW] Cache lookup failed:", cacheErr);
     }
 
     // Both network and cache failed
-    console.error(`[SW] No cached or network response for:`, req.url);
+    console.error("[SW] No cached or network response for:", req.url);
 
     // Never reject respondWith() for static assets; return an explicit response
     // so the fetch event does not surface as an unhandled promise rejection.
