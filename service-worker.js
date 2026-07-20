@@ -26,7 +26,7 @@ console.log(`[SW] BASE_PATH detected: "${BASE_PATH}"`);
 // Legacy support - keep old MPPATH for existing users
 const MPPATH = BASE_PATH || "/meeting-program-dev";
 const APP_PREFIX = "smpwa";
-const VERSION = "2.4.33";
+const VERSION = "2.4.34";
 const CACHE_NAME = `${APP_PREFIX}-${VERSION}`;
 
 // All users now on 2.2.x - single unified cache scheme
@@ -330,6 +330,14 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
 
   if (req.method !== "GET") return;
+
+  // Never intercept the service worker script fetch itself.
+  // On iOS Home Screen PWAs, the existing SW intercepting its own replacement
+  // script through handleDynamicCache can cause "Script load failed" errors
+  // when the network or cache layer fails. Let the browser handle it directly.
+  if (url.pathname.endsWith("/service-worker.js")) {
+    return;
+  }
 
   const cmsBasePath = `${BASE_PATH}cms/`;
   const cmsBasePathWithoutTrailingSlash = cmsBasePath.slice(0, -1);
