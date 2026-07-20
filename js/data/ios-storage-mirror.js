@@ -2,74 +2,61 @@
  * ios-storage-mirror.js
  *
  * On iOS, Safari and Home Screen PWA have completely isolated storage
- * (IndexedDB, localStorage, cookies). Only CacheStorage is shared
- * (since iOS 14).
+ * (IndexedDB, localStorage, cookies). CacheStorage IS shared (since
+ * iOS 14), but direct main-thread access may not work reliably from
+ * a Home Screen PWA context.
  *
- * This module mirrors critical profile data to CacheStorage so the
- * Home Screen PWA can access data set up in Safari, and vice versa.
+ * This module routes all CacheStorage access through the service worker
+ * using postMessage(). The SW mediates reads/writes to a shared cache
+ * namespace ("meeting-program-ios-mirror"), ensuring both Safari and
+ * Home Screen PWA can access the same data.
+ *
+ * Reference: https://www.netguru.com/blog/how-to-share-session-cookie-or-state-between-pwa-in-standalone-mode-and-safari-on-ios
  */
 
-/* global Response */
+/* global MessageChannel */
 
-const CACHE_NAME = "meeting-program-ios-mirror";
-const SELECTED_PROFILE_ID_KEY = "selected-profile-id";
-const PROFILES_KEY = "profiles";
-
-let cacheAvailable = null;
-
-async function getCache() {
-  if (cacheAvailable === false) return null;
-  try {
-    if (typeof caches === "undefined") {
-      cacheAvailable = false;
-      return null;
+function sendToSW(message) {
+  return new Promise((resolve) => {
+    if (!navigator.serviceWorker?.controller) {
+      resolve(null);
+      return;
     }
-    const cache = await caches.open(CACHE_NAME);
-    cacheAvailable = true;
-    return cache;
-  } catch {
-    cacheAvailable = false;
-    return null;
-  }
-}
 
-async function writeToCache(key, value) {
-  const cache = await getCache();
-  if (!cache) return;
-  try {
-    const response = new Response(JSON.stringify(value), {
-      headers: { "Content-Type": "application/json" }
-    });
-    await cache.put(key, response);
-  } catch (e) {
-    console.warn("[IosMirror] Failed to write to CacheStorage:", e);
-  }
-}
+    const timeout = setTimeout(() => resolve(null), 3000);
 
-async function readFromCache(key) {
-  const cache = await getCache();
-  if (!cache) return null;
-  try {
-    const response = await cache.match(key);
-    if (!response) return null;
-    return await response.json();
-  } catch {
-    return null;
-  }
+    const channel = new MessageChannel();
+    channel.port1.onmessage = (event) => {
+      clearTimeout(timeout);
+      const data = event.data;
+      if (data?.success) {
+        resolve(data.value !== undefined ? data.value : true);
+      } else {
+        resolve(null);
+      }
+    };
+
+    try {
+      navigator.serviceWorker.controller.postMessage(message, [channel.port2]);
+    } catch {
+      clearTimeout(timeout);
+      resolve(null);
+    }
+  });
 }
 
 export async function mirrorSelectedProfileId(id) {
-  await writeToCache(SELECTED_PROFILE_ID_KEY, id);
+  await sendToSW({ action: "mirrorStore", key: "selected-profile-id", value: id });
 }
 
 export async function readMirroredSelectedProfileId() {
-  return await readFromCache(SELECTED_PROFILE_ID_KEY);
+  return await sendToSW({ action: "mirrorRead", key: "selected-profile-id" });
 }
 
 export async function mirrorProfiles(profiles) {
-  await writeToCache(PROFILES_KEY, profiles);
+  await sendToSW({ action: "mirrorStore", key: "profiles", value: profiles });
 }
 
 export async function readMirroredProfiles() {
-  return await readFromCache(PROFILES_KEY);
+  return await sendToSW({ action: "mirrorRead", key: "profiles" });
 }
