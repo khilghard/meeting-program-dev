@@ -22,6 +22,11 @@ function buildMailtoUrl(subject, body) {
   return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
+function isAndroidDevice() {
+  const ua = navigator?.userAgent || "";
+  return /Android/i.test(ua);
+}
+
 async function copyDiagnosticToClipboard(text) {
   try {
     if (!navigator.clipboard?.writeText) {
@@ -56,6 +61,16 @@ function buildFallbackBody(diagnosticData, copiedToClipboard) {
   }
   if (diagnosticData?.googleSheetUrl) {
     lines.push(`Google Sheet URL: ${diagnosticData.googleSheetUrl}`);
+  }
+
+  const errorLogs = (diagnosticData?.consoleLogs || []).filter((entry) => entry?.level === "error");
+  if (errorLogs.length > 0) {
+    lines.push("");
+    lines.push("Error Logs:");
+    errorLogs.forEach((log) => {
+      const timestamp = log?.timestamp ? new Date(log.timestamp).toLocaleTimeString() : "[unknown time]";
+      lines.push(`[${timestamp}] ${log?.message || "[no message]"}`);
+    });
   }
 
   return lines.join("\n");
@@ -95,8 +110,9 @@ async function handleDiagnosticClick() {
     const emailBody = formatDiagnosticEmail(diagnosticData);
 
     let mailto = buildMailtoUrl(EMAIL_SUBJECT, emailBody);
+    const shouldUseLengthFallback = !isAndroidDevice() && mailto.length > MAX_MAILTO_URL_LENGTH;
 
-    if (mailto.length > MAX_MAILTO_URL_LENGTH) {
+    if (shouldUseLengthFallback) {
       const copiedToClipboard = await copyDiagnosticToClipboard(emailBody);
       const fallbackBody = buildFallbackBody(diagnosticData, copiedToClipboard);
 
