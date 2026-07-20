@@ -13,6 +13,7 @@
     "vendor:sync": "node scripts/sync-vendor-libs.mjs",
     "vendor:update": "npm update dexie qrcode jsqr uuid && npm run vendor:sync",
     "dev": "node server.cjs",
+    "dev:test": "HOST=0.0.0.0 PORT=8000 node server.cjs",
     "test": "vitest",
     "test:run": "vitest --run",
     "test:coverage": "vitest --coverage",

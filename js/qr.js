@@ -151,21 +151,7 @@ export function showManualUrlEntry() {
     manualBtn.hidden = false;
     manualBtn.classList.remove("hidden");
     manualBtn.textContent = t("enterSheetUrlManually");
-    manualBtn.onclick = () => {
-      manualBtn.hidden = true;
-      manualBtn.classList.add("hidden");
-      if (manualContainer) {
-        manualContainer.hidden = false;
-        manualContainer.classList.remove("hidden");
-      }
-      if (manualInput) {
-        manualInput.placeholder = t("enterSheetUrl");
-        manualInput.focus();
-      }
-      if (manualSubmit) {
-        manualSubmit.textContent = t("add");
-      }
-    };
+    manualBtn.onclick = () => openManualUrlInput();
   }
 
   if (manualSubmit) {
@@ -196,6 +182,32 @@ export function showManualUrlEntry() {
         manualSubmit.click();
       }
     };
+  }
+}
+
+function openManualUrlInput() {
+  const manualBtn = document.getElementById("manual-url-btn");
+  const manualContainer = document.getElementById("manual-url-container");
+  const manualInput = document.getElementById("manual-url-input");
+  const manualSubmit = document.getElementById("manual-url-submit");
+
+  if (manualBtn) {
+    manualBtn.hidden = true;
+    manualBtn.classList.add("hidden");
+  }
+
+  if (manualContainer) {
+    manualContainer.hidden = false;
+    manualContainer.classList.remove("hidden");
+  }
+
+  if (manualInput) {
+    manualInput.placeholder = t("enterSheetUrl");
+    manualInput.focus();
+  }
+
+  if (manualSubmit) {
+    manualSubmit.textContent = t("add");
   }
 }
 
@@ -269,6 +281,8 @@ export async function startQRScanner() {
   try {
     if (!navigator.mediaDevices?.getUserMedia) {
       output.textContent = t("cameraUnavailable");
+      showManualUrlEntry();
+      openManualUrlInput();
       return;
     }
 
@@ -284,13 +298,15 @@ export async function startQRScanner() {
   } catch (err) {
     console.error("Camera error:", err);
 
+    showManualUrlEntry();
+    openManualUrlInput();
+
     if (isSafari() && (err.name === "NotAllowedError" || err.name === "NotReadableError")) {
       showSafariCameraHelp();
       return;
     }
 
     output.textContent = t("cameraDenied");
-    showManualUrlEntry();
   }
 }
 

@@ -222,22 +222,42 @@
 
       localStorage.setItem("app_version", VERSION);
 
-      const vendorBase = new URL("js/vendor/", document.baseURI).href;
-
-      const loadClassicScript = (src) =>
+      const appendClassicScript = (url) =>
         new Promise((resolve, reject) => {
           const script = document.createElement("script");
-          script.src = new URL(src, vendorBase).href;
+          script.src = url;
           script.async = false;
-          script.onload = () => resolve();
-          script.onerror = () => reject(new Error(`Failed to load ${src}`));
+          script.onload = () => resolve(url);
+          script.onerror = () => reject(new Error(`Failed to load ${url}`));
           document.head.appendChild(script);
         });
 
+      const loadClassicScriptWithFallbacks = async (filename) => {
+        const candidates = [
+          new URL(`js/vendor/${filename}`, window.location.href).href,
+          new URL(`./js/vendor/${filename}`, window.location.href).href,
+          new URL(`/js/vendor/${filename}`, window.location.origin).href
+        ];
+
+        let lastError = null;
+        for (const candidate of candidates) {
+          try {
+            await appendClassicScript(candidate);
+            return;
+          } catch (error) {
+            lastError = error;
+          }
+        }
+
+        throw new Error(
+          `Failed to load ${filename}. Tried: ${candidates.join(", ")}. Last error: ${lastError?.message || "unknown"}`
+        );
+      };
+
       (async () => {
         const vendorResults = await Promise.allSettled([
-          loadClassicScript(`jsQR.js?v=${VERSION}`),
-          loadClassicScript(`qrcode.js?v=${VERSION}`)
+          loadClassicScriptWithFallbacks(`jsQR.js?v=${VERSION}`),
+          loadClassicScriptWithFallbacks(`qrcode.js?v=${VERSION}`)
         ]);
         vendorResults.forEach((result, i) => {
           if (result.status === "rejected") {
@@ -260,7 +280,13 @@
           }
 
           if (!("serviceWorker" in navigator)) {
-            console.warn("[SW] Service workers not supported");
+            if (!window.isSecureContext) {
+              console.warn(
+                "[SW] Service workers unavailable in this context (requires HTTPS or localhost)."
+              );
+            } else {
+              console.warn("[SW] Service workers not supported by this browser context");
+            }
             return;
           }
 
