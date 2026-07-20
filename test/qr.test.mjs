@@ -291,9 +291,11 @@ describe("QR Module", () => {
       const error = new Error("Permission denied");
       navigator.mediaDevices.getUserMedia.mockRejectedValue(error);
       const manualBtn = document.getElementById("manual-url-btn");
+      const manualContainer = document.getElementById("manual-url-container");
 
       await startQRScanner();
-      expect(manualBtn.hidden).toBe(false);
+      expect(manualBtn.hidden).toBe(true);
+      expect(manualContainer.hidden).toBe(false);
 
       hideScanner();
       expect(manualBtn.hidden).toBe(true);
@@ -311,9 +313,8 @@ describe("QR Module", () => {
 
       await startQRScanner();
 
-      expect(manualBtn.hidden).toBe(false);
-      expect(manualBtn.textContent).toBe("Enter Sheet URL Manually");
-      expect(manualContainer.hidden).toBe(true);
+      expect(manualBtn.hidden).toBe(true);
+      expect(manualContainer.hidden).toBe(false);
       expect(manualInput.value).toBe("");
     });
   });
@@ -381,11 +382,12 @@ describe("QR Module", () => {
       const error = new Error("Permission denied");
       navigator.mediaDevices.getUserMedia.mockRejectedValue(error);
       const manualBtn = document.getElementById("manual-url-btn");
+      const manualContainer = document.getElementById("manual-url-container");
 
       await startQRScanner();
 
-      expect(manualBtn.hidden).toBe(false);
-      expect(manualBtn.textContent).toBe("Enter Sheet URL Manually");
+      expect(manualBtn.hidden).toBe(true);
+      expect(manualContainer.hidden).toBe(false);
     });
 
     test("manual URL button reveals input field", async () => {
@@ -396,7 +398,6 @@ describe("QR Module", () => {
       const manualInput = document.getElementById("manual-url-input");
 
       await startQRScanner();
-      manualBtn.click();
 
       expect(manualBtn.hidden).toBe(true);
       expect(manualContainer.hidden).toBe(false);
@@ -413,7 +414,6 @@ describe("QR Module", () => {
       const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
 
       await startQRScanner();
-      manualBtn.click();
       manualInput.value = "https://docs.google.com/spreadsheets/d/test";
       manualSubmit.click();
 
@@ -433,7 +433,6 @@ describe("QR Module", () => {
       const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
 
       await startQRScanner();
-      manualBtn.click();
       manualInput.value = "https://docs.google.com/spreadsheets/d/test";
       manualSubmit.click();
 
@@ -455,7 +454,6 @@ describe("QR Module", () => {
       const output = document.getElementById("qr-output");
 
       await startQRScanner();
-      manualBtn.click();
       manualInput.value = "not-a-valid-url";
       manualSubmit.click();
 

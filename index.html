@@ -222,23 +222,48 @@
 
       localStorage.setItem("app_version", VERSION);
 
-      const loadClassicScript = (src) =>
+      const appendClassicScript = (url) =>
         new Promise((resolve, reject) => {
           const script = document.createElement("script");
-          script.src = src;
+          script.src = url;
           script.async = false;
-          script.onload = () => resolve();
-          script.onerror = () => reject(new Error(`Failed to load ${src}`));
+          script.onload = () => resolve(url);
+          script.onerror = () => reject(new Error(`Failed to load ${url}`));
           document.head.appendChild(script);
         });
 
-      (async () => {
-        try {
-          await loadClassicScript(`js/vendor/jsQR.js?v=${VERSION}`);
-          await loadClassicScript(`js/vendor/qrcode.js?v=${VERSION}`);
-        } catch (error) {
-          console.error("[Init] Failed to load local vendor libraries", error);
+      const loadClassicScriptWithFallbacks = async (filename) => {
+        const candidates = [
+          new URL(`js/vendor/${filename}`, window.location.href).href,
+          new URL(`./js/vendor/${filename}`, window.location.href).href,
+          new URL(`/js/vendor/${filename}`, window.location.origin).href
+        ];
+
+        let lastError = null;
+        for (const candidate of candidates) {
+          try {
+            await appendClassicScript(candidate);
+            return;
+          } catch (error) {
+            lastError = error;
+          }
         }
+
+        throw new Error(
+          `Failed to load ${filename}. Tried: ${candidates.join(", ")}. Last error: ${lastError?.message || "unknown"}`
+        );
+      };
+
+      (async () => {
+        const vendorResults = await Promise.allSettled([
+          loadClassicScriptWithFallbacks(`jsQR.js?v=${VERSION}`),
+          loadClassicScriptWithFallbacks(`qrcode.js?v=${VERSION}`)
+        ]);
+        vendorResults.forEach((result, i) => {
+          if (result.status === "rejected") {
+            console.warn("[Init] Vendor library load failed:", result.reason?.message);
+          }
+        });
 
         const mainScript = document.createElement("script");
         mainScript.type = "module";
@@ -255,7 +280,13 @@
           }
 
           if (!("serviceWorker" in navigator)) {
-            console.warn("[SW] Service workers not supported");
+            if (!window.isSecureContext) {
+              console.warn(
+                "[SW] Service workers unavailable in this context (requires HTTPS or localhost)."
+              );
+            } else {
+              console.warn("[SW] Service workers not supported by this browser context");
+            }
             return;
           }
 
@@ -281,11 +312,9 @@
             };
           } catch (error) {
             console.error("[SW] Registration failed:", error);
-            captureError(error, "sw-registration");
           }
         } catch (error) {
           console.error("[SW] Service worker setup failed:", error);
-          captureError(error, "sw-setup");
         }
       })();
 

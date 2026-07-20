@@ -31,9 +31,13 @@ app.get("/meeting-program/cms_agenda", (req, res) => {
 });
 
 // Start the server
-const port = 8000;
-app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}/meeting-program`);
-  console.log(`CMS available at http://localhost:${port}/meeting-program/cms`);
-  console.log(`Agenda CMS available at http://localhost:${port}/meeting-program/cms_agenda`);
+const port = Number(process.env.PORT) || 8000;
+const host = process.env.HOST || "127.0.0.1";
+const displayHost = host === "0.0.0.0" ? "localhost" : host;
+
+app.listen(port, host, () => {
+  console.log(`Server binding on ${host}:${port}`);
+  console.log(`Server running at http://${displayHost}:${port}/meeting-program`);
+  console.log(`CMS available at http://${displayHost}:${port}/meeting-program/cms`);
+  console.log(`Agenda CMS available at http://${displayHost}:${port}/meeting-program/cms_agenda`);
 });

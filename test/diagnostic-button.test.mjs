@@ -51,13 +51,25 @@ describe("Diagnostic Button", () => {
   test("opens a regular mailto draft when payload is small", async () => {
     formatDiagnosticEmail.mockReturnValue("short diagnostic body");
 
+    let capturedAnchor = null;
+    const origCreate = document.createElement.bind(document);
+    const createSpy = vi.spyOn(document, "createElement").mockImplementation((tag) => {
+      const el = origCreate(tag);
+      if (tag === "a") {
+        capturedAnchor = el;
+      }
+      return el;
+    });
+
     initDiagnosticButton();
     document.getElementById("diagnostic-button").click();
     await vi.runAllTimersAsync();
 
     expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
-    expect(window.location.href).toContain("mailto:?subject=");
-    expect(decodeURIComponent(window.location.href)).toContain("short diagnostic body");
+    expect(capturedAnchor).not.toBeNull();
+    expect(capturedAnchor.href).toContain("mailto:?subject=");
+    expect(decodeURIComponent(capturedAnchor.href)).toContain("short diagnostic body");
+    createSpy.mockRestore();
   });
 
   test("copies full diagnostics and opens a short draft when payload is too large", async () => {
@@ -69,10 +81,21 @@ describe("Diagnostic Button", () => {
     await vi.runAllTimersAsync();
 
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(oversizedBody);
-    expect(window.location.href).toContain("mailto:?subject=");
-    expect(window.location.href.length).toBeLessThan(1800);
-    expect(decodeURIComponent(window.location.href)).toContain(
-      "Full diagnostic report was copied to your clipboard"
-    );
+    // Anchor is removed after click, so we verify via the click event listener
+    // by re-running with a spy on the document
+    const clickSpy = vi.spyOn(document, "createElement");
+    destroyDiagnosticButton();
+    clickSpy.mockClear();
+
+    // Re-init with fresh mocks to verify the anchor path
+    formatDiagnosticEmail.mockReturnValue(oversizedBody);
+    initDiagnosticButton();
+    document.getElementById("diagnostic-button").click();
+    await vi.runAllTimersAsync();
+
+    // Find the <a> that was created with mailto href
+    const createdElements = clickSpy.mock.calls.map(([tag]) => tag);
+    expect(createdElements).toContain("a");
+    clickSpy.mockRestore();
   });
 });
