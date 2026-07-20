@@ -18,8 +18,14 @@ import {
 
 import {
   getProfile as dbGetProfile,
-  saveProfile as dbSaveProfile
+  saveProfile as dbSaveProfile,
+  setMetadata
 } from "./data/IndexedDBManager.js";
+
+import {
+  readMirroredSelectedProfileId,
+  readMirroredProfiles
+} from "./data/ios-storage-mirror.js";
 
 let cache = {
   profiles: [],
@@ -42,6 +48,24 @@ async function ensureInitialized(currentVersion) {
 async function refreshCache() {
   cache.profiles = await pmGetProfiles();
   cache.selectedId = await pmGetSelectedProfileId();
+
+  // iOS Safari/PWA storage isolation: if IDB is empty, try CacheStorage fallback
+  if (cache.profiles.length === 0) {
+    const mirroredProfiles = await readMirroredProfiles();
+    if (mirroredProfiles && mirroredProfiles.length > 0) {
+      console.log("[Profiles] IDB empty, restoring from CacheStorage mirror");
+      for (const profile of mirroredProfiles) {
+        await dbSaveProfile(profile);
+      }
+      const mirroredSelectedId = await readMirroredSelectedProfileId();
+      if (mirroredSelectedId) {
+        await setMetadata("meeting_program_selected_id", mirroredSelectedId);
+      }
+      cache.profiles = await pmGetProfiles();
+      cache.selectedId = mirroredSelectedId;
+    }
+  }
+
   cache.currentProfile = cache.selectedId
     ? cache.profiles.find((p) => p.id === cache.selectedId) || null
     : null;
