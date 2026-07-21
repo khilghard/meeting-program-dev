@@ -276,6 +276,3 @@ db.version(6).stores({
   drafts: "id, profileId, updatedAt" // NEW — CMS auto-save drafts (AD-04)
 });
 // No upgrade needed – additive store, no data transformation required
-
-// Export default for convenience
-export default db;

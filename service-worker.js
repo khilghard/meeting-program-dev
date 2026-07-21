@@ -26,7 +26,7 @@ console.log(`[SW] BASE_PATH detected: "${BASE_PATH}"`);
 // Legacy support - keep old MPPATH for existing users
 const MPPATH = BASE_PATH || "/meeting-program-dev";
 const APP_PREFIX = "smpwa";
-const VERSION = "2.4.36";
+const VERSION = "2.4.37";
 const CACHE_NAME = `${APP_PREFIX}-${VERSION}`;
 
 // All users now on 2.2.x - single unified cache scheme
@@ -462,55 +462,6 @@ self.addEventListener("message", (event) => {
             event.ports[0].postMessage({ success: false, error: err.message });
           }
           throw err;
-        }
-      })()
-    );
-  }
-
-  // iOS data bridge: CacheStorage is shared between Safari and Home Screen PWA,
-  // but direct main-thread access may not work reliably. Route through the SW.
-  const MIRROR_CACHE = "meeting-program-ios-mirror";
-
-  if (event.data?.action === "mirrorStore") {
-    const { key, value } = event.data;
-    event.waitUntil(
-      (async () => {
-        try {
-          const cache = await caches.open(MIRROR_CACHE);
-          const body = JSON.stringify(value);
-          await cache.put(new Request(`data://${MIRROR_CACHE}/${key}`), new Response(body));
-          if (event.ports[0]) {
-            event.ports[0].postMessage({ success: true });
-          }
-        } catch (err) {
-          console.warn("[SW] mirrorStore failed:", err);
-          if (event.ports[0]) {
-            event.ports[0].postMessage({ success: false, error: err.message });
-          }
-        }
-      })()
-    );
-  }
-
-  if (event.data?.action === "mirrorRead") {
-    const { key } = event.data;
-    event.waitUntil(
-      (async () => {
-        try {
-          const cache = await caches.open(MIRROR_CACHE);
-          const response = await cache.match(new Request(`data://${MIRROR_CACHE}/${key}`));
-          let value = null;
-          if (response) {
-            value = await response.json();
-          }
-          if (event.ports[0]) {
-            event.ports[0].postMessage({ success: true, value });
-          }
-        } catch (err) {
-          console.warn("[SW] mirrorRead failed:", err);
-          if (event.ports[0]) {
-            event.ports[0].postMessage({ success: false, error: err.message, value: null });
-          }
         }
       })()
     );

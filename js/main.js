@@ -9,6 +9,7 @@ import { isSafeUrl } from "./sanitize.js";
 import { createWorker } from "./workers/workerInterface.js";
 import { initConsoleCapture } from "./utils/console-capture.js";
 import { initDiagnosticButton } from "./components/diagnostic-button.js";
+import { isIOS, open as openIOSOnboarding } from "./components/ios-onboarding-modal.js";
 import {
   renderers,
   renderProgram,
@@ -568,7 +569,11 @@ async function handleZeroState() {
 
   const { getMetadata } = await import("./data/IndexedDBManager.js");
   const helpShown = await getMetadata("userPreference_helpShown");
-  if (!helpShown) {
+
+  // iOS: show onboarding modal with camera + manual URL entry
+  if (isIOS()) {
+    openIOSOnboarding();
+  } else if (!helpShown) {
     openHelpModal();
   }
 

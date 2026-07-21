@@ -1557,6 +1557,80 @@ footer {
   border-top: 1px solid rgba(0, 0, 0, 0.1);
 }
 
+/* iOS Onboarding Modal */
+.ios-onboarding-modal {
+  max-width: 95%;
+  width: 380px;
+  margin: 20px auto;
+}
+
+.ios-onboarding-modal .modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 16px;
+}
+
+.ios-onboarding-instructions {
+  margin: 0;
+  font-size: 0.92rem;
+  opacity: 0.85;
+  line-height: 1.4;
+}
+
+.ios-onboarding-camera {
+  position: relative;
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #000;
+  aspect-ratio: 4/3;
+}
+
+.ios-onboarding-camera video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ios-onboarding-output {
+  font-size: 0.82rem;
+  min-height: 1.2em;
+  color: var(--text-color);
+  opacity: 0.7;
+  text-align: center;
+}
+
+.ios-onboarding-manual {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ios-onboarding-manual .manual-url-input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color, #ccc);
+  border-radius: 6px;
+  font-size: 0.88rem;
+  background: var(--card-bg);
+  color: var(--text-color);
+}
+
+.ios-onboarding-manual .primary-btn,
+.ios-onboarding-skip .secondary-btn {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 8px 14px;
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+.ios-onboarding-skip {
+  text-align: center;
+}
+
 /* Language List Styles */
 .language-list {
   list-style: none;
