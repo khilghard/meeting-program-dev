@@ -7,12 +7,10 @@
     "js/main.js",
     "js/cms.js",
     "js/cms-agenda.js",
-    "service-worker.js",
-    "server.cjs"
+    "service-worker.js"
   ],
   "project": [
     "js/**/*.js",
-    "src/**/*.js",
     "scripts/**/*.{js,cjs,mjs}",
     "*.{js,cjs,mjs}"
   ],

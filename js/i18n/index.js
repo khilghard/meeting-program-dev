@@ -321,7 +321,10 @@ const translationsData = {
     "cms.input.priesthoodBusiness": "Priesthood business",
     "cms.action.addMoveIn": "Add Move-In",
     "cms.action.addConvert": "Add Convert",
-    "cms.input.otherBusiness": "Other business"
+    "cms.input.otherBusiness": "Other business",
+    iosOnboardingTitle: "Set Up Your Program",
+    iosOnboardingInstructions: "Scan the QR code on your meeting program, or enter the URL manually below.",
+    skip: "Skip"
   },
   es: {
     churchName: "La Iglesia de Jesucristo de los Santos de los Últimos Días",
@@ -636,7 +639,10 @@ const translationsData = {
     "cms.action.addMoveIn": "Agregar nuevo traslado",
     "cms.action.addConvert": "Agregar converso",
     "cms.input.otherBusiness": "Otros asuntos",
-    "cms.action.addRow": "Agregar fila"
+    "cms.action.addRow": "Agregar fila",
+    iosOnboardingTitle: "Configura tu Programa",
+    iosOnboardingInstructions: "Escanea el c\u00f3digo QR de tu programa de reuniones, o ingresa la URL manualmente abajo.",
+    skip: "Omitir"
   },
   fr: {
     churchName: "L'Église de Jésus-Christ des Saints des Derniers Jours",
@@ -952,7 +958,10 @@ const translationsData = {
     "cms.action.addMoveIn": "Ajouter un emm\u00e9nagement",
     "cms.action.addConvert": "Ajouter un converti",
     "cms.input.otherBusiness": "Autres affaires",
-    "cms.action.addRow": "Ajouter une ligne"
+    "cms.action.addRow": "Ajouter une ligne",
+    iosOnboardingTitle: "Configurez votre Programme",
+    iosOnboardingInstructions: "Scannez le code QR de votre programme de r\u00e9union, ou saisissez l'URL manuellement ci-dessous.",
+    skip: "Passer"
   },
   swa: {
     churchName: "Kanisa La Yesu Kristo La Watakatifu wa Siku za Mwisho",
@@ -1266,7 +1275,10 @@ const translationsData = {
     "cms.input.priesthoodBusiness": "Mambo ya ukuhani",
     "cms.action.addMoveIn": "Ongeza waliohamia",
     "cms.action.addConvert": "Ongeza mwongofu",
-    "cms.input.otherBusiness": "Mambo mengine"
+    "cms.input.otherBusiness": "Mambo mengine",
+    iosOnboardingTitle: "Weka Mpango Wako",
+    iosOnboardingInstructions: "Skani msimbo wa QR wa mpango wako wa mikutano, au weka URL kwa mkono chini.",
+    skip: "Ruka"
   }
 };
 

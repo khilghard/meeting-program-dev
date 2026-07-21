@@ -19,10 +19,6 @@ import {
 import { DB_NAME } from "./db.js";
 import { clearHistory } from "../history.js";
 import { VERSION as APP_VERSION_FALLBACK } from "../version.js";
-import {
-  mirrorSelectedProfileId,
-  mirrorProfiles
-} from "./ios-storage-mirror.js";
 
 const BASE_DB_NAME = "MeetingProgramDB";
 const PROD_DB_NAME = `${BASE_DB_NAME}__meeting-program`;
@@ -221,21 +217,6 @@ function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
 
-/**
- * Mirror current profile state to CacheStorage so Home Screen PWA
- * on iOS can access data set up in Safari (they have isolated IndexedDB).
- */
-async function mirrorProfilesState() {
-  try {
-    const profiles = await dbGetAllProfiles();
-    const selectedId = await getMetadata(SELECTED_PROFILE_KEY);
-    await mirrorProfiles(profiles);
-    await mirrorSelectedProfileId(selectedId);
-  } catch (e) {
-    console.warn("[ProfileManager] CacheStorage mirror failed:", e);
-  }
-}
-
 function validateUrl(url) {
   if (!url || typeof url !== "string") {
     return { valid: false, error: "URL is required" };
@@ -325,8 +306,6 @@ export async function selectProfile(id) {
     profileId: id,
     selectedProfileKey: SELECTED_PROFILE_KEY
   });
-
-  await mirrorProfilesState();
 }
 
 export async function getSelectedProfileId() {
@@ -360,10 +339,7 @@ export async function deactivateProfile(id) {
       await selectProfile(active[0].id);
     } else {
       await setMetadata(SELECTED_PROFILE_KEY, null);
-      await mirrorProfilesState();
     }
-  } else {
-    await mirrorProfilesState();
   }
 }
 
@@ -397,10 +373,7 @@ export async function removeProfile(id) {
       await selectProfile(profiles[0].id);
     } else {
       await setMetadata(SELECTED_PROFILE_KEY, null);
-      await mirrorProfilesState();
     }
-  } else {
-    await mirrorProfilesState();
   }
 }
 

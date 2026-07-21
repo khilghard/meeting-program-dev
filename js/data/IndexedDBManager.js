@@ -6,7 +6,7 @@
  * and safe upgrades for existing users.
  */
 
-import db, { DB_NAME, DB_SCHEMA_VERSION } from "./db.js";
+import { db, DB_NAME, DB_SCHEMA_VERSION } from "./db.js";
 
 const DB_VERSION = DB_SCHEMA_VERSION;
 const STORES = ["profiles", "archives", "metadata", "migrations", "history", "drafts"];
@@ -171,15 +171,23 @@ async function cleanupOldArchives(days) {
 async function calculateChecksum(data) {
   if (!data) return "";
 
-  // If data is already a string, use it; otherwise stringify it
   const dataStr = typeof data === "string" ? data : JSON.stringify(data);
 
-  const encoder = new TextEncoder();
-  const dataBuffer = encoder.encode(dataStr);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", dataBuffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-  return hashHex;
+  // Use SubtleCrypto when available (secure contexts: HTTPS/localhost)
+  if (crypto?.subtle) {
+    const encoder = new TextEncoder();
+    const dataBuffer = encoder.encode(dataStr);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", dataBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  // Fallback for non-secure contexts (e.g. iOS Home Screen over HTTP)
+  let hash = 0;
+  for (let i = 0; i < dataStr.length; i++) {
+    hash = (hash * 31 + dataStr.charCodeAt(i)) | 0;
+  }
+  return "djb2-" + (hash >>> 0).toString(16);
 }
 
 async function getArchiveWithValidation(profileId, programDate) {
